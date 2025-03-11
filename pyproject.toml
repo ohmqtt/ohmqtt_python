@@ -1,0 +1,31 @@
+[project]
+name = "ohmqtt"
+version = "0.1.0"
+description = "MQTT Client"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "cryptography>=44.0.2",
+    "mypy>=1.15.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "pyyaml>=6.0.2",
+    "ruff>=0.11.2",
+]
+
+[tool.mypy]
+files = ["ohmqtt"]
+
+[tool.ruff]
+include = [
+    "pyproject.toml",
+    "ohmqtt/**/*.py",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=ohmqtt -v"
+

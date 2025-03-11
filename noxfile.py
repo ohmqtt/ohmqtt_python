@@ -1,0 +1,13 @@
+import nox
+
+nox.options.default_venv_backend = "uv|virtualenv"
+py_versions = ("3.10", "3.11", "3.12", "3.13")
+
+
+@nox.session(python=py_versions)
+def tests(session):
+    session.install(".")
+    session.install("cryptography", "mypy", "pytest", "pytest-cov", "pytest-mock", "pyyaml", "ruff")
+    session.run("ruff", "check")
+    session.run("mypy")
+    session.run("pytest", "--cov-report=xml:.coverage.nox.xml", "--cov-report=term")

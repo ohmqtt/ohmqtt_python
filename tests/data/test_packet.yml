@@ -1,0 +1,276 @@
+test_connect_encode:
+  - args:
+      protocol_version: 5
+      keep_alive: 30
+      client_id: "foo"
+      clean_start: true
+    raw: "101000044d5154540502001e000003666f6f"
+  - args:
+      protocol_version: 5
+      keep_alive: 300
+      client_id: "bar"
+      clean_start: false
+      username: "🐍"
+      password: "8a8a8a8a"
+    raw: "101c00044d51545405c0012c0000036261720004f09f908d00048a8a8a8a"
+  - args:
+      protocol_version: 5
+      keep_alive: 3000
+      client_id: "baz"
+      clean_start: true
+      will_topic: "duck"
+      will_payload: "9c9c9c9c"
+      will_qos: 1
+      will_retain: true
+    raw: "101d00044d515454052e0bb800000362617a0000046475636b00049c9c9c9c"
+  - args:
+      protocol_version: 5
+      keep_alive: 30000
+      client_id: "bones"
+      clean_start: false
+      username: "jank"
+      password: "7f7f7f7f7f"
+      will_topic: "goose"
+      will_payload: "8b8b8b"
+      will_qos: 2
+      will_retain: false
+      properties:
+      - - "SessionExpiryInterval"
+        - 300
+      - - "ReceiveMaximum"
+        - 100
+      - - "MaximumPacketSize"
+        - 65535
+      - - "TopicAliasMaximum"
+        - 10
+      - - "RequestResponseInformation"
+        - true
+      - - "RequestProblemInformation"
+        - true
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+      - - "AuthenticationMethod"
+        - "🐍"
+      - - "AuthenticationData"
+        - "8a8a8a8a"
+    raw: "107100044d51545405d4753045110000012c210064270000ffff22000a19011701260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c150004f09f908d1600048a8a8a8a0005626f6e6573000005676f6f736500038b8b8b00046a616e6b00057f7f7f7f7f"
+
+test_connect_decode_errors:
+  - raw: "121000044d5154540502001e000003666f6f"
+    reason_code: 0x81
+  - raw: "101000044d5154510502001e000003666f6f"
+    reason_code: 0x82
+  - raw: "101000044d515454ef02001e000003666f6f"
+    reason_code: 0x84
+
+test_connack_encode:
+  - args:
+      session_present: false
+      reason_code: 0
+      properties:
+      - - "SessionExpiryInterval"
+        - 300
+      - - "AssignedClientIdentifier"
+        - "aclient"
+      - - "ServerKeepAlive"
+        - 30
+      - - "AuthenticationMethod"
+        - "🐍"
+      - - "AuthenticationData"
+        - "8a8a8a8a"
+      - - "ResponseInformation"
+        - "info"
+      - - "ServerReference"
+        - "ref"
+      - - "ReasonString"
+        - "reason"
+      - - "ReceiveMaximum"
+        - 100
+      - - "TopicAliasMaximum"
+        - 10
+      - - "MaximumQoS"
+        - 2
+      - - "RetainAvailable"
+        - true
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+      - - "MaximumPacketSize"
+        - 65535
+      - - "WildcardSubscriptionAvailable"
+        - true
+      - - "SubscriptionIdentifierAvailable"
+        - true
+      - - "SharedSubscriptionAvailable"
+        - true
+    raw: "207100006e110000012c12000761636c69656e7413001e150004f09f908d1600048a8a8a8a1a0004696e666f1c00037265661f0006726561736f6e21006422000a24022501260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c270000ffff280129012a01"
+  - args:
+      session_present: false
+      reason_code: 0x81
+    raw: "2003008100"
+
+test_connack_decode_errors:
+  - raw: "2203008100"
+    reason_code: 0x81
+
+test_publish_encode:
+  - args:
+      topic: "foo"
+      qos: 0
+      retain: false
+      dup: false
+      payload: "oof"
+    raw: "30090003666f6f006f6f66"
+  - args:
+      topic: "shoo"
+      qos: 2
+      retain: true
+      dup: true
+      packet_id: 16
+      payload: "how"
+    raw: "3d0c000473686f6f001000686f77"
+  - args:
+      topic: "bar"
+      qos: 0
+      retain: false
+      dup: false
+      payload: "baz"
+      properties:
+      - - "PayloadFormatIndicator"
+        - 1
+      - - "MessageExpiryInterval"
+        - 300
+      - - "ContentType"
+        - "text/plain"
+      - - "ResponseTopic"
+        - "response"
+      - - "CorrelationData"
+        - "5f5f5f"
+      - - "SubscriptionIdentifier"
+        - 100
+        - 200
+        - 300
+        - 400
+      - - "TopicAlias"
+        - 1000
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "305f0003626172560101020000012c03000a746578742f706c61696e080008726573706f6e73650900035f5f5f0bc8010b640b90030bac022303e8260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c62617a"
+
+test_publish_decode_errors:
+  - raw: "3f0c000473686f6f001000686f77"
+    reason_code: 0x81
+
+test_puback_encode:
+  - args:
+      packet_id: 1
+    raw: "40020001"
+  - args:
+      packet_id: 65535
+      reason_code: 0x00
+    raw: "4002ffff"
+  - args:
+      packet_id: 65535
+      reason_code: 0x81
+    raw: "4003ffff81"
+  - args:
+      packet_id: 255
+      reason_code: 0x81
+      properties:
+      - - "ReasonString"
+        - "reason"
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "403000ff812c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
+
+test_puback_decode_errors:
+  - raw: "42020001"
+    reason_code: 0x81
+
+test_subscribe_encode:
+  - args:
+      packet_id: 1
+      topics: [
+        ["foo", 0],
+        ["bar", 1],
+        ["baz", 2],
+        ["qux", 2],
+      ]
+    raw: "821b0001000003666f6f00000362617201000362617a02000371757802"
+  - args:
+      packet_id: 65535
+      topics: [
+        ["foo", 0],
+        ["bar", 1],
+        ["baz", 2],
+        ["qux", 2],
+      ]
+      properties:
+      - - "SubscriptionIdentifier"
+        - 100
+        - 200
+        - 300
+        - 400
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "8249ffff2e0bc8010b640b90030bac02260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c0003666f6f00000362617201000362617a02000371757802"
+
+test_subscribe_decode_errors:
+  - raw: "841b0001000003666f6f00000362617201000362617a02000371757802"
+    reason_code: 0x81
+
+test_suback_encode:
+  - args:
+      packet_id: 1
+      reason_codes: [0, 1, 2, 2]
+    raw: "900700010000010202"
+  - args:
+      packet_id: 65535
+      reason_codes: [0, 1, 2, 2]
+      properties:
+      - - "ReasonString"
+        - "reason"
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "9033ffff2c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c00010202"
+
+test_suback_decode_errors:
+  - raw: "920700010000010202"
+    reason_code: 0x81
+
+test_disconnect_encode:
+  - args:
+      reason_code: 0
+      properties:
+      - - "SessionExpiryInterval"
+        - 300
+      - - "ServerReference"
+        - "ref"
+      - - "ReasonString"
+        - "reason"
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "e0390037110000012c1c00037265661f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
+  - args:
+      reason_code: 0x82
+    raw: "e0028200"
+  - args:
+      reason_code: 0x00
+    raw: "e000"
+
+test_disconnect_decode_errors:
+  - raw: "e100"
+    reason_code: 0x81

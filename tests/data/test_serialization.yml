@@ -1,0 +1,190 @@
+test_encode_bool:
+  - input: true
+    output: "01"
+  - input: false
+    output: "00"
+
+test_decode_bool_errors:
+  - input: ""
+  - input: "02"
+  - input: "ff"
+
+test_encode_uint8:
+  - input: 0
+    output: "00"
+  - input: 1
+    output: "01"
+  - input: 127
+    output: "7f"
+  - input: 128
+    output: "80"
+  - input: 255
+    output: "ff"
+
+test_decode_uint8_errors:
+  - input: ""
+
+test_encode_uint16:
+  - input: 0
+    output: "0000"
+  - input: 1
+    output: "0001"
+  - input: 127
+    output: "007f"
+  - input: 128
+    output: "0080"
+  - input: 255
+    output: "00ff"
+  - input: 256
+    output: "0100"
+  - input: 65535
+    output: "ffff"
+
+test_decode_uint16_errors:
+  - input: ""
+  - input: "00"
+
+test_encode_uint32:
+  - input: 0
+    output: "00000000"
+  - input: 1
+    output: "00000001"
+  - input: 127
+    output: "0000007f"
+  - input: 128
+    output: "00000080"
+  - input: 255
+    output: "000000ff"
+  - input: 256
+    output: "00000100"
+  - input: 65535
+    output: "0000ffff"
+  - input: 65536
+    output: "00010000"
+  - input: 4294967295
+    output: "ffffffff"
+
+test_decode_uint32_errors:
+  - input: ""
+  - input: "00"
+  - input: "0000"
+  - input: "000000"
+
+test_encode_string:
+  - name: "foo"
+    input: "foo"
+    output: "0003666f6f"
+  - name: "unicode emoji"
+    input: "🐍"
+    output: "0004f09f908d"
+  - name: "empty"
+    input: ""
+    output: "0000"
+
+test_decode_string:
+  - name: "foo with null after"
+    input: "0003666f6f00"
+    output: "foo"
+
+test_decode_string_errors:
+  - name: "4 byte foo"
+    input: "0004666f6f"
+  - name: "1 byte length"
+    input: "00"
+  - name: "0 byte length"
+    input: ""
+  - name: "null byte"
+    input: "000366006f"
+  - name: "null terminator"
+    input: "0003666f00"
+
+test_encode_string_pair:
+  - name: "foo:bar"
+    input: ["foo", "bar"]
+    output: "0003666f6f0003626172"
+  - name: "unicode emoji:unicode emoji"
+    input: ["🐍", "🐍"]
+    output: "0004f09f908d0004f09f908d"
+  - name: "empty:empty"
+    input: ["", ""]
+    output: "00000000"
+
+test_decode_string_pair_errors:
+  - name: "4 byte foo:bar"
+    input: "0004666f6f0003626172"
+  - name: "one string"
+    input: "0003666f6f"
+  - name: "1 byte length"
+    input: "00"
+  - name: "0 byte length"
+    input: ""
+  - name: "null byte"
+    input: "000366006f0003626172"
+  - name: "null terminator"
+    input: "0003666f6f0003626100"
+
+test_encode_binary:
+  - name: "three bytes"
+    input: "010203"
+    output: "0003010203"
+  - name: "empty"
+    input: ""
+    output: "0000"
+
+test_decode_binary_errors:
+  - name: "underrun"
+    input: "0004010203"
+  - name: "1 byte length"
+    input: "00"
+  - name: "0 byte length"
+    input: ""
+
+test_encode_varint:
+  - input: 0
+    output: "00"
+  - input: 1
+    output: "01"
+  - input: 127
+    output: "7f"
+  - input: 128
+    output: "8001"
+  - input: 16383
+    output: "ff7f"
+  - input: 16384
+    output: "808001"
+  - input: 2097151
+    output: "ffff7f"
+  - input: 2097152
+    output: "80808001"
+  - input: 268435455
+    output: "ffffff7f"
+
+test_encode_varint_limits:
+  - input: -1
+  - input: 268435456
+
+test_decode_varint:
+  - input: "00"
+    output: 0
+  - input: "01"
+    output: 1
+  - input: "7f"
+    output: 127
+  - input: "8001"
+    output: 128
+  - input: "ff7f"
+    output: 16383
+  - input: "808001"
+    output: 16384
+  - input: "ffff7f"
+    output: 2097151
+  - input: "80808001"
+    output: 2097152
+  - input: "ffffff7f"
+    output: 268435455
+  - input: "ffffff7fabcdef"
+    output: 268435455
+
+test_decode_varint_limits:
+  - input: ""
+  - input: "ffffffffff"
