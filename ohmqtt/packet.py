@@ -23,19 +23,19 @@ from .serialization import (
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
     packet_type: MQTTPacketType
-    properties: MQTTProperties
+    __slots__ = tuple()  # type: ignore
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MQTTPacket):
+        if not isinstance(other, self.__class__):
             return NotImplemented
-        return self.__dict__ == other.__dict__
+        return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
 
     def __str__(self) -> str:
-        attrs = ", ".join([f"{k}={str(v)}" for k, v in self.__dict__.items()])
+        attrs = ", ".join([f"{k}={str(getattr(self, k))}" for k in self.__slots__])
         return f"{self.__class__.__name__}[{attrs}]"
 
     def __hash__(self) -> int:
-        return hash(tuple(sorted(self.__dict__.items())))
+        return hash(tuple(getattr(self, attr) for attr in self.__slots__))
 
     @abstractmethod
     def encode(self) -> bytes:
@@ -49,10 +49,25 @@ class MQTTPacket(metaclass=ABCMeta):
 
 class MQTTPacketWithId(MQTTPacket, metaclass=ABCMeta):
     packet_id: int
+    __slots__ = ("packet_id",)
 
 
 class MQTTConnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNECT
+    __slots__ = (
+        "properties",
+        "client_id",
+        "keep_alive",
+        "protocol_version",
+        "clean_start",
+        "will_props",
+        "will_topic",
+        "will_payload",
+        "will_qos",
+        "will_retain",
+        "username",
+        "password",
+    )
 
     def __init__(
         self,
@@ -192,6 +207,7 @@ class MQTTConnectPacket(MQTTPacket):
 
 class MQTTConnAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNACK
+    __slots__ = ("properties", "reason_code", "session_present")
 
     def __init__(
         self,
@@ -221,6 +237,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
 class MQTTPublishPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.PUBLISH
+    __slots__ = ("properties", "packet_id", "topic", "payload", "qos", "retain", "dup")
 
     def __init__(
         self,
@@ -287,6 +304,7 @@ class MQTTPublishPacket(MQTTPacketWithId):
 
 class MQTTPubAckPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.PUBACK
+    __slots__ = ("properties", "packet_id", "reason_code",)
 
     def __init__(
         self,
@@ -331,6 +349,7 @@ class MQTTPubAckPacket(MQTTPacketWithId):
 
 class MQTTSubscribePacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.SUBSCRIBE
+    __slots__ = ("properties", "packet_id", "topics",)
 
     def __init__(
         self,
@@ -372,6 +391,7 @@ class MQTTSubscribePacket(MQTTPacketWithId):
 
 class MQTTSubAckPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.SUBACK
+    __slots__ = ("properties", "packet_id", "reason_codes",)
 
     def __init__(
         self,
@@ -407,6 +427,7 @@ class MQTTSubAckPacket(MQTTPacketWithId):
 
 class MQTTPingReqPacket(MQTTPacket):
     packet_type = MQTTPacketType.PINGREQ
+    __slots__ = tuple()
 
     def encode(self) -> bytes:
         return encode_packet(self.packet_type, 0, b"")
@@ -422,6 +443,7 @@ class MQTTPingReqPacket(MQTTPacket):
 
 class MQTTPingRespPacket(MQTTPacket):
     packet_type = MQTTPacketType.PINGRESP
+    __slots__ = tuple()
 
     def encode(self) -> bytes:
         return encode_packet(self.packet_type, 0, b"")
@@ -437,6 +459,7 @@ class MQTTPingRespPacket(MQTTPacket):
 
 class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.DISCONNECT
+    __slots__ = ("properties", "reason_code",)
 
     def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTProperties | None = None):
         self.reason_code = reason_code
