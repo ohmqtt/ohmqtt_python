@@ -250,6 +250,7 @@ _MQTTPropertyNameToKwarg: dict[str, str] = {
 class MQTTProperties:
     """Container for MQTT packet properties."""
     properties: MQTTPropertyDict
+    __slots__ = ("properties",)
 
     def __init__(self, properties: MQTTPropertyDict | None = None):
         self.properties = properties or {}
