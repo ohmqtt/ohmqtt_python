@@ -10,4 +10,4 @@ def tests(session):
     session.install("cryptography", "mypy", "pytest", "pytest-cov", "pytest-mock", "pyyaml", "ruff")
     session.run("ruff", "check")
     session.run("mypy")
-    session.run("pytest", "--cov-report=xml:.coverage.nox.xml", "--cov-report=term")
+    session.run("pytest", "--cov-report=term-missing")

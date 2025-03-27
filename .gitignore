@@ -3,7 +3,6 @@
 .vscode/
 uv.lock
 .coverage
-.coverage.nox.xml
 .python-version
 .venv/
 build/
