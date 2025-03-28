@@ -283,6 +283,9 @@ class MQTTProperties:
 
     def validate(self, packet_type: MQTTPacketType | None = None, is_will: bool = False) -> None:
         """Validate the properties against a packet type or as a will message."""
+        if not self.properties:
+            # Fast path for empty properties.
+            return
         for key, value in self.properties.items():
             prop_id = MQTTPropertyId[key]
             if packet_type is not None and packet_type not in MQTTPropertyPacketTypes[prop_id]:
@@ -294,6 +297,9 @@ class MQTTProperties:
 
     def encode(self) -> bytes:
         """Encode MQTT properties to a buffer."""
+        if not self.properties:
+            # Fast path for empty properties.
+            return b"\x00"
         data = b""
         for key, prop_value in self.properties.items():
             prop_id = MQTTPropertyId[key]
@@ -321,6 +327,9 @@ class MQTTProperties:
         
         Returns a tuple of the decoded properties and the number of bytes consumed."""
         length, offset = decode_varint(data)
+        if length == 0:
+            # Fast path for empty properties.
+            return cls(), 1
         properties: MQTTPropertyDict = {}
         while offset < length:
             # The spec calls for a variable integer for the property ID,
