@@ -484,7 +484,7 @@ class MQTTDisconnectPacket(MQTTPacket):
         return MQTTDisconnectPacket(MQTTReasonCode(reason_code), properties=props)
 
 
-CONTROL_PACKET_CLASSES: Mapping[MQTTPacketType, type[MQTTPacket]] = {
+ControlPacketClasses: Mapping[MQTTPacketType, type[MQTTPacket]] = {
     MQTTPacketType.CONNECT: MQTTConnectPacket,
     MQTTPacketType.CONNACK: MQTTConnAckPacket,
     MQTTPacketType.PUBLISH: MQTTPublishPacket,
@@ -502,15 +502,14 @@ def decode_packet(data: bytes) -> MQTTPacket:
         packet_type = MQTTPacketType(data[0] >> 4)
     except ValueError:
         raise MQTTError(f"Invalid packet type {data[0] >> 4}", MQTTReasonCode.MalformedPacket)
-    flags = data[0] & 0x0F
+    flags = data[0] % 0x10
 
-    offset = 1
     length, sz = decode_varint(data[1:])
-    offset += sz
+    offset = sz + 1
     remainder = data[offset:]
     if len(remainder) != length:
         raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode.MalformedPacket)
-    return CONTROL_PACKET_CLASSES[packet_type].decode(flags, remainder)
+    return ControlPacketClasses[packet_type].decode(flags, remainder)
 
 
 def encode_packet(packet_type: MQTTPacketType, flags: int, data: bytes) -> bytes:
