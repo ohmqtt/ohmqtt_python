@@ -264,11 +264,11 @@ class MQTTPublishPacket(MQTTPacketWithId):
             flags += 1
         if self.dup:
             flags += 8
-        var_header = encode_string(self.topic)
         if self.qos > 0:
-            var_header += encode_uint16(self.packet_id)
-        properties = self.properties.encode()
-        data = var_header + properties + self.payload
+            datas = (encode_string(self.topic), encode_uint16(self.packet_id), self.properties.encode(), self.payload)
+        else:
+            datas = (encode_string(self.topic), self.properties.encode(), self.payload)
+        data = b"".join(datas)
         return encode_packet(self.packet_type, flags, data)
     
     @classmethod
