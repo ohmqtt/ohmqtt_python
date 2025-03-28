@@ -259,15 +259,15 @@ class MQTTPublishPacket(MQTTPacketWithId):
         self.properties = properties if properties is not None else MQTTProperties()
 
     def encode(self) -> bytes:
-        flags = self.qos << 1
-        if self.retain:
-            flags += 1
+        if self.qos > 0:
+            datas = [encode_string(self.topic), encode_uint16(self.packet_id), self.properties.encode(), self.payload]
+            flags = self.qos << 1
+        else:
+            datas = [encode_string(self.topic), self.properties.encode(), self.payload]
+            flags = 0
+        flags += self.retain
         if self.dup:
             flags += 8
-        if self.qos > 0:
-            datas = (encode_string(self.topic), encode_uint16(self.packet_id), self.properties.encode(), self.payload)
-        else:
-            datas = (encode_string(self.topic), self.properties.encode(), self.payload)
         data = b"".join(datas)
         return encode_packet(self.packet_type, flags, data)
     
@@ -276,12 +276,11 @@ class MQTTPublishPacket(MQTTPacketWithId):
         qos = (flags >> 1) & 0x03
         if qos > 2:
             raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode.MalformedPacket)
-        retain = (flags & 0x01) == 1
+        retain = (flags % 2) == 1
         dup = (flags & 0x08) == 8
 
-        offset = 0
-        topic, topic_length = decode_string(data[offset:])
-        offset += topic_length
+        topic, topic_length = decode_string(data)
+        offset = topic_length
         if qos > 0:
             packet_id, packet_id_length = decode_uint16(data[offset:])
             offset += packet_id_length
