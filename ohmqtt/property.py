@@ -183,177 +183,80 @@ MQTTPropertyAllowedInWill: frozenset[MQTTPropertyId] = frozenset({
 })
 
 
-# Mapping of keyword arguments to MQTT property names.
-_MQTTPropertyKwargToName: dict[str, str] = {
-    "payload_format_indicator": "PayloadFormatIndicator",
-    "message_expiry_interval": "MessageExpiryInterval",
-    "content_type": "ContentType",
-    "response_topic": "ResponseTopic",
-    "correlation_data": "CorrelationData",
-    "subscription_identifier": "SubscriptionIdentifier",
-    "session_expiry_interval": "SessionExpiryInterval",
-    "assigned_client_identifier": "AssignedClientIdentifier",
-    "server_keep_alive": "ServerKeepAlive",
-    "authentication_method": "AuthenticationMethod",
-    "authentication_data": "AuthenticationData",
-    "request_problem_information": "RequestProblemInformation",
-    "will_delay_interval": "WillDelayInterval",
-    "request_response_information": "RequestResponseInformation",
-    "response_information": "ResponseInformation",
-    "server_reference": "ServerReference",
-    "reason_string": "ReasonString",
-    "receive_maximum": "ReceiveMaximum",
-    "topic_alias_maximum": "TopicAliasMaximum",
-    "topic_alias": "TopicAlias",
-    "maximum_qos": "MaximumQoS",
-    "retain_available": "RetainAvailable",
-    "user_property": "UserProperty",
-    "maximum_packet_size": "MaximumPacketSize",
-    "wildcard_subscription_available": "WildcardSubscriptionAvailable",
-    "subscription_identifier_available": "SubscriptionIdentifierAvailable",
-    "shared_subscription_available": "SharedSubscriptionAvailable",
-}
+def encode_properties(properties: MQTTPropertyDict) -> bytes:
+    """Encode MQTT properties to a buffer."""
+    if not properties:
+        # Fast path for empty properties.
+        return b"\x00"
+    data = b""
+    for key, prop_value in properties.items():
+        prop_id = MQTTPropertyId[key]
+        serializer = MQTTPropertySerializers[prop_id]
+
+        # MQTT specification calls for a variable integer for the property ID,
+        #   but we know that the IDs are all 1 byte long,
+        #   so we will encode them as uint8 to save a branch.
+        encoded_prop_id = encode_uint8(prop_id)
+
+        if key in ("SubscriptionIdentifier", "UserProperty"):
+            # These properties may appear multiple times, in any order.
+            # Ignore typing here because mypy doesn't follow the TypedDict.
+            for sub_value in prop_value: # type: ignore
+                data += encoded_prop_id + serializer(sub_value)
+        else:
+            # Ignore typing here because mypy doesn't follow the TypedDict.
+            data += encoded_prop_id + serializer(prop_value) # type: ignore
+
+    return encode_varint(len(data)) + data
 
 
-# Mapping of MQTT property names to keyword arguments.
-_MQTTPropertyNameToKwarg: dict[str, str] = {
-    "PayloadFormatIndicator": "payload_format_indicator",
-    "MessageExpiryInterval": "message_expiry_interval",
-    "ContentType": "content_type",
-    "ResponseTopic": "response_topic",
-    "CorrelationData": "correlation_data",
-    "SubscriptionIdentifier": "subscription_identifier",
-    "SessionExpiryInterval": "session_expiry_interval",
-    "AssignedClientIdentifier": "assigned_client_identifier",
-    "ServerKeepAlive": "server_keep_alive",
-    "AuthenticationMethod": "authentication_method",
-    "AuthenticationData": "authentication_data",
-    "RequestProblemInformation": "request_problem_information",
-    "WillDelayInterval": "will_delay_interval",
-    "RequestResponseInformation": "request_response_information",
-    "ResponseInformation": "response_information",
-    "ServerReference": "server_reference",
-    "ReasonString": "reason_string",
-    "ReceiveMaximum": "receive_maximum",
-    "TopicAliasMaximum": "topic_alias_maximum",
-    "TopicAlias": "topic_alias",
-    "MaximumQoS": "maximum_qos",
-    "RetainAvailable": "retain_available",
-    "UserProperty": "user_property",
-    "MaximumPacketSize": "maximum_packet_size",
-    "WildcardSubscriptionAvailable": "wildcard_subscription_available",
-    "SubscriptionIdentifierAvailable": "subscription_identifier_available",
-    "SharedSubscriptionAvailable": "shared_subscription_available",
-}
+def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
+    """Decode MQTT properties from a buffer.
+    
+    Returns a tuple of the decoded properties and the number of bytes consumed."""
+    length, offset = decode_varint(data)
+    if length == 0:
+        # Fast path for empty properties.
+        return {}, 1
+    properties: MQTTPropertyDict = {}
+    while offset < length:
+        # The spec calls for a variable integer for the property ID,
+        #   but we know that the IDs are all 1 byte long,
+        #   so we will decode them as uint8 to save a branch.
+        key, key_length = decode_uint8(data[offset:])
+        offset += key_length
+        prop_key = MQTTPropertyId(key)
+        prop_name = prop_key.name
+        deserializer: _DeserializerTypes = MQTTPropertyDeserializers[prop_key]
+        value, value_length = deserializer(data[offset:])
+        offset += value_length
+        # Ignore typing below because mypy doesn't support non-literal TypedDict keys.
+        if prop_key == MQTTPropertyId.SubscriptionIdentifier:
+            # This property may appear multiple times, in any order.
+            if prop_name not in properties:
+                properties[prop_name] = set() # type: ignore
+            properties[prop_name].add(value) # type: ignore
+        elif prop_key == MQTTPropertyId.UserProperty:
+            # This property may appear multiple times, in any order.
+            if prop_name not in properties:
+                properties[prop_name] = [] # type: ignore
+            properties[prop_name].append(value) # type: ignore
+        else:
+            # Other properties must appear exactly once.
+            properties[prop_name] = value # type: ignore
+    return properties, offset
 
 
-class MQTTProperties:
-    """Container for MQTT packet properties."""
-    properties: MQTTPropertyDict
-    __slots__ = ("properties",)
-
-    def __init__(self, properties: MQTTPropertyDict | None = None):
-        self.properties = properties or {}
-
-    def __str__(self) -> str:
-        prop_list = ", ".join([f"{key}={value!r}" for key, value in self.properties.items()])
-        return f"MQTTProperties[{prop_list}]"
-
-    def __iter__(self):
-        return iter(self.properties)
-
-    def __len__(self):
-        return len(self.properties)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MQTTProperties):
-            return NotImplemented
-        return self.properties == other.properties
-
-    def __getitem__(self, key: str):
-        # Ignore typing here because mypy doesn't support non-literal TypedDict keys.
-        return self.properties[key] # type: ignore
-
-    def __hash__(self) -> int:
-        return hash(tuple(sorted(self.properties.items())))
-
-    def copy(self) -> "MQTTProperties":
-        """Return a copy of the properties."""
-        return MQTTProperties(self.properties)
-
-    def validate(self, packet_type: MQTTPacketType | None = None, is_will: bool = False) -> None:
-        """Validate the properties against a packet type or as a will message."""
-        if not self.properties:
-            # Fast path for empty properties.
-            return
-        for key, value in self.properties.items():
-            prop_id = MQTTPropertyId[key]
-            if packet_type is not None and packet_type not in MQTTPropertyPacketTypes[prop_id]:
-                raise MQTTError(f"Property {prop_id} not allowed in packet type {packet_type}", MQTTReasonCode.ProtocolError)
-            if is_will and MQTTPropertyId[key] not in MQTTPropertyAllowedInWill:
-                raise MQTTError(f"Property {prop_id} not allowed in Will message", MQTTReasonCode.ProtocolError)
-        # TODO: Numeric limits
-        # TODO: Uniqueness
-
-    def encode(self) -> bytes:
-        """Encode MQTT properties to a buffer."""
-        if not self.properties:
-            # Fast path for empty properties.
-            return b"\x00"
-        data = b""
-        for key, prop_value in self.properties.items():
-            prop_id = MQTTPropertyId[key]
-            serializer = MQTTPropertySerializers[prop_id]
-
-            # MQTT specification calls for a variable integer for the property ID,
-            #   but we know that the IDs are all 1 byte long,
-            #   so we will encode them as uint8 to save a branch.
-            encoded_prop_id = encode_uint8(prop_id)
-
-            if key in ("SubscriptionIdentifier", "UserProperty"):
-                # These properties may appear multiple times, in any order.
-                # Ignore typing here because mypy doesn't follow the TypedDict.
-                for sub_value in prop_value: # type: ignore
-                    data += encoded_prop_id + serializer(sub_value)
-            else:
-                # Ignore typing here because mypy doesn't follow the TypedDict.
-                data += encoded_prop_id + serializer(prop_value) # type: ignore
-
-        return encode_varint(len(data)) + data
-
-    @classmethod
-    def decode(cls, data: bytes) -> tuple["MQTTProperties", int]:
-        """Decode MQTT properties from a buffer.
-        
-        Returns a tuple of the decoded properties and the number of bytes consumed."""
-        length, offset = decode_varint(data)
-        if length == 0:
-            # Fast path for empty properties.
-            return cls(), 1
-        properties: MQTTPropertyDict = {}
-        while offset < length:
-            # The spec calls for a variable integer for the property ID,
-            #   but we know that the IDs are all 1 byte long,
-            #   so we will decode them as uint8 to save a branch.
-            key, key_length = decode_uint8(data[offset:])
-            offset += key_length
-            prop_key = MQTTPropertyId(key)
-            prop_name = prop_key.name
-            deserializer: _DeserializerTypes = MQTTPropertyDeserializers[prop_key]
-            value, value_length = deserializer(data[offset:])
-            offset += value_length
-            # Ignore typing below because mypy doesn't support non-literal TypedDict keys.
-            if prop_key == MQTTPropertyId.SubscriptionIdentifier:
-                # This property may appear multiple times, in any order.
-                if prop_name not in properties:
-                    properties[prop_name] = set() # type: ignore
-                properties[prop_name].add(value) # type: ignore
-            elif prop_key == MQTTPropertyId.UserProperty:
-                # This property may appear multiple times, in any order.
-                if prop_name not in properties:
-                    properties[prop_name] = [] # type: ignore
-                properties[prop_name].append(value) # type: ignore
-            else:
-                # Other properties must appear exactly once.
-                properties[prop_name] = value # type: ignore
-        return cls(properties), offset
+def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketType | None = None, is_will: bool = False) -> None:
+    """Validate the properties against a packet type or as a will message."""
+    if not properties:
+        # Fast path for empty properties.
+        return
+    for key, value in properties.items():
+        prop_id = MQTTPropertyId[key]
+        if packet_type is not None and packet_type not in MQTTPropertyPacketTypes[prop_id]:
+            raise MQTTError(f"Property {prop_id} not allowed in packet type {packet_type}", MQTTReasonCode.ProtocolError)
+        if is_will and MQTTPropertyId[key] not in MQTTPropertyAllowedInWill:
+            raise MQTTError(f"Property {prop_id} not allowed in Will message", MQTTReasonCode.ProtocolError)
+    # TODO: Numeric limits
+    # TODO: Uniqueness

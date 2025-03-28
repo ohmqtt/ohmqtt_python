@@ -13,7 +13,7 @@ from ohmqtt.packet import (
     MQTTPingRespPacket,
     MQTTDisconnectPacket,
 )
-from ohmqtt.property import MQTTProperties
+from ohmqtt.property import MQTTPropertyDict
 
 
 class Callbacks:
@@ -122,7 +122,7 @@ def test_connection_server_keepalive(callbacks, mocker, loopback_socket):
 
         conn.send(MQTTConnectPacket().encode())
         recvd = loopback_socket.test_recv(1024)
-        loopback_socket.test_sendall(MQTTConnAckPacket(properties=MQTTProperties({"ServerKeepAlive": 1})).encode())
+        loopback_socket.test_sendall(MQTTConnAckPacket(properties={"ServerKeepAlive": 1}).encode())
         wait_for(lambda: len(callbacks.read_calls) > 0)
 
         t0 = time.monotonic()

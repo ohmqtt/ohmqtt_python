@@ -3,7 +3,7 @@ from typing import Mapping, Sequence
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTReasonCode
-from .property import MQTTProperties
+from .property import MQTTPropertyDict, encode_properties, decode_properties, validate_properties
 from .serialization import (
     encode_bool,
     decode_bool,
@@ -35,7 +35,8 @@ class MQTTPacket(metaclass=ABCMeta):
         return f"{self.__class__.__name__}[{attrs}]"
 
     def __hash__(self) -> int:
-        return hash(tuple(getattr(self, attr) for attr in self.__slots__))
+        # Hash property dicts as frozensets.
+        return hash(tuple(getattr(self, attr) if not isinstance(getattr(self, attr), dict) else frozenset(getattr(self, attr).items()) for attr in self.__slots__))
 
     @abstractmethod
     def encode(self) -> bytes:
@@ -76,27 +77,27 @@ class MQTTConnectPacket(MQTTPacket):
         protocol_version: int = 5,
         *,
         clean_start: bool = False,
-        will_props: MQTTProperties | None = None,
+        will_props: MQTTPropertyDict | None = None,
         will_topic: str | None = None,
         will_payload: bytes | None = None,
         will_qos: int = 0,
         will_retain: bool = False,
         username: str | None = None,
         password: bytes | None = None,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ):
         self.client_id = client_id
         self.keep_alive = keep_alive
         self.protocol_version = protocol_version
         self.clean_start = clean_start
-        self.will_props = will_props if will_props else MQTTProperties()
+        self.will_props = will_props if will_props else {}
         self.will_topic = will_topic
         self.will_payload = will_payload
         self.will_qos = will_qos
         self.will_retain = will_retain
         self.username = username
         self.password = password
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
 
     def encode(self) -> bytes:
         connect_flags = (
@@ -107,7 +108,7 @@ class MQTTConnectPacket(MQTTPacket):
 
         payload = encode_string(self.client_id)
         if self.will_props is not None and self.will_topic is not None and self.will_payload is not None:
-            payload += self.will_props.encode() + encode_string(self.will_topic) + encode_binary(self.will_payload)
+            payload += encode_properties(self.will_props) + encode_string(self.will_topic) + encode_binary(self.will_payload)
             connect_flags += 0x04
         if self.username is not None:
             payload += encode_string(self.username)
@@ -121,7 +122,7 @@ class MQTTConnectPacket(MQTTPacket):
             encode_uint8(self.protocol_version) +
             encode_uint8(connect_flags) +
             encode_uint16(self.keep_alive) +
-            self.properties.encode() +
+            encode_properties(self.properties) +
             payload
         )
         return encode_packet(self.packet_type, 0, data)
@@ -157,17 +158,17 @@ class MQTTConnectPacket(MQTTPacket):
         keep_alive, sz = decode_uint16(data[offset:])
         offset += sz
 
-        props, sz = MQTTProperties.decode(data[offset:])
+        props, sz = decode_properties(data[offset:])
         offset += sz
-        props.validate(MQTTPacketType.CONNECT)
+        validate_properties(props, MQTTPacketType.CONNECT)
 
         client_id, sz = decode_string(data[offset:])
         offset += sz
 
         if will_flag:
-            will_props, sz = MQTTProperties.decode(data[offset:])
+            will_props, sz = decode_properties(data[offset:])
             offset += sz
-            will_props.validate(is_will=True)
+            validate_properties(will_props, is_will=True)
             will_topic, sz = decode_string(data[offset:])
             offset += sz
             will_payload, sz = decode_binary(data[offset:])
@@ -214,14 +215,14 @@ class MQTTConnAckPacket(MQTTPacket):
         reason_code: MQTTReasonCode = MQTTReasonCode.Success,
         session_present: bool = False,
         *,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ):
         self.reason_code = reason_code
         self.session_present = session_present
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
     
     def encode(self) -> bytes:
-        data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + self.properties.encode()
+        data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + encode_properties(self.properties)
         return encode_packet(self.packet_type, 0, data)
 
     @classmethod
@@ -231,7 +232,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
         session_present, _ = decode_bool(data[0:])
         reason_code, _ = decode_uint8(data[1:])
-        props, props_sz = MQTTProperties.decode(data[2:])
+        props, props_sz = decode_properties(data[2:])
         return MQTTConnAckPacket(MQTTReasonCode(reason_code), session_present, properties=props)
 
 
@@ -248,7 +249,7 @@ class MQTTPublishPacket(MQTTPacketWithId):
         retain: bool = False,
         dup: bool = False,
         packet_id: int = 0,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ):
         self.topic = topic
         self.payload = payload
@@ -256,14 +257,14 @@ class MQTTPublishPacket(MQTTPacketWithId):
         self.retain = retain
         self.dup = dup
         self.packet_id = packet_id
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
 
     def encode(self) -> bytes:
         if self.qos > 0:
-            datas = [encode_string(self.topic), encode_uint16(self.packet_id), self.properties.encode(), self.payload]
+            datas = [encode_string(self.topic), encode_uint16(self.packet_id), encode_properties(self.properties), self.payload]
             flags = self.qos << 1
         else:
-            datas = [encode_string(self.topic), self.properties.encode(), self.payload]
+            datas = [encode_string(self.topic), encode_properties(self.properties), self.payload]
             flags = 0
         flags += self.retain
         if self.dup:
@@ -286,8 +287,8 @@ class MQTTPublishPacket(MQTTPacketWithId):
             offset += packet_id_length
         else:
             packet_id = 0
-        props, props_length = MQTTProperties.decode(data[offset:])
-        props.validate(MQTTPacketType.PUBLISH)
+        props, props_length = decode_properties(data[offset:])
+        validate_properties(props, MQTTPacketType.PUBLISH)
         offset += props_length
         payload = data[offset:]
         return MQTTPublishPacket(
@@ -310,11 +311,11 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         packet_id: int,
         reason_code: MQTTReasonCode = MQTTReasonCode.Success,
         *,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ):
         self.packet_id = packet_id
         self.reason_code = reason_code
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
@@ -323,7 +324,7 @@ class MQTTPubAckPacket(MQTTPacketWithId):
             data += encode_uint8(self.reason_code.value)
         if len(self.properties) > 0:
             # Or just properties may be omitted.
-            data += self.properties.encode()
+            data += encode_properties(self.properties)
         return encode_packet(self.packet_type, 0, data)
     
     @classmethod
@@ -341,8 +342,8 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         if offset == len(data):
             # Properties alone may be omitted.
             return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code))
-        props, props_length = MQTTProperties.decode(data[offset:])
-        props.validate(MQTTPacketType.PUBACK)
+        props, props_length = decode_properties(data[offset:])
+        validate_properties(props, MQTTPacketType.PUBACK)
         return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -355,15 +356,15 @@ class MQTTSubscribePacket(MQTTPacketWithId):
         topics: Sequence[tuple[str, int]],
         packet_id: int = 1,
         *,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ):
         self.topics = tuple(topics)
         self.packet_id = packet_id
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
-        data += self.properties.encode()
+        data += encode_properties(self.properties)
         for topic, subscribe_opts in self.topics:
             data += encode_string(topic) + encode_uint8(subscribe_opts)
         return encode_packet(self.packet_type, 0x02, data)
@@ -375,8 +376,8 @@ class MQTTSubscribePacket(MQTTPacketWithId):
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
-        props, props_length = MQTTProperties.decode(data[offset:])
-        props.validate(MQTTPacketType.SUBSCRIBE)
+        props, props_length = decode_properties(data[offset:])
+        validate_properties(props, MQTTPacketType.SUBSCRIBE)
         offset += props_length
         topics = []
         while offset < len(data):
@@ -397,15 +398,15 @@ class MQTTSubAckPacket(MQTTPacketWithId):
         packet_id: int,
         reason_codes: list[MQTTReasonCode] = [],
         *,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ):
         self.packet_id = packet_id
         self.reason_codes = reason_codes
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
-        data += self.properties.encode()
+        data += encode_properties(self.properties)
         for reason_code in self.reason_codes:
             data += encode_uint8(reason_code)
         return encode_packet(self.packet_type, 0, data)
@@ -417,8 +418,8 @@ class MQTTSubAckPacket(MQTTPacketWithId):
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
-        props, props_length = MQTTProperties.decode(data[offset:])
-        props.validate(MQTTPacketType.SUBACK)
+        props, props_length = decode_properties(data[offset:])
+        validate_properties(props, MQTTPacketType.SUBACK)
         offset += props_length
         reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
@@ -460,16 +461,16 @@ class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.DISCONNECT
     __slots__ = ("properties", "reason_code",)
 
-    def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTProperties | None = None):
+    def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTPropertyDict | None = None):
         self.reason_code = reason_code
-        self.properties = properties if properties is not None else MQTTProperties()
+        self.properties = properties if properties is not None else {}
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
         if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
             return encode_packet(self.packet_type, 0, b"")
         var_header = encode_uint8(self.reason_code.value)
-        var_header += self.properties.encode()
+        var_header += encode_properties(self.properties)
         return encode_packet(self.packet_type, 0, var_header)
     
     @classmethod
@@ -480,7 +481,7 @@ class MQTTDisconnectPacket(MQTTPacket):
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
         reason_code, sz = decode_uint8(data)
-        props, props_sz = MQTTProperties.decode(data[sz:])
+        props, props_sz = decode_properties(data[sz:])
         return MQTTDisconnectPacket(MQTTReasonCode(reason_code), properties=props)
 
 

@@ -16,7 +16,7 @@ from ohmqtt.packet import (
     MQTTPingRespPacket,
     MQTTDisconnectPacket,
 )
-from ohmqtt.property import MQTTProperties, MQTTPropertyDict, MQTTPropertyId
+from ohmqtt.property import MQTTPropertyDict, MQTTPropertyId
 
 
 def extract_props(data) -> MQTTPropertyDict:
@@ -44,7 +44,7 @@ def extract_args(data, binary_args):
         if k in binary_args:
             args[k] = binascii.unhexlify(v)
         elif k == "properties":
-            args[k] = MQTTProperties(extract_props(v))
+            args[k] = extract_props(v)
         else:
             args[k] = v
     return args

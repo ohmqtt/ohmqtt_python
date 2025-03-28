@@ -17,7 +17,7 @@ from .packet import (
     MQTTSubAckPacket,
 )
 from .persistence import SessionPersistenceBackend, InMemorySessionPersistence
-from .property import MQTTProperties
+from .property import MQTTPropertyDict
 
 logger: Final = logging.getLogger(__name__)
 
@@ -171,12 +171,12 @@ class Session:
         tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str | None = None,
-        connect_properties: MQTTProperties | None = None,
+        connect_properties: MQTTPropertyDict | None = None,
     ) -> None:
         with self._lock:
             self.protocol_version = protocol_version
             self.clean_start = clean_start
-            self.connect_properties = connect_properties if connect_properties is not None else MQTTProperties()
+            self.connect_properties = connect_properties if connect_properties is not None else {}
             self.auth_cb = auth_cb
             self.close_cb = close_cb
             self.open_cb = open_cb
@@ -208,7 +208,7 @@ class Session:
         *,
         qos: int = 0,
         retain: bool = False,
-        properties: MQTTProperties | None = None,
+        properties: MQTTPropertyDict | None = None,
     ) -> None:
         packet = MQTTPublishPacket(
             topic=topic,
@@ -237,7 +237,7 @@ class Session:
             except Exception:
                 logger.exception("Failed to send packet, dropping it")
 
-    def subscribe(self, topic: str | list[str], qos: int = 0, properties: MQTTProperties | None = None) -> None:
+    def subscribe(self, topic: str | list[str], qos: int = 0, properties: MQTTPropertyDict | None = None) -> None:
         if not self.client_id:
             raise RuntimeError("Cannot subscribe without a client ID, wait for connection first")
         if isinstance(topic, str):

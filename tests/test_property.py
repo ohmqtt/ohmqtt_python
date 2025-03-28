@@ -2,43 +2,22 @@ import pytest
 
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTPacketType
-from ohmqtt.property import MQTTProperties
-
-
-def test_operators():
-    props1 = MQTTProperties({
-        "ContentType": b"application/json",
-    })
-    props2 = MQTTProperties({
-        "ContentType": b"application/json",
-    })
-    props3 = MQTTProperties({
-        "ContentType": b"text/plain",
-    })
-    assert props1 == props1
-    assert props1 == props2
-    assert props1 != props3
-    assert props1 != None
-    assert props1 != "foo"
-    for key in props1:
-        assert key == "ContentType"
-        props1[key] == b"application/json"
-    assert props1.copy() == props1
+from ohmqtt.property import MQTTPropertyDict, validate_properties
 
 
 def test_validate():
-    props = MQTTProperties({
+    props: MQTTPropertyDict = {
         "ContentType": b"application/json",
-    })
-    props.validate()
-    props.validate(packet_type=MQTTPacketType.PUBLISH)
-    props.validate(is_will=True)
+    }
+    validate_properties(props)
+    validate_properties(props, packet_type=MQTTPacketType.PUBLISH)
+    validate_properties(props, is_will=True)
 
-    props = MQTTProperties({
+    props = {
         "MaximumPacketSize": 65535,
-    })
-    props.validate()
+    }
+    validate_properties(props)
     with pytest.raises(MQTTError):
-        props.validate(packet_type=MQTTPacketType.PUBLISH)
+        validate_properties(props, packet_type=MQTTPacketType.PUBLISH)
     with pytest.raises(MQTTError):
-        props.validate(is_will=True)
+        validate_properties(props, is_will=True)
