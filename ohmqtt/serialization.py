@@ -84,7 +84,7 @@ def decode_uint32(data: bytes) -> tuple[int, int]:
 def encode_string(s: str) -> bytes:
     """Encode a UTF-8 string to a buffer."""
     data = s.encode("utf-8")
-    return encode_uint16(len(data)) + data
+    return len(data).to_bytes(2, byteorder="big") + data
 
 
 def decode_string(data: bytes) -> tuple[str, int]:
@@ -122,7 +122,7 @@ def decode_string_pair(data: bytes) -> tuple[tuple[str, str], int]:
 
 def encode_binary(data: bytes) -> bytes:
     """Encode binary data to a buffer."""
-    return encode_uint16(len(data)) + data
+    return len(data).to_bytes(2, byteorder="big") + data
 
 
 def decode_binary(data: bytes) -> tuple[bytes, int]:
