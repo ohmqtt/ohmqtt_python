@@ -31,12 +31,18 @@ class MQTTPacket(metaclass=ABCMeta):
         return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
 
     def __str__(self) -> str:
-        attrs = ", ".join([f"{k}={str(getattr(self, k))}" for k in self.__slots__])
+        def truncate(s) -> str:
+            if isinstance(s, bytes):
+                return s[:16].hex(" ") + "..." if len(s) > 16 else s.hex(" ")
+            else:
+                return str(s)
+        # TODO: truncate property values
+        attrs = ", ".join([f"{k}={truncate(getattr(self, k))}" for k in self.__slots__])
         return f"{self.__class__.__name__}[{attrs}]"
 
     def __hash__(self) -> int:
         # Hash property dicts as frozensets.
-        return hash(tuple(getattr(self, attr) if not isinstance(getattr(self, attr), dict) else frozenset(getattr(self, attr).items()) for attr in self.__slots__))
+        return hash(tuple(getattr(self, attr) if attr not in ("properties", "will_props") else frozenset(getattr(self, attr).items()) for attr in self.__slots__))
 
     @abstractmethod
     def encode(self) -> bytes:
