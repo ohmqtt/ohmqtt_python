@@ -24,6 +24,9 @@ class TLSSocket:
 
     def fileno(self) -> int:
         return self.ssock.fileno()
+
+    def getblocking(self) -> bool:
+        return self.ssock.getblocking()
     
     def recv(self, bufsize: int) -> bytes:
         return self.ssock.recv(bufsize)
@@ -31,8 +34,8 @@ class TLSSocket:
     def recv_into(self, buffer: bytearray) -> int:
         return self.ssock.recv_into(buffer)
     
-    def sendall(self, data: bytes) -> None:
-        self.ssock.sendall(data)
+    def send(self, data: bytes) -> int:
+        return self.ssock.send(data)
 
     def setblocking(self, flag: bool) -> None:
         self.ssock.setblocking(flag)

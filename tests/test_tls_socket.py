@@ -10,7 +10,7 @@ def test_tls_socket_loopback(loopback_tls_socket, ssl_client_context):
         sock.do_handshake()
         loopback_tls_socket.test_sendall(b"hello")
         assert sock.recv(5) == b"hello"
-        sock.sendall(b"world")
+        sock.send(b"world")
         assert loopback_tls_socket.test_recv(5) == b"world"
 
         loopback_tls_socket.test_sendall(b"buffered")

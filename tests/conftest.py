@@ -53,6 +53,9 @@ class LoopbackSocket:
     def fileno(self) -> int:
         return self.mocksock.fileno()
 
+    def getblocking(self) -> bool:
+        return self.mocksock.getblocking()
+
     def getsockopt(self, *args, **kwargs):
         return self.mocksock.getsockopt(*args, **kwargs)
 
@@ -69,11 +72,17 @@ class LoopbackSocket:
     def recv_into(self, *args, **kwargs) -> int:
         return self.mocksock.recv_into(*args, **kwargs)
 
+    def send(self, *args, **kwargs) -> int:
+        return self.mocksock.send(*args, **kwargs)
+
     def sendall(self, *args, **kwargs) -> None:
         self.mocksock.sendall(*args, **kwargs)
 
     def setblocking(self, *args, **kwargs) -> None:
         self.mocksock.setblocking(*args, **kwargs)
+
+    def setsockopt(self, *args, **kwargs) -> None:
+        self.mocksock.setsockopt(*args, **kwargs)
 
     def shutdown(self, *args, **kwargs) -> None:
         self.mocksock.shutdown(*args, **kwargs)

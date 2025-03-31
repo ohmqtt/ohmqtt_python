@@ -355,6 +355,27 @@ def test_connection_disconnect_error(callbacks, mocker, loopback_socket):
         assert callbacks.close_calls[0][1].reason_code == MQTTReasonCode.MalformedPacket
 
 
+def test_connection_write_error(callbacks, mocker, loopback_socket):
+    # Connection should close upon a write error.
+    mocker.patch("socket.create_connection", return_value=loopback_socket)
+    with Connection(
+        "localhost",
+        1883,
+        0,
+        callbacks.close_cb,
+        callbacks.connect_cb,
+        callbacks.read_cb,
+    ) as conn:
+        wait_for(lambda: len(callbacks.connect_calls) > 0)
+
+        conn.send(MQTTConnectPacket().encode())
+        conn.handle_write_error(OSError("Test error"))
+        wait_for(lambda: len(callbacks.close_calls) > 0)
+    assert len(callbacks.close_calls) == 1
+    assert isinstance(callbacks.close_calls[0][1], OSError)
+    assert callbacks.close_calls[0][1].args[0] == "Test error"
+
+
 def test_connection_connect_error(callbacks, mocker):
     # Handling socket errors during connection setup.
     mocker.patch("socket.create_connection", side_effect=socket.error)

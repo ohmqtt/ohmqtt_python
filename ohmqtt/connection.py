@@ -10,6 +10,7 @@ from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTReasonCode
 from .packet import decode_packet, MQTTPacket, MQTTConnAckPacket, MQTTDisconnectPacket
 from .serialization import decode_varint
+from .socket_writer import SocketWriter
 from .tls_socket import TLSSocket
 
 logger: Final = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ class Connection(threading.Thread):
     This thread will read from the socket, decode buffers from the stream,
     send and monitor keepalive pings, and call the appropriate callbacks."""
     sock: socket.socket | TLSSocket | None = None
+    _writer: SocketWriter | None = None
+    _close_exc: Exception | None = None
 
     def __init__(self,
         host: str,
@@ -65,6 +68,8 @@ class Connection(threading.Thread):
         self._pong_deadline = 0.0
         # If using TLS, keep trying to handshake until it is done.
         self._handshake_done = False
+        # If closed externally with an exception (from SocketWriter), retain it.
+        self._close_exc = None
 
     def __enter__(self) -> "Connection":
         self.start()
@@ -84,13 +89,17 @@ class Connection(threading.Thread):
             if self.sock is not None:
                 self.sock.close()
         finally:
+            if self._close_exc is not None:
+                exc = self._close_exc
             self.close_cb(self, exc)
 
-    def close(self, *, block: bool = True) -> None:
+    def close(self, *, block: bool = True, exc: Exception | None = None) -> None:
         """Signal the thread to shutdown."""
         # This is the only way to close the thread from the public interface.
         # It must never be called from the thread itself.
-        self._close_pipe_w.sendall(b"\0")
+        if exc is not None:
+            self._close_exc = exc
+        self._close_pipe_w.send(b"\0")
         if block and threading.current_thread() is not self:
             self.join()
 
@@ -109,9 +118,9 @@ class Connection(threading.Thread):
         """Send data to the broker.
         
         This method may be called from any thread."""
-        if self.sock is None:
+        if self._writer is None:
             raise RuntimeError("Socket is not connected yet")
-        self.sock.sendall(data)
+        self._writer.send(data)
         self._last_send = time.monotonic()
 
     def _read_packet(self, data: bytes) -> None:
@@ -153,6 +162,7 @@ class Connection(threading.Thread):
                 logger.debug("<- ping")
                 logger.debug("-> pong")
                 self._send(b"\xd0\x00")
+                self._last_send = time.monotonic()
             else:
                 # All non-ping packets are passed to the read callback.
                 self.read_cb(self, packet)
@@ -164,22 +174,31 @@ class Connection(threading.Thread):
             self._last_recv = time.monotonic()
             data = data[offset + remaining_len:]
 
+    def handle_write_error(self, exc: Exception) -> None:
+        """Handle a write error.
+        
+        This method is called from the SocketWriter thread when an error occurs."""
+        self.close(block=False, exc=exc)
+
     def run(self):
         try:
             self.sock = socket.create_connection((self.host, self.port), all_errors=True)
             if self.tls:
                 self.sock = TLSSocket(self.sock, self.tls_hostname, self.tls_context)
+                self.sock.setblocking(False)
             else:
+                self.sock.setblocking(False)
+                self._writer = SocketWriter(self.sock, self.handle_write_error)
                 self.connect_cb(self)
-            self.sock.setblocking(False)
             t0 = time.monotonic()
             self._last_send = t0
             self._last_recv = t0
 
             sel = selectors.DefaultSelector()
             sel.register(self._close_pipe_r, selectors.EVENT_READ)
+            sel.register(self.sock, selectors.EVENT_READ)
             if self.tls:
-                sel.register(self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE)
+                sel.modify(self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE)
                 while not self._handshake_done:
                     events = sel.select()
                     for key, _ in events:
@@ -194,8 +213,8 @@ class Connection(threading.Thread):
                                 self.connect_cb(self)
                             except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
                                 continue
-                sel.unregister(self.sock)
-            sel.register(self.sock, selectors.EVENT_READ)
+                self._writer = SocketWriter(self.sock, self.handle_write_error)
+                sel.modify(self.sock, selectors.EVENT_READ)
             while True:
                 do_keepalive = self.keepalive_interval > 0
                 if do_keepalive:
