@@ -163,6 +163,8 @@ MQTTPropertyPacketTypes: Mapping[MQTTPropertyId, frozenset[MQTTPacketType]] = {
         MQTTPacketType.PUBACK,
         MQTTPacketType.SUBSCRIBE,
         MQTTPacketType.SUBACK,
+        MQTTPacketType.UNSUBSCRIBE,
+        MQTTPacketType.UNSUBACK,
     }),
     MQTTPropertyId.MaximumPacketSize: frozenset({MQTTPacketType.CONNECT}),
     MQTTPropertyId.WildcardSubscriptionAvailable: frozenset({MQTTPacketType.CONNECT}),
@@ -260,3 +262,16 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketTyp
             raise MQTTError(f"Property {prop_id} not allowed in Will message", MQTTReasonCode.ProtocolError)
     # TODO: Numeric limits
     # TODO: Uniqueness
+
+
+def hash_properties(properties: MQTTPropertyDict) -> int:
+    """Calculate the hash of the properties."""
+    def _hashable_value(value):
+        """Hash a value."""
+        if isinstance(value, set):
+            return frozenset(value)
+        elif isinstance(value, list):
+            return tuple(value)
+        else:
+            return value
+    return hash(frozenset((key, _hashable_value(value)) for key, value in properties.items()))

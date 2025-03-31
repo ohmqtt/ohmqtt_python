@@ -1,13 +1,10 @@
 """Primitives for encoding and decoding MQTT packet fields."""
 
-import re
 from typing import Final
 
 from .error import MQTTError
 from .mqtt_spec import MQTTReasonCode
 
-# Unicode code points explicitly disallowed by MQTT specification.
-BAD_UNICODE_REGEX = re.compile(r"[\uD800-\uDFFF\u0000\uFEFF]")
 # Maximum variable integer value.
 MAX_VARINT: Final = 268435455
 
@@ -42,7 +39,7 @@ def decode_uint8(data: bytes) -> tuple[int, int]:
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
-        return data[0], 1
+        return int(data[0]), 1
     except Exception as e:
         raise MQTTError("Failed to decode byte from buffer", MQTTReasonCode.MalformedPacket) from e
 
@@ -92,12 +89,17 @@ def decode_string(data: bytes) -> tuple[str, int]:
     
     Returns a tuple of the decoded string and the number of bytes consumed."""
     try:
-        length, _ = decode_uint16(data)
+        if len(data) < 2:
+            raise ValueError("String length underrun")
+        length = int.from_bytes(data[:2], byteorder="big")
         if length > len(data) - 2:
             raise ValueError("String data underrun")
-        s = data[2:2 + length].decode("utf-8")
-        if BAD_UNICODE_REGEX.search(s):
-            raise ValueError("Bad unicode characters")
+        # Strict UTF-8 decoding will catch any invalid UTF-8 sequences.
+        # This is important for MQTT, as invalid sequences are not allowed.
+        s = data[2:2 + length].decode("utf-8", errors="strict")
+        # The only other invalid character is the null character.
+        if s.find("\u0000") != -1:
+            raise ValueError("Unicode null character in string")
         return s, length + 2
     except Exception as e:
         raise MQTTError("Failed to decode string from buffer", MQTTReasonCode.MalformedPacket) from e
@@ -130,7 +132,9 @@ def decode_binary(data: bytes) -> tuple[bytes, int]:
     
     Returns a tuple of the decoded data and the number of bytes consumed."""
     try:
-        length, _ = decode_uint16(data)
+        if len(data) < 2:
+            raise ValueError("Binary length underrun")
+        length = int.from_bytes(data[:2], byteorder="big")
         if length > len(data) - 2:
             raise ValueError("Binary data underrun")
         return data[2:2 + length], length + 2
