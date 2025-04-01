@@ -10,6 +10,7 @@ from ohmqtt.packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
+    MQTTPubRecPacket,
     MQTTPubRelPacket,
     MQTTPubCompPacket,
     MQTTSubscribePacket,
@@ -19,6 +20,7 @@ from ohmqtt.packet import (
     MQTTPingReqPacket,
     MQTTPingRespPacket,
     MQTTDisconnectPacket,
+    MQTTAuthPacket,
 )
 from ohmqtt.property import MQTTPropertyDict, MQTTPropertyId
 
@@ -121,6 +123,17 @@ def test_packet_puback_encode(test_data):
 
 
 def test_packet_puback_decode_errors(test_data):
+    run_decode_error_cases(test_data)
+
+
+def test_packet_pubrec_encode(test_data):
+    def transform_args(args):
+        if "reason_code" in args:
+            args["reason_code"] = MQTTReasonCode(args["reason_code"])
+    run_encode_cases(MQTTPubRecPacket, test_data, transform_args=transform_args)
+
+
+def test_packet_pubrec_decode_errors(test_data):
     run_decode_error_cases(test_data)
 
 
@@ -235,6 +248,17 @@ def test_packet_disconnect_encode(test_data):
 
 
 def test_packet_disconnect_decode_errors(test_data):
+    run_decode_error_cases(test_data)
+
+
+def test_packet_auth_encode(test_data):
+    def transform_args(args):
+        if "reason_code" in args:
+            args["reason_code"] = MQTTReasonCode(args["reason_code"])
+    run_encode_cases(MQTTAuthPacket, test_data, transform_args=transform_args)
+
+
+def test_packet_auth_decode_errors(test_data):
     run_decode_error_cases(test_data)
 
 

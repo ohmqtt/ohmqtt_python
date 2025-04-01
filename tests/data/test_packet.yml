@@ -194,6 +194,34 @@ test_packet_puback_decode_errors:
   - raw: "42020001"
     reason_code: 0x81
 
+test_packet_pubrec_encode:
+  - args:
+      packet_id: 1
+    raw: "50020001"
+  - args:
+      packet_id: 65535
+      reason_code: 0x00
+    raw: "5002ffff"
+  - args:
+      packet_id: 65535
+      reason_code: 0x81
+    raw: "5003ffff81"
+  - args:
+      packet_id: 255
+      reason_code: 0x81
+      properties:
+      - - "ReasonString"
+        - "reason"
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "503000ff812c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
+
+test_packet_pubrec_decode_errors:
+  - raw: "52020001"
+    reason_code: 0x81
+
 test_packet_pubrel_encode:
   - args:
       packet_id: 1
@@ -377,4 +405,34 @@ test_packet_disconnect_encode:
 
 test_packet_disconnect_decode_errors:
   - raw: "e100"
+    reason_code: 0x81
+
+test_packet_auth_encode:
+  - args:
+      reason_code: 0x00
+    raw: "f000"
+  - args:
+      reason_code: 0x82
+    raw: "f0028200"
+  - args:
+      reason_code: 0
+      properties:
+      - - "AuthenticationMethod"
+        - "🐍"
+      - - "AuthenticationData"
+        - "8a8a8a8a"
+      - - "ReasonString"
+        - "reason"
+      - - "UserProperty"
+        - ["foo", "bar"]
+        - ["foo", "baz"]
+        - ["asdf", "hjkl"]
+    raw: "f03c003a150004f09f908d1600048a8a8a8a1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
+
+test_packet_auth_decode_errors:
+  - raw: "f100"
+    reason_code: 0x81
+  - raw: "f200"
+    reason_code: 0x81
+  - raw: "f300"
     reason_code: 0x81

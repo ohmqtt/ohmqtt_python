@@ -132,54 +132,91 @@ MQTTPropertyDeserializers: Mapping[MQTTPropertyId, _DeserializerTypes] = {
 }
 
 
-# Allowed MQTT packet types for each property type.
-# TODO: reverse this mapping for faster lookup.
-MQTTPropertyPacketTypes: Mapping[MQTTPropertyId, frozenset[MQTTPacketType]] = {
-    MQTTPropertyId.PayloadFormatIndicator: frozenset({MQTTPacketType.PUBLISH}),
-    MQTTPropertyId.MessageExpiryInterval: frozenset({MQTTPacketType.PUBLISH}),
-    MQTTPropertyId.ContentType: frozenset({MQTTPacketType.PUBLISH}),
-    MQTTPropertyId.ResponseTopic: frozenset({MQTTPacketType.PUBLISH}),
-    MQTTPropertyId.CorrelationData: frozenset({MQTTPacketType.PUBLISH}),
-    MQTTPropertyId.SubscriptionIdentifier: frozenset({MQTTPacketType.PUBLISH, MQTTPacketType.SUBSCRIBE}),
-    MQTTPropertyId.SessionExpiryInterval: frozenset({MQTTPacketType.CONNECT, MQTTPacketType.CONNACK, MQTTPacketType.DISCONNECT}),
-    MQTTPropertyId.AssignedClientIdentifier: frozenset({MQTTPacketType.CONNACK}),
-    MQTTPropertyId.ServerKeepAlive: frozenset({MQTTPacketType.CONNACK}),
-    MQTTPropertyId.AuthenticationMethod: frozenset({MQTTPacketType.CONNECT, MQTTPacketType.CONNACK, MQTTPacketType.AUTH}),
-    MQTTPropertyId.AuthenticationData: frozenset({MQTTPacketType.CONNECT, MQTTPacketType.CONNACK, MQTTPacketType.AUTH}),
-    MQTTPropertyId.RequestProblemInformation: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.WillDelayInterval: frozenset(),
-    MQTTPropertyId.RequestResponseInformation: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.ResponseInformation: frozenset({MQTTPacketType.CONNACK}),
-    MQTTPropertyId.ServerReference: frozenset({MQTTPacketType.CONNACK}),
-    MQTTPropertyId.ReasonString: frozenset({
-        MQTTPacketType.CONNACK,
-        MQTTPacketType.PUBACK,
-        MQTTPacketType.PUBREL,
-        MQTTPacketType.PUBCOMP,
-        MQTTPacketType.SUBACK,
-        MQTTPacketType.UNSUBACK,
+# Allowed MQTT property types for each packet type.
+MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[MQTTPropertyId]] = {
+    MQTTPacketType.CONNECT: frozenset({  # [MQ5 3.1.2.11]
+        MQTTPropertyId.SessionExpiryInterval,
+        MQTTPropertyId.ReceiveMaximum,
+        MQTTPropertyId.MaximumPacketSize,
+        MQTTPropertyId.TopicAliasMaximum,
+        MQTTPropertyId.RequestResponseInformation,
+        MQTTPropertyId.RequestProblemInformation,
+        MQTTPropertyId.UserProperty,
+        MQTTPropertyId.AuthenticationMethod,
+        MQTTPropertyId.AuthenticationData,
     }),
-    MQTTPropertyId.ReceiveMaximum: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.TopicAliasMaximum: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.TopicAlias: frozenset({MQTTPacketType.PUBLISH}),
-    MQTTPropertyId.MaximumQoS: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.RetainAvailable: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.UserProperty: frozenset({
-        MQTTPacketType.CONNECT,
-        MQTTPacketType.CONNACK,
-        MQTTPacketType.PUBLISH,
-        MQTTPacketType.PUBACK,
-        MQTTPacketType.PUBREL,
-        MQTTPacketType.PUBCOMP,
-        MQTTPacketType.SUBSCRIBE,
-        MQTTPacketType.SUBACK,
-        MQTTPacketType.UNSUBSCRIBE,
-        MQTTPacketType.UNSUBACK,
+    MQTTPacketType.CONNACK: frozenset({  # [MQ5 3.2.2.3]
+        MQTTPropertyId.SessionExpiryInterval,
+        MQTTPropertyId.ReceiveMaximum,
+        MQTTPropertyId.MaximumQoS,
+        MQTTPropertyId.RetainAvailable,
+        MQTTPropertyId.MaximumPacketSize,
+        MQTTPropertyId.AssignedClientIdentifier,
+        MQTTPropertyId.TopicAliasMaximum,
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+        MQTTPropertyId.WildcardSubscriptionAvailable,
+        MQTTPropertyId.SubscriptionIdentifierAvailable,
+        MQTTPropertyId.SharedSubscriptionAvailable,
+        MQTTPropertyId.ServerKeepAlive,
+        MQTTPropertyId.ResponseInformation,
+        MQTTPropertyId.ServerReference,
+        MQTTPropertyId.AuthenticationMethod,
+        MQTTPropertyId.AuthenticationData,
     }),
-    MQTTPropertyId.MaximumPacketSize: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.WildcardSubscriptionAvailable: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.SubscriptionIdentifierAvailable: frozenset({MQTTPacketType.CONNECT}),
-    MQTTPropertyId.SharedSubscriptionAvailable: frozenset({MQTTPacketType.CONNECT}),
+    MQTTPacketType.PUBLISH: frozenset({  # [MQ5 3.3.2.3]
+        MQTTPropertyId.PayloadFormatIndicator,
+        MQTTPropertyId.MessageExpiryInterval,
+        MQTTPropertyId.TopicAlias,
+        MQTTPropertyId.ResponseTopic,
+        MQTTPropertyId.CorrelationData,
+        MQTTPropertyId.UserProperty,
+        MQTTPropertyId.SubscriptionIdentifier,
+        MQTTPropertyId.ContentType,
+    }),
+    MQTTPacketType.PUBACK: frozenset({  # [MQ5 3.4.2.2]
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.PUBREC: frozenset({  # [MQ5 3.5.2.2]
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.PUBREL: frozenset({  # [MQ5 3.6.2.2]
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.PUBCOMP: frozenset({  # [MQ5 3.7.2.2]
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.SUBSCRIBE: frozenset({  # [MQ5 3.8.2.1]
+        MQTTPropertyId.SubscriptionIdentifier,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.SUBACK: frozenset({  # [MQ5 3.9.2.1]
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.UNSUBSCRIBE: frozenset({  # [MQ5 3.10.2.1]
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.UNSUBACK: frozenset({  # [MQ5 3.11.2.1]
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
+    MQTTPacketType.DISCONNECT: frozenset({  # [MQ5 3.14.2.2]
+        MQTTPropertyId.SessionExpiryInterval,
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+        MQTTPropertyId.ServerReference,
+    }),
+    MQTTPacketType.AUTH: frozenset({  # [MQ5 3.15.2.2]
+        MQTTPropertyId.AuthenticationMethod,
+        MQTTPropertyId.AuthenticationData,
+        MQTTPropertyId.ReasonString,
+        MQTTPropertyId.UserProperty,
+    }),
 }
 
 
@@ -264,12 +301,11 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketTyp
     if not properties:
         # Fast path for empty properties.
         return
-    for key, value in properties.items():
-        prop_id = MQTTPropertyId[key]
-        if packet_type is not None and packet_type not in MQTTPropertyPacketTypes[prop_id]:
-            raise MQTTError(f"Property {prop_id} not allowed in packet type {packet_type}", MQTTReasonCode.ProtocolError)
-        if is_will and MQTTPropertyId[key] not in MQTTPropertyAllowedInWill:
-            raise MQTTError(f"Property {prop_id} not allowed in Will message", MQTTReasonCode.ProtocolError)
+    allowed_properties = MQTTPropertyPacketTypes[packet_type] if packet_type is not None else set()
+    if is_will:
+        allowed_properties = allowed_properties.union(MQTTPropertyAllowedInWill)
+    if any(MQTTPropertyId[key] not in allowed_properties for key in properties):
+        raise MQTTError(f"Invalid property found in packet type {packet_type} (will: {is_will})", MQTTReasonCode.ProtocolError)
     # TODO: Numeric limits
     # TODO: Uniqueness
 

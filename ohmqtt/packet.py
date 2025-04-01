@@ -353,6 +353,51 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
+class MQTTPubRecPacket(MQTTPacketWithId):
+    packet_type = MQTTPacketType.PUBREC
+    __slots__ = ("properties", "packet_id", "reason_code",)
+
+    def __init__(
+        self,
+        packet_id: int,
+        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        *,
+        properties: MQTTPropertyDict | None = None,
+    ):
+        self.packet_id = packet_id
+        self.reason_code = reason_code
+        self.properties = properties if properties is not None else {}
+
+    def encode(self) -> bytes:
+        data = encode_uint16(self.packet_id)
+        if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
+            # Reason code and properties may be omitted.
+            data += encode_uint8(self.reason_code.value)
+        if len(self.properties) > 0:
+            # Or just properties may be omitted.
+            data += encode_properties(self.properties)
+        return encode_packet(self.packet_type, 0, data)
+    
+    @classmethod
+    def decode(cls, flags: int, data: bytes) -> "MQTTPubRecPacket":
+        if flags != 0:
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+        offset = 0
+        packet_id, packet_id_length = decode_uint16(data[offset:])
+        offset += packet_id_length
+        if offset == len(data):
+            # Reason code and properties are optional.
+            return MQTTPubRecPacket(packet_id)
+        reason_code, reason_code_length = decode_uint8(data[offset:])
+        offset += reason_code_length
+        if offset == len(data):
+            # Properties alone may be omitted.
+            return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code))
+        props, props_length = decode_properties(data[offset:])
+        validate_properties(props, MQTTPacketType.PUBREC)
+        return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
+
+
 class MQTTPubRelPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.PUBREL
     __slots__ = ("properties", "packet_id", "reason_code",)
@@ -644,11 +689,40 @@ class MQTTDisconnectPacket(MQTTPacket):
         return MQTTDisconnectPacket(MQTTReasonCode(reason_code), properties=props)
 
 
+class MQTTAuthPacket(MQTTPacket):
+    packet_type = MQTTPacketType.AUTH
+    __slots__ = ("properties", "reason_code")
+
+    def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTPropertyDict | None = None):
+        self.reason_code = reason_code
+        self.properties = properties if properties is not None else {}
+
+    def encode(self) -> bytes:
+        # If the reason code is success and there are no properties, the packet can be empty.
+        if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
+            return encode_packet(self.packet_type, 0, b"")
+        data = encode_uint8(self.reason_code.value) + encode_properties(self.properties)
+        return encode_packet(self.packet_type, 0, data)
+    
+    @classmethod
+    def decode(cls, flags: int, data: bytes) -> "MQTTAuthPacket":
+        if flags != 0:
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+        if len(data) == 0:
+            # An empty packet means success with no properties.
+            return MQTTAuthPacket()
+        reason_code, sz = decode_uint8(data)
+        props, props_sz = decode_properties(data[sz:])
+        validate_properties(props, MQTTPacketType.AUTH)
+        return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)
+
+
 ControlPacketClasses: Mapping[MQTTPacketType, type[MQTTPacket]] = {
     MQTTPacketType.CONNECT: MQTTConnectPacket,
     MQTTPacketType.CONNACK: MQTTConnAckPacket,
     MQTTPacketType.PUBLISH: MQTTPublishPacket,
     MQTTPacketType.PUBACK: MQTTPubAckPacket,
+    MQTTPacketType.PUBREC: MQTTPubRecPacket,
     MQTTPacketType.PUBREL: MQTTPubRelPacket,
     MQTTPacketType.PUBCOMP: MQTTPubCompPacket,
     MQTTPacketType.SUBSCRIBE: MQTTSubscribePacket,
@@ -658,6 +732,7 @@ ControlPacketClasses: Mapping[MQTTPacketType, type[MQTTPacket]] = {
     MQTTPacketType.PINGREQ: MQTTPingReqPacket,
     MQTTPacketType.PINGRESP: MQTTPingRespPacket,
     MQTTPacketType.DISCONNECT: MQTTDisconnectPacket,
+    MQTTPacketType.AUTH: MQTTAuthPacket,
 }
 
 
