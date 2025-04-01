@@ -303,9 +303,13 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketTyp
         return
     allowed_properties = MQTTPropertyPacketTypes[packet_type] if packet_type is not None else set()
     if is_will:
-        allowed_properties = allowed_properties.union(MQTTPropertyAllowedInWill)
-    if any(MQTTPropertyId[key] not in allowed_properties for key in properties):
-        raise MQTTError(f"Invalid property found in packet type {packet_type} (will: {is_will})", MQTTReasonCode.ProtocolError)
+        allowed_properties = allowed_properties | MQTTPropertyAllowedInWill
+    if allowed_properties and any(MQTTPropertyId[key] not in allowed_properties for key in properties):
+        disallowed = ", ".join([str(MQTTPropertyId[key]) for key in properties if MQTTPropertyId[key] not in allowed_properties])
+        raise MQTTError(
+            f"Disallowed propert(ies) found in packet type {packet_type} (will: {is_will}): {disallowed}",
+            MQTTReasonCode.ProtocolError,
+        )
     # TODO: Numeric limits
     # TODO: Uniqueness
 
