@@ -90,12 +90,14 @@ class Session:
         self.disconnect()
 
     def _send_packet(self, packet: MQTTPacket) -> None:
+        """Try to send a packet to the server."""
         if self.connection is None:
             raise RuntimeError("No connection")
         logger.debug(f"---> {packet}")
         self.connection.send(packet.encode())
 
     def _send_retained(self, packet: MQTTPacketWithId) -> None:
+        """Add a packet to the persistence store and try to send it to the server."""
         with self._lock:
             self._persistence.put(self.client_id, packet)
             if len(self._inflight) < self.server_receive_maximum:
@@ -111,6 +113,7 @@ class Session:
 
 
     def _connection_open_callback(self, conn: Connection) -> None:
+        """Handle a connection open event."""
         packet = MQTTConnectPacket(
             client_id=self.client_id,
             protocol_version=self.protocol_version,
@@ -120,6 +123,7 @@ class Session:
         self._send_packet(packet)
 
     def _connection_close_callback(self, conn: Connection, exc: Exception | None) -> None:
+        """Handle a connection close event."""
         with self._lock:
             self.server_receive_maximum = 0
             self._inflight.clear()
@@ -132,11 +136,13 @@ class Session:
                     logger.exception("Unhandled exception in close callback")
 
     def _connection_read_callback(self, conn: Connection, packet: MQTTPacket) -> None:
+        """Handle a packet read from the connection."""
         logger.debug(f"<--- {packet}")
         if packet.packet_type in self._read_handlers:
             self._read_handlers[packet.packet_type](packet)
 
     def _handle_connack(self, packet: MQTTConnAckPacket) -> None:
+        """Handle a CONNACK packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Connection failed: {packet.reason_code}")
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
@@ -155,6 +161,7 @@ class Session:
             logger.exception("Unhandled exception in open callback")
 
     def _handle_puback(self, packet: MQTTPubAckPacket) -> None:
+        """Handle a PUBACK packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBACK with error code: {packet.reason_code}")
         with self._lock:
@@ -169,6 +176,7 @@ class Session:
             self._flush()
 
     def _handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
+        """Handle a PUBREC packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBREC with error code: {packet.reason_code}")
         reason_code: MQTTReasonCode = MQTTReasonCode.Success
@@ -186,6 +194,7 @@ class Session:
             self._send_retained(rel_packet)
 
     def _handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
+        """Handle a PUBREL packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBREL with error code: {packet.reason_code}")
         reason_code: MQTTReasonCode = MQTTReasonCode.Success
@@ -203,6 +212,7 @@ class Session:
             self._send_packet(comp_packet)
 
     def _handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
+        """Handle a PUBCOMP packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
         with self._lock:
@@ -216,6 +226,7 @@ class Session:
                 logger.exception(f"Received PUBCOMP for unknown packet: {ref_packet}")
 
     def _handle_suback(self, packet: MQTTSubAckPacket) -> None:
+        """Handle a SUBACK packet from the server."""
         error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
         if error_codes:
             logger.error(f"Received SUBACK with error codes: {packet.reason_codes}")
@@ -231,6 +242,7 @@ class Session:
             self._flush()
 
     def _handle_unsuback(self, packet: MQTTUnsubAckPacket) -> None:
+        """Handle an UNSUBACK packet from the server."""
         error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
         if error_codes:
             logger.error(f"Received UNSUBACK with error codes: {packet.reason_codes}")
@@ -246,6 +258,7 @@ class Session:
             self._flush()
 
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
+        """Handle a PUBLISH packet from the server."""
         try:
             assert self.connection is not None
             if packet.qos == 1:
@@ -267,6 +280,7 @@ class Session:
             logger.exception("Unhandled exception in publish callback")
 
     def _handle_auth(self, packet: MQTTAuthPacket) -> None:
+        """Handle an AUTH packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received AUTH with error code: {packet.reason_code}")
         if self.auth_cb is not None:
@@ -297,6 +311,7 @@ class Session:
         tls_hostname: str | None = None,
         connect_properties: MQTTPropertyDict | None = None,
     ) -> None:
+        """Connect to a server."""
         with self._lock:
             self.protocol_version = protocol_version
             self.clean_start = clean_start
@@ -316,6 +331,7 @@ class Session:
             self.connection.start()
 
     def disconnect(self) -> None:
+        """Disconnect from the server."""
         if self.connection is not None:
             self.connection.close()
         self.server_receive_maximum = 0
@@ -330,6 +346,7 @@ class Session:
         retain: bool = False,
         properties: MQTTPropertyDict | None = None,
     ) -> None:
+        """Publish a message to a topic."""
         packet = MQTTPublishPacket(
             topic=topic,
             payload=payload,
@@ -351,6 +368,7 @@ class Session:
                 logger.exception("Failed to send qos=0 packet, dropping it")
 
     def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
+        """Subscribe to a single topic."""
         if not self.client_id:
             raise RuntimeError("Cannot subscribe without a client ID, wait for connection first")
         topics = ((topic, qos),)
@@ -363,12 +381,11 @@ class Session:
             )
             self._send_retained(packet)
 
-    def unsubscribe(self, topic: str | list[str], properties: MQTTPropertyDict | None = None) -> None:
+    def unsubscribe(self, topic: str, properties: MQTTPropertyDict | None = None) -> None:
+        """Unsubscribe from a single topic."""
         if not self.client_id:
             raise RuntimeError("Cannot unsubscribe without a client ID, wait for connection first")
-        if isinstance(topic, str):
-            topic = [topic]
-        topics = topic
+        topics = [topic]
         with self._lock:
             packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.UNSUBSCRIBE)
             packet = MQTTUnsubscribePacket(
@@ -393,6 +410,7 @@ class Session:
         user_properties: Sequence[tuple[str, str]] | None = None,
         reason_code: MQTTReasonCode = MQTTReasonCode.Success,
     ) -> None:
+        """Send an AUTH packet to the server."""
         properties: MQTTPropertyDict = {}
         if authentication_method is not None:
             properties["AuthenticationMethod"] = authentication_method
@@ -409,6 +427,7 @@ class Session:
         self._send_packet(packet)
 
     def _flush(self) -> None:
+        """Send queued packets up to the server's receive maximum."""
         with self._lock:
             allowed_count = self.server_receive_maximum - len(self._inflight)
             pending_packets = self._persistence.get(self.client_id, self._inflight, allowed_count)
