@@ -83,12 +83,20 @@ class Connection(threading.Thread):
     def _do_close(self, exc: Exception | None = None) -> None:
         """Close the socket and run the close callback."""
         # This method must only be called from the thread itself.
-        if isinstance(exc, MQTTError):
-            pass  # TODO: Send a DISCONNECT packet here.
         try:
             if self.sock is not None:
-                self.sock.close()
+                reason_code = MQTTReasonCode.NormalDisconnection
+                if isinstance(exc, MQTTError):
+                    reason_code = exc.reason_code
+                disconnect_packet = MQTTDisconnectPacket(reason_code=reason_code)
+                self._send(disconnect_packet.encode())
+                logger.debug(f"---> {disconnect_packet}")
+                # TODO: Wait for writer to finish sending.
+        except Exception:
+            logger.exception("Failed to send DISCONNECT packet")
         finally:
+            if self.sock is not None:
+                self.sock.close()
             if self._close_exc is not None:
                 exc = self._close_exc
             self.close_cb(self, exc)
@@ -156,11 +164,11 @@ class Connection(threading.Thread):
                 return
             packet = decode_packet(data[:offset + remaining_len])
             if packet.packet_type == MQTTPacketType.PINGRESP:
-                logger.debug("<- pong")
+                logger.debug("<--- pong")
                 self._pong_deadline = 0.0
             elif packet.packet_type == MQTTPacketType.PINGREQ:
-                logger.debug("<- ping")
-                logger.debug("-> pong")
+                logger.debug("<--- ping")
+                logger.debug("---> pong")
                 self._send(b"\xd0\x00")
                 self._last_send = time.monotonic()
             else:
@@ -260,15 +268,11 @@ class Connection(threading.Thread):
                         raise MQTTError("Did not receive a PINGRESP in time", MQTTReasonCode.KeepAliveTimeout)
                     if t2 > send_timeout:
                         # Send a PINGREQ packet.
-                        logger.debug("-> ping")
+                        logger.debug("---> ping")
                         self._send(b"\xc0\x00")
                         self._pong_deadline = t2 + self.keepalive_interval
         except MQTTError as exc:
             logger.exception("MQTTError in Connection thread")
-            try:
-                self._send(MQTTDisconnectPacket(reason_code=exc.reason_code).encode())
-            except Exception:
-                logger.exception("Failed to send DISCONNECT packet")
             self._do_close(exc)
         except Exception as exc:
             logger.exception("Unhandled exception in Connection thread")

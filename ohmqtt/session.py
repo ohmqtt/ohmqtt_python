@@ -34,18 +34,27 @@ MAX_PACKET_ID: Final = 0xFFFF
 SessionAuthCallback = Callable[["Session", str, bytes], None]  # TODO: Allow returning an AUTH packet.
 SessionCloseCallback = Callable[["Session"], None]
 SessionOpenCallback = Callable[["Session"], None]
-SessionMessageCallback = Callable[["Session", str, bytes], None]
+SessionMessageCallback = Callable[["Session", str, bytes, MQTTPropertyDict], None]
 
 
 class Session:
     connection: Connection | None = None
 
-    def __init__(self, client_id: str = "", persistence: SessionPersistenceBackend | None = None) -> None:
+    def __init__(
+        self,
+        client_id: str = "",
+        persistence: SessionPersistenceBackend | None = None,
+        *,
+        auth_cb: SessionAuthCallback | None = None,
+        close_cb: SessionCloseCallback | None = None,
+        open_cb: SessionOpenCallback | None = None,
+        message_cb: SessionMessageCallback | None = None,
+    ) -> None:
         self.client_id = client_id
-        self.auth_cb: SessionAuthCallback | None = None
-        self.close_cb: SessionCloseCallback | None = None
-        self.open_cb: SessionOpenCallback | None = None
-        self.message_cb: SessionMessageCallback | None = None
+        self.auth_cb = auth_cb
+        self.close_cb = close_cb
+        self.open_cb = open_cb
+        self.message_cb = message_cb
         self.server_receive_maximum = 0
         self._read_handlers: Mapping[MQTTPacketType, Callable[[Any], None]] = {
             MQTTPacketType.CONNACK: self._handle_connack,
@@ -233,12 +242,17 @@ class Session:
             elif packet.qos == 2:
                 rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
                 self._send_retained(rec_packet)
+            # Calling the message callback must be the last thing we do with the packet.
             if self.message_cb is not None:
-                self.message_cb(self, packet.topic, packet.payload)
+                logger.debug(f"Calling message callback for packet: {packet}")
+                try:
+                    self.message_cb(self, packet.topic, packet.payload, packet.properties)
+                except Exception:
+                    logger.exception("Unhandled exception in message callback")
         except MQTTError:
             raise
         except Exception:
-            logger.exception("Unhandled exception in message callback")
+            logger.exception("Unhandled exception in publish callback")
 
     def connect(
         self,
@@ -249,10 +263,6 @@ class Session:
         protocol_version: int = 5,
         clean_start: bool = False,
         keepalive_interval: int = 0,
-        auth_cb: SessionAuthCallback | None = None,
-        close_cb: SessionCloseCallback | None = None,
-        open_cb: SessionOpenCallback | None = None,
-        message_cb: SessionMessageCallback | None = None,
         recv_buffer_sz: int = 65535,
         tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
@@ -263,10 +273,6 @@ class Session:
             self.protocol_version = protocol_version
             self.clean_start = clean_start
             self.connect_properties = connect_properties if connect_properties is not None else {}
-            self.auth_cb = auth_cb
-            self.close_cb = close_cb
-            self.open_cb = open_cb
-            self.message_cb = message_cb
             self.connection = Connection(
                 host=host,
                 port=port,
@@ -370,24 +376,39 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
 
-    session = Session()
+    def handle_message(session: Session, topic: str, payload: bytes, properties: MQTTPropertyDict) -> None:
+        logger.info(f"Received message on topic '{topic}': {payload[:16]!r}... with properties: {properties}")
+
+    session = Session(message_cb=handle_message)
     for n in range(3):
-        logger.debug(f"Connecting ({n+1})")
+        logger.info(f"Connecting ({n+1})")
         session.connect("localhost", 1883)
         time.sleep(1)
-        logger.debug("Subscribing")
+        logger.info("Subscribing")
         session.subscribe("test", qos=2)
         time.sleep(1)
-        logger.debug("Publishing")
-        session.publish("test", b"Hello, world! 2 X", qos=2)
+        logger.info("Publishing qos=0")
+        session.publish("test", b"X0" * 65535, qos=0)
         time.sleep(1)
-        logger.debug("Unsubscribing")
+        logger.info("Publishing qos=1")
+        session.publish("test", b"X1" * 65535, qos=1)
+        time.sleep(1)
+        logger.info("Publishing qos=2")
+        session.publish("test", b"X2" * 65535, qos=2)
+        time.sleep(1)
+        logger.info("Unsubscribing")
         session.unsubscribe("test")
         time.sleep(1)
-        logger.debug("Publishing")
-        session.publish("test", b"Hello, world! 2 Y", qos=2)
+        logger.info("Publishing qos=0")
+        session.publish("test", b"Y0" * 65535, qos=0)
         time.sleep(1)
-        logger.debug("Disconnecting")
+        logger.info("Publishing qos=1")
+        session.publish("test", b"Y1" * 65535, qos=1)
+        time.sleep(1)
+        logger.info("Publishing qos=2")
+        session.publish("test", b"Y2" * 65535, qos=2)
+        time.sleep(1)
+        logger.info("Disconnecting")
         session.disconnect()
         time.sleep(1)
-    print("Done")
+    logger.info("Done")
