@@ -1,7 +1,7 @@
 import logging
 import ssl
 import threading
-from typing import Any, Callable, Final, Mapping
+from typing import Any, Callable, Final, Mapping, Sequence
 
 from .connection import Connection
 from .error import MQTTError
@@ -20,6 +20,7 @@ from .packet import (
     MQTTSubAckPacket,
     MQTTUnsubscribePacket,
     MQTTUnsubAckPacket,
+    MQTTAuthPacket,
 )
 from .persistence import SessionPersistenceBackend, InMemorySessionPersistence
 from .property import MQTTPropertyDict
@@ -31,7 +32,17 @@ MAX_SESSION_EXPIRY_INTERVAL: Final = 0xFFFFFFFF
 
 MAX_PACKET_ID: Final = 0xFFFF
 
-SessionAuthCallback = Callable[["Session", str, bytes], None]  # TODO: Allow returning an AUTH packet.
+SessionAuthCallback = Callable[
+    [
+        "Session",
+        MQTTReasonCode,
+        str | None,
+        bytes | None,
+        str | None,
+        Sequence[tuple[str, str]] | None
+    ],
+    None,
+]
 SessionCloseCallback = Callable[["Session"], None]
 SessionOpenCallback = Callable[["Session"], None]
 SessionMessageCallback = Callable[["Session", str, bytes, MQTTPropertyDict], None]
@@ -65,6 +76,7 @@ class Session:
             MQTTPacketType.PUBLISH: self._handle_publish,
             MQTTPacketType.SUBACK: self._handle_suback,
             MQTTPacketType.UNSUBACK: self._handle_unsuback,
+            MQTTPacketType.AUTH: self._handle_auth,
         }
         # This lock protects _persistence and _inflight.
         self._lock = threading.RLock()
@@ -254,6 +266,22 @@ class Session:
         except Exception:
             logger.exception("Unhandled exception in publish callback")
 
+    def _handle_auth(self, packet: MQTTAuthPacket) -> None:
+        if packet.reason_code.value >= 0x80:
+            logger.error(f"Received AUTH with error code: {packet.reason_code}")
+        if self.auth_cb is not None:
+            try:
+                self.auth_cb(
+                    self,
+                    packet.reason_code,
+                    packet.properties.get("AuthenticationMethod"),
+                    packet.properties.get("AuthenticationData"),
+                    packet.properties.get("ReasonString"),
+                    packet.properties.get("UserProperty"),
+                )
+            except Exception:
+                logger.exception("Unhandled exception in auth callback")
+
     def connect(
         self,
         host: str,
@@ -355,6 +383,30 @@ class Session:
                     self._inflight.add(packet)
                 except Exception:
                     logger.exception("Failed to send packet, deferring")
+
+    def auth(
+        self,
+        *,
+        authentication_method: str | None = None,
+        authentication_data: bytes | None = None,
+        reason_string: str | None = None,
+        user_properties: Sequence[tuple[str, str]] | None = None,
+        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+    ) -> None:
+        properties: MQTTPropertyDict = {}
+        if authentication_method is not None:
+            properties["AuthenticationMethod"] = authentication_method
+        if authentication_data is not None:
+            properties["AuthenticationData"] = authentication_data
+        if reason_string is not None:
+            properties["ReasonString"] = reason_string
+        if user_properties is not None:
+            properties["UserProperty"] = user_properties
+        packet = MQTTAuthPacket(
+            reason_code=reason_code,
+            properties=properties,
+        )
+        self._send_packet(packet)
 
     def _flush(self) -> None:
         with self._lock:
