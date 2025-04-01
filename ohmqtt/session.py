@@ -13,8 +13,13 @@ from .packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
     MQTTSubscribePacket,
     MQTTSubAckPacket,
+    MQTTUnsubscribePacket,
+    MQTTUnsubAckPacket,
 )
 from .persistence import SessionPersistenceBackend, InMemorySessionPersistence
 from .property import MQTTPropertyDict
@@ -42,15 +47,20 @@ class Session:
         self.open_cb: SessionOpenCallback | None = None
         self.message_cb: SessionMessageCallback | None = None
         self.server_receive_maximum = 0
-        self._lock = threading.RLock()
-        self._persistence = persistence if persistence is not None else InMemorySessionPersistence()
-        self._inflight: set[MQTTPacketWithId] = set()
         self._read_handlers: Mapping[MQTTPacketType, Callable[[Any], None]] = {
             MQTTPacketType.CONNACK: self._handle_connack,
             MQTTPacketType.PUBACK: self._handle_puback,
+            MQTTPacketType.PUBREC: self._handle_pubrec,
+            MQTTPacketType.PUBREL: self._handle_pubrel,
+            MQTTPacketType.PUBCOMP: self._handle_pubcomp,
             MQTTPacketType.PUBLISH: self._handle_publish,
             MQTTPacketType.SUBACK: self._handle_suback,
+            MQTTPacketType.UNSUBACK: self._handle_unsuback,
         }
+        # This lock protects _persistence and _inflight.
+        self._lock = threading.RLock()
+        self._persistence = persistence if persistence is not None else InMemorySessionPersistence()
+        self._inflight: set[MQTTPacketWithId] = set()
 
     def __enter__(self) -> "Session":
         return self
@@ -63,6 +73,21 @@ class Session:
             raise RuntimeError("No connection")
         logger.debug(f"---> {packet}")
         self.connection.send(packet.encode())
+
+    def _send_retained(self, packet: MQTTPacketWithId) -> None:
+        with self._lock:
+            self._persistence.put(self.client_id, packet)
+            if len(self._inflight) < self.server_receive_maximum:
+                try:
+                    self._send_packet(packet)
+                    self._inflight.add(packet)
+                except Exception:
+                    logger.exception("Failed to send packet, deferring")
+                    if packet.packet_type == MQTTPacketType.PUBLISH:
+                        self._persistence.mark_dup(self.client_id, packet.packet_id)
+            else:
+                logger.debug("Deferring send due to server receive maximum")
+
 
     def _connection_open_callback(self, conn: Connection) -> None:
         packet = MQTTConnectPacket(
@@ -116,13 +141,58 @@ class Session:
                 ref_packet = self._persistence.ack(self.client_id, packet)
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet ID: {packet.packet_id}")
-                raise MQTTError("Received PUBACK for unknown packet ID", MQTTReasonCode.PacketIdentifierNotFound)
             try:
                 self._inflight.remove(ref_packet)
-            except KeyError as exc:
+            except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet: {ref_packet}")
-                raise MQTTError("Received PUBACK for unknown packet", MQTTReasonCode.ProtocolError) from exc
             self._flush()
+
+    def _handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
+        if packet.reason_code.value >= 0x80:
+            logger.error(f"Received PUBREC with error code: {packet.reason_code}")
+        reason_code: MQTTReasonCode = MQTTReasonCode.Success
+        with self._lock:
+            try:
+                ref_packet = self._persistence.ack(self.client_id, packet)
+            except KeyError:
+                logger.exception(f"Received PUBREC for unknown packet ID: {packet.packet_id}")
+                reason_code = MQTTReasonCode.PacketIdentifierNotFound
+            try:
+                self._inflight.remove(ref_packet)
+            except KeyError:
+                logger.exception(f"Received PUBREC for unknown packet: {ref_packet}")
+            rel_packet = MQTTPubRelPacket(packet_id=packet.packet_id, reason_code=reason_code)
+            self._send_retained(rel_packet)
+
+    def _handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
+        if packet.reason_code.value >= 0x80:
+            logger.error(f"Received PUBREL with error code: {packet.reason_code}")
+        reason_code: MQTTReasonCode = MQTTReasonCode.Success
+        with self._lock:
+            try:
+                ref_packet = self._persistence.ack(self.client_id, packet)
+            except KeyError:
+                logger.exception(f"Received PUBREL for unknown packet ID: {packet.packet_id}")
+                reason_code = MQTTReasonCode.PacketIdentifierNotFound
+            try:
+                self._inflight.remove(ref_packet)
+            except KeyError:
+                logger.exception(f"Received PUBREL for unknown packet: {ref_packet}")
+            comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id, reason_code=reason_code)
+            self._send_packet(comp_packet)
+
+    def _handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
+        if packet.reason_code.value >= 0x80:
+            logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
+        with self._lock:
+            try:
+                ref_packet = self._persistence.ack(self.client_id, packet)
+            except KeyError:
+                logger.exception(f"Received PUBCOMP for unknown packet ID: {packet.packet_id}")
+            try:
+                self._inflight.remove(ref_packet)
+            except KeyError:
+                logger.exception(f"Received PUBCOMP for unknown packet: {ref_packet}")
 
     def _handle_suback(self, packet: MQTTSubAckPacket) -> None:
         error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
@@ -133,20 +203,36 @@ class Session:
                 ref_packet = self._persistence.ack(self.client_id, packet)
             except KeyError:
                 logger.exception(f"Received SUBACK for unknown packet ID: {packet.packet_id}")
-                raise MQTTError("Received SUBACK for unknown packet ID", MQTTReasonCode.PacketIdentifierNotFound)
             try:
                 self._inflight.remove(ref_packet)
-            except KeyError as exc:
+            except KeyError:
                 logger.exception(f"Received SUBACK for unknown packet: {ref_packet}")
-                raise MQTTError("Received SUBACK for unknown packet", MQTTReasonCode.ProtocolError) from exc
+            self._flush()
+
+    def _handle_unsuback(self, packet: MQTTUnsubAckPacket) -> None:
+        error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
+        if error_codes:
+            logger.error(f"Received UNSUBACK with error codes: {packet.reason_codes}")
+        with self._lock:
+            try:
+                ref_packet = self._persistence.ack(self.client_id, packet)
+            except KeyError:
+                logger.exception(f"Received UNSUBACK for unknown packet ID: {packet.packet_id}")
+            try:
+                self._inflight.remove(ref_packet)
+            except KeyError:
+                logger.exception(f"Received UNSUBACK for unknown packet: {ref_packet}")
             self._flush()
 
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
         try:
             assert self.connection is not None
             if packet.qos == 1:
-                ack = MQTTPubAckPacket(packet_id=packet.packet_id)
-                self._send_packet(ack)
+                ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
+                self._send_packet(ack_packet)
+            elif packet.qos == 2:
+                rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
+                self._send_retained(rec_packet)
             if self.message_cb is not None:
                 self.message_cb(self, packet.topic, packet.payload)
         except MQTTError:
@@ -219,37 +305,43 @@ class Session:
         )
         if packet.qos > 0:
             if not self.client_id:
-                raise RuntimeError("Cannot publish with QoS > 0 without a client ID, wait for connection first")
+                raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
             with self._lock:
                 packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.PUBLISH)
                 packet.packet_id = packet_id
-                self._persistence.put(self.client_id, packet)
-                if len(self._inflight) < self.server_receive_maximum:
-                    try:
-                        self._send_packet(packet)
-                        self._inflight.add(packet)
-                    except Exception:
-                        logger.exception("Failed to send packet, deferring")
-                        self._persistence.mark_dup(self.client_id, packet_id)
+                self._send_retained(packet)
         else:
             try:
                 self._send_packet(packet)
             except Exception:
-                logger.exception("Failed to send packet, dropping it")
+                logger.exception("Failed to send qos=0 packet, dropping it")
 
-    def subscribe(self, topic: str | list[str], qos: int = 0, properties: MQTTPropertyDict | None = None) -> None:
+    def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
         if not self.client_id:
             raise RuntimeError("Cannot subscribe without a client ID, wait for connection first")
-        if isinstance(topic, str):
-            topic = [topic]
-        topics = [(t, qos) for t in topic]
-        packet = MQTTSubscribePacket(
-            topics=topics,
-            properties=properties,
-        )
+        topics = ((topic, qos),)
         with self._lock:
             packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.SUBSCRIBE)
-            packet.packet_id = packet_id
+            packet = MQTTSubscribePacket(
+                packet_id=packet_id,
+                topics=topics,
+                properties=properties,
+            )
+            self._send_retained(packet)
+
+    def unsubscribe(self, topic: str | list[str], properties: MQTTPropertyDict | None = None) -> None:
+        if not self.client_id:
+            raise RuntimeError("Cannot unsubscribe without a client ID, wait for connection first")
+        if isinstance(topic, str):
+            topic = [topic]
+        topics = topic
+        with self._lock:
+            packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.UNSUBSCRIBE)
+            packet = MQTTUnsubscribePacket(
+                packet_id=packet_id,
+                topics=topics,
+                properties=properties,
+            )
             self._persistence.put(self.client_id, packet)
             if len(self._inflight) < self.server_receive_maximum:
                 try:
@@ -279,17 +371,23 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     session = Session()
-    #session.publish("test", "Hello, world! 1 X".encode(), qos=1)
-    #for n in range(100):
-    #    session.publish("test", f"Hello, world! 1 {n}".encode(), qos=1)
-    session.connect("localhost", 1883)
-    time.sleep(1)
-    session.subscribe("test", qos=1)
-    time.sleep(1)
-    session.publish("test", b"Hello, world! 1 Y", qos=1)
     for n in range(3):
-        session.publish("test", f"Hello, world! 0 {n}".encode(), qos=0)
-        session.publish("test", f"Hello, world! 1 {n}".encode(), qos=1)
-    time.sleep(3)
-    session.disconnect()
+        logger.debug(f"Connecting ({n+1})")
+        session.connect("localhost", 1883)
+        time.sleep(1)
+        logger.debug("Subscribing")
+        session.subscribe("test", qos=2)
+        time.sleep(1)
+        logger.debug("Publishing")
+        session.publish("test", b"Hello, world! 2 X", qos=2)
+        time.sleep(1)
+        logger.debug("Unsubscribing")
+        session.unsubscribe("test")
+        time.sleep(1)
+        logger.debug("Publishing")
+        session.publish("test", b"Hello, world! 2 Y", qos=2)
+        time.sleep(1)
+        logger.debug("Disconnecting")
+        session.disconnect()
+        time.sleep(1)
     print("Done")

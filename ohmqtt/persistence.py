@@ -48,7 +48,11 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
     _sessions: dict[str, list[MQTTPacketWithId]]
     _ack_map: Mapping[MQTTPacketType, MQTTPacketType] = {
         MQTTPacketType.PUBACK: MQTTPacketType.PUBLISH,
+        MQTTPacketType.PUBREC: MQTTPacketType.PUBLISH,
+        MQTTPacketType.PUBREL: MQTTPacketType.PUBREC,
+        MQTTPacketType.PUBCOMP: MQTTPacketType.PUBREL,
         MQTTPacketType.SUBACK: MQTTPacketType.SUBSCRIBE,
+        MQTTPacketType.UNSUBACK: MQTTPacketType.UNSUBSCRIBE,
     }
 
     def __init__(self):

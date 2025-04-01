@@ -296,7 +296,7 @@ class MQTTPublishPacket(MQTTPacketWithId):
         props, props_length = decode_properties(data[offset:])
         validate_properties(props, MQTTPacketType.PUBLISH)
         offset += props_length
-        payload = data[offset:]
+        payload = bytes(data[offset:])
         return MQTTPublishPacket(
             topic,
             payload,

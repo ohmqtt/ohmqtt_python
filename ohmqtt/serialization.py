@@ -137,7 +137,7 @@ def decode_binary(data: bytes) -> tuple[bytes, int]:
         length = int.from_bytes(data[:2], byteorder="big")
         if length > len(data) - 2:
             raise ValueError("Binary data underrun")
-        return data[2:2 + length], length + 2
+        return bytes(data[2:2 + length]), length + 2
     except Exception as e:
         raise MQTTError("Failed to decode binary data from buffer", MQTTReasonCode.MalformedPacket) from e
 

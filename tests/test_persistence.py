@@ -1,11 +1,21 @@
 import pytest
 
 from ohmqtt.mqtt_spec import MQTTPacketType
-from ohmqtt.packet import MQTTPublishPacket, MQTTPubAckPacket
+from ohmqtt.packet import (
+    MQTTPublishPacket,
+    MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
+    MQTTSubscribePacket,
+    MQTTSubAckPacket,
+    MQTTUnsubscribePacket,
+    MQTTUnsubAckPacket,
+)
 from ohmqtt.persistence import InMemorySessionPersistence
 
 
-def test_persistence_in_memory_qos1():
+def test_persistence_in_memory_opers():
     persistence = InMemorySessionPersistence()
 
     assert not persistence.has("test_client")
@@ -55,6 +65,57 @@ def test_persistence_in_memory_qos1():
     assert not gotten
 
     assert not persistence.has("test_client")
+
+
+def test_persistence_in_memory_qos2():
+    persistence = InMemorySessionPersistence()
+
+    pub_packet = MQTTPublishPacket(
+        topic="test",
+        payload=b"test",
+        packet_id=persistence.next_packet_id("test_client", MQTTPacketType.PUBLISH),
+        qos=2,
+    )
+    persistence.put("test_client", pub_packet)
+
+    rec_packet = MQTTPubRecPacket(packet_id=pub_packet.packet_id)
+    persistence.ack("test_client", rec_packet)
+    gotten = persistence.get("test_client", set(), 10)
+    assert not gotten
+
+    rel_packet = MQTTPubRelPacket(packet_id=pub_packet.packet_id)
+    persistence.put("test_client", rel_packet)
+
+    comp_packet = MQTTPubCompPacket(packet_id=pub_packet.packet_id)
+    persistence.ack("test_client", comp_packet)
+    gotten = persistence.get("test_client", set(), 10)
+    assert not gotten
+
+
+def test_persistence_in_memory_sub_unsub():
+    persistence = InMemorySessionPersistence()
+
+    sub_packet = MQTTSubscribePacket(
+        topics=[("test", 1)],
+        packet_id=persistence.next_packet_id("test_client", MQTTPacketType.SUBSCRIBE),
+    )
+    persistence.put("test_client", sub_packet)
+
+    suback_packet = MQTTSubAckPacket(packet_id=sub_packet.packet_id)
+    persistence.ack("test_client", suback_packet)
+    gotten = persistence.get("test_client", set(), 10)
+    assert not gotten
+
+    unsub_packet = MQTTUnsubscribePacket(
+        topics=["test"],
+        packet_id=persistence.next_packet_id("test_client", MQTTPacketType.UNSUBSCRIBE),
+    )
+    persistence.put("test_client", unsub_packet)
+
+    unsuback_packet = MQTTUnsubAckPacket(packet_id=unsub_packet.packet_id)
+    persistence.ack("test_client", unsuback_packet)
+    gotten = persistence.get("test_client", set(), 10)
+    assert not gotten
 
 
 def test_persistence_in_memory_errors():
