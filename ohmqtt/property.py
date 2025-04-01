@@ -133,6 +133,7 @@ MQTTPropertyDeserializers: Mapping[MQTTPropertyId, _DeserializerTypes] = {
 
 
 # Allowed MQTT packet types for each property type.
+# TODO: reverse this mapping for faster lookup.
 MQTTPropertyPacketTypes: Mapping[MQTTPropertyId, frozenset[MQTTPacketType]] = {
     MQTTPropertyId.PayloadFormatIndicator: frozenset({MQTTPacketType.PUBLISH}),
     MQTTPropertyId.MessageExpiryInterval: frozenset({MQTTPacketType.PUBLISH}),
@@ -150,7 +151,14 @@ MQTTPropertyPacketTypes: Mapping[MQTTPropertyId, frozenset[MQTTPacketType]] = {
     MQTTPropertyId.RequestResponseInformation: frozenset({MQTTPacketType.CONNECT}),
     MQTTPropertyId.ResponseInformation: frozenset({MQTTPacketType.CONNACK}),
     MQTTPropertyId.ServerReference: frozenset({MQTTPacketType.CONNACK}),
-    MQTTPropertyId.ReasonString: frozenset({MQTTPacketType.CONNACK, MQTTPacketType.PUBACK, MQTTPacketType.SUBACK}),
+    MQTTPropertyId.ReasonString: frozenset({
+        MQTTPacketType.CONNACK,
+        MQTTPacketType.PUBACK,
+        MQTTPacketType.PUBREL,
+        MQTTPacketType.PUBCOMP,
+        MQTTPacketType.SUBACK,
+        MQTTPacketType.UNSUBACK,
+    }),
     MQTTPropertyId.ReceiveMaximum: frozenset({MQTTPacketType.CONNECT}),
     MQTTPropertyId.TopicAliasMaximum: frozenset({MQTTPacketType.CONNECT}),
     MQTTPropertyId.TopicAlias: frozenset({MQTTPacketType.PUBLISH}),
@@ -161,6 +169,8 @@ MQTTPropertyPacketTypes: Mapping[MQTTPropertyId, frozenset[MQTTPacketType]] = {
         MQTTPacketType.CONNACK,
         MQTTPacketType.PUBLISH,
         MQTTPacketType.PUBACK,
+        MQTTPacketType.PUBREL,
+        MQTTPacketType.PUBCOMP,
         MQTTPacketType.SUBSCRIBE,
         MQTTPacketType.SUBACK,
         MQTTPacketType.UNSUBSCRIBE,

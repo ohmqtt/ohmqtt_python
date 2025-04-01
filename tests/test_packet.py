@@ -10,6 +10,8 @@ from ohmqtt.packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
     MQTTSubscribePacket,
     MQTTSubAckPacket,
     MQTTUnsubscribePacket,
@@ -119,6 +121,28 @@ def test_packet_puback_encode(test_data):
 
 
 def test_packet_puback_decode_errors(test_data):
+    run_decode_error_cases(test_data)
+
+
+def test_packet_pubrel_encode(test_data):
+    def transform_args(args):
+        if "reason_code" in args:
+            args["reason_code"] = MQTTReasonCode(args["reason_code"])
+    run_encode_cases(MQTTPubRelPacket, test_data, transform_args=transform_args)
+
+
+def test_packet_pubrel_decode_errors(test_data):
+    run_decode_error_cases(test_data)
+
+
+def test_packet_pubcomp_encode(test_data):
+    def transform_args(args):
+        if "reason_code" in args:
+            args["reason_code"] = MQTTReasonCode(args["reason_code"])
+    run_encode_cases(MQTTPubCompPacket, test_data, transform_args=transform_args)
+
+
+def test_packet_pubcomp_decode_errors(test_data):
     run_decode_error_cases(test_data)
 
 

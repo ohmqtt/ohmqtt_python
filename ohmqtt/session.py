@@ -116,7 +116,7 @@ class Session:
                 ref_packet = self._persistence.ack(self.client_id, packet)
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet ID: {packet.packet_id}")
-                raise MQTTError("Received PUBACK for unknown packet ID", MQTTReasonCode.ProtocolError)
+                raise MQTTError("Received PUBACK for unknown packet ID", MQTTReasonCode.PacketIdentifierNotFound)
             try:
                 self._inflight.remove(ref_packet)
             except KeyError as exc:
@@ -133,7 +133,7 @@ class Session:
                 ref_packet = self._persistence.ack(self.client_id, packet)
             except KeyError:
                 logger.exception(f"Received SUBACK for unknown packet ID: {packet.packet_id}")
-                raise MQTTError("Received SUBACK for unknown packet ID", MQTTReasonCode.ProtocolError)
+                raise MQTTError("Received SUBACK for unknown packet ID", MQTTReasonCode.PacketIdentifierNotFound)
             try:
                 self._inflight.remove(ref_packet)
             except KeyError as exc:
