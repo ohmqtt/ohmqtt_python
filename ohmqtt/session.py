@@ -67,6 +67,7 @@ class Session:
         self.open_cb = open_cb
         self.message_cb = message_cb
         self.server_receive_maximum = 0
+        self.server_topic_alias_maximum = 0
         self._read_handlers: Mapping[MQTTPacketType, Callable[[Any], None]] = {
             MQTTPacketType.CONNACK: self._handle_connack,
             MQTTPacketType.PUBACK: self._handle_puback,
@@ -126,14 +127,15 @@ class Session:
         """Handle a connection close event."""
         with self._lock:
             self.server_receive_maximum = 0
+            self.server_topic_alias_maximum = 0
             self._inflight.clear()
-            if self.close_cb is not None:
-                try:
-                    self.close_cb(self)
-                except MQTTError:
-                    raise
-                except Exception:
-                    logger.exception("Unhandled exception in close callback")
+        if self.close_cb is not None:
+            try:
+                self.close_cb(self)
+            except MQTTError:
+                raise
+            except Exception:
+                logger.exception("Unhandled exception in close callback")
 
     def _connection_read_callback(self, conn: Connection, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
@@ -151,6 +153,10 @@ class Session:
                 self.client_id = packet.properties["AssignedClientIdentifier"]
             if "ReceiveMaximum" in packet.properties:
                 self.server_receive_maximum = packet.properties["ReceiveMaximum"]
+            else:
+                self.server_receive_maximum = MAX_PACKET_ID - 1
+            if "TopicAliasMaximum" in packet.properties:
+                self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
             self._flush()
         try:
             if self.open_cb is not None:
@@ -334,8 +340,6 @@ class Session:
         """Disconnect from the server."""
         if self.connection is not None:
             self.connection.close()
-        self.server_receive_maximum = 0
-        self._inflight.clear()
 
     def publish(
         self,
@@ -440,46 +444,3 @@ class Session:
                     if packet.packet_type == MQTTPacketType.PUBLISH:
                         self._persistence.mark_dup(self.client_id, packet.packet_id)
                     break
-
-
-if __name__ == "__main__":
-    import time
-
-    logging.basicConfig(level=logging.DEBUG)
-
-    def handle_message(session: Session, topic: str, payload: bytes, properties: MQTTPropertyDict) -> None:
-        logger.info(f"Received message on topic '{topic}': {payload[:16]!r}... with properties: {properties}")
-
-    session = Session(message_cb=handle_message)
-    for n in range(3):
-        logger.info(f"Connecting ({n+1})")
-        session.connect("localhost", 1883)
-        time.sleep(1)
-        logger.info("Subscribing")
-        session.subscribe("test", qos=2)
-        time.sleep(1)
-        logger.info("Publishing qos=0")
-        session.publish("test", b"X0" * 65535, qos=0)
-        time.sleep(1)
-        logger.info("Publishing qos=1")
-        session.publish("test", b"X1" * 65535, qos=1)
-        time.sleep(1)
-        logger.info("Publishing qos=2")
-        session.publish("test", b"X2" * 65535, qos=2)
-        time.sleep(1)
-        logger.info("Unsubscribing")
-        session.unsubscribe("test")
-        time.sleep(1)
-        logger.info("Publishing qos=0")
-        session.publish("test", b"Y0" * 65535, qos=0)
-        time.sleep(1)
-        logger.info("Publishing qos=1")
-        session.publish("test", b"Y1" * 65535, qos=1)
-        time.sleep(1)
-        logger.info("Publishing qos=2")
-        session.publish("test", b"Y2" * 65535, qos=2)
-        time.sleep(1)
-        logger.info("Disconnecting")
-        session.disconnect()
-        time.sleep(1)
-    logger.info("Done")

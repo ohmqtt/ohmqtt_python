@@ -1,6 +1,6 @@
 import pytest
 
-from ohmqtt.mqtt_spec import MQTTPacketType
+from ohmqtt.mqtt_spec import MQTTPacketType, MQTTReasonCode
 from ohmqtt.packet import (
     MQTTPublishPacket,
     MQTTPubAckPacket,
@@ -101,7 +101,7 @@ def test_persistence_in_memory_sub_unsub():
     )
     persistence.put("test_client", sub_packet)
 
-    suback_packet = MQTTSubAckPacket(packet_id=sub_packet.packet_id)
+    suback_packet = MQTTSubAckPacket(packet_id=sub_packet.packet_id, reason_codes=(MQTTReasonCode.GrantedQoS1,))
     persistence.ack("test_client", suback_packet)
     gotten = persistence.get("test_client", set(), 10)
     assert not gotten
@@ -112,7 +112,7 @@ def test_persistence_in_memory_sub_unsub():
     )
     persistence.put("test_client", unsub_packet)
 
-    unsuback_packet = MQTTUnsubAckPacket(packet_id=unsub_packet.packet_id)
+    unsuback_packet = MQTTUnsubAckPacket(packet_id=unsub_packet.packet_id, reason_codes=(MQTTReasonCode.Success,))
     persistence.ack("test_client", unsuback_packet)
     gotten = persistence.get("test_client", set(), 10)
     assert not gotten

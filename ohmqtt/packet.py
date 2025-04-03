@@ -496,7 +496,7 @@ class MQTTSubscribePacket(MQTTPacketWithId):
     def __init__(
         self,
         topics: Sequence[tuple[str, int]],
-        packet_id: int = 1,
+        packet_id: int,
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -538,7 +538,7 @@ class MQTTSubAckPacket(MQTTPacketWithId):
     def __init__(
         self,
         packet_id: int,
-        reason_codes: list[MQTTReasonCode] = [],
+        reason_codes: Sequence[MQTTReasonCode],
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -604,7 +604,7 @@ class MQTTUnsubAckPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.UNSUBACK
     __slots__ = ("packet_id", "reason_codes", "properties")
 
-    def __init__(self, packet_id: int, reason_codes: Sequence[MQTTReasonCode] = [], *, properties: MQTTPropertyDict | None = None):
+    def __init__(self, packet_id: int, reason_codes: Sequence[MQTTReasonCode], *, properties: MQTTPropertyDict | None = None):
         self.packet_id = packet_id
         self.reason_codes = tuple(reason_codes)
         self.properties = properties if properties is not None else {}
