@@ -1,5 +1,3 @@
-import binascii
-
 import pytest
 
 from ohmqtt.error import MQTTError
@@ -32,7 +30,7 @@ def extract_props(data) -> MQTTPropertyDict:
         k = prop[0]
         prop_key = MQTTPropertyId[k]
         if MQTTPropertyDict.__annotations__[prop_key.name] == bytes:
-            prop_value = binascii.unhexlify(prop[1])
+            prop_value = bytes.fromhex(prop[1])
         elif prop_key == MQTTPropertyId.SubscriptionIdentifier:
             prop_value = set(prop[1:])
         elif prop_key == MQTTPropertyId.UserProperty:
@@ -48,7 +46,7 @@ def extract_args(data, binary_args):
     args = {}
     for k, v in data.items():
         if k in binary_args:
-            args[k] = binascii.unhexlify(v)
+            args[k] = bytes.fromhex(v)
         elif k == "properties":
             args[k] = extract_props(v)
         else:
@@ -63,9 +61,9 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
             transform_args(args)
         packet = cls(**args)
         encoded = packet.encode()
-        assert encoded == binascii.unhexlify(case["raw"]), binascii.hexlify(encoded)
+        assert encoded == bytes.fromhex(case["raw"]), encoded.hex()
 
-        decoded = decode_packet(binascii.unhexlify(case["raw"]))
+        decoded = decode_packet(bytes.fromhex(case["raw"]))
         assert type(decoded) == cls
         for attr, value in args.items():
             assert getattr(decoded, attr) == value, f"{attr}: {getattr(decoded, attr)} != {value}"
@@ -79,7 +77,7 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
 def run_decode_error_cases(test_data):
     for case in test_data:
         try:
-            decode_packet(binascii.unhexlify(case["raw"]))
+            decode_packet(bytes.fromhex(case["raw"]))
         except MQTTError as e:
             assert e.reason_code == MQTTReasonCode(case["reason_code"])
         else:

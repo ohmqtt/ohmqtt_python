@@ -1,4 +1,3 @@
-import binascii
 import pytest
 import socket
 import time
@@ -263,7 +262,7 @@ def test_connection_bad_length(callbacks, mocker, loopback_socket):
         loopback_socket.test_sendall(MQTTConnAckPacket().encode())
         wait_for(lambda: len(callbacks.read_calls) > 0)
 
-        loopback_socket.test_sendall(binascii.unhexlify("30ffffffffff"))
+        loopback_socket.test_sendall(bytes.fromhex("30ffffffffff"))
         recvd = loopback_socket.test_recv(1024)
         assert recvd == MQTTDisconnectPacket(reason_code=MQTTReasonCode.MalformedPacket).encode()
         wait_for(lambda: len(callbacks.close_calls) > 0)
