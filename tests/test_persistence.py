@@ -25,7 +25,7 @@ def test_persistence_in_memory_opers():
     for n in range(20):
         packet = MQTTPublishPacket(
             topic="test",
-            payload=f"test {n}".encode(),
+            payload=f"test {n}".encode("utf-8"),
             packet_id=persistence.next_packet_id("test_client", MQTTPacketType.PUBLISH),
             qos=1,
         )

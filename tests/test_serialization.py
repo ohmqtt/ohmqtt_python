@@ -1,6 +1,7 @@
 import pytest
 
 from ohmqtt.error import MQTTError
+from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.serialization import (
     encode_bool,
     decode_bool,
@@ -101,6 +102,17 @@ def test_decode_string_errors(test_data):
     for case in test_data:
         with pytest.raises(MQTTError):
             decode_string(bytes.fromhex(case["input"]))
+
+
+def test_decode_string_surrogates():
+    # A separate test to ensure invalid surrogate characters are handled correctly by Python.
+    for n in range(0xD800, 0xDFFF+1):
+        s = chr(n)
+        x = s.encode("utf-8", errors="surrogatepass")
+        y = len(x).to_bytes(2, byteorder="big") + x
+        with pytest.raises(MQTTError) as exc:
+            decode_string(y)
+        assert exc.value.reason_code == MQTTReasonCode.MalformedPacket
 
 
 def test_encode_string_pair(test_data):
