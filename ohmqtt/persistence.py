@@ -39,8 +39,8 @@ class SessionPersistenceBackend(metaclass=ABCMeta):
         ...  # pragma: no cover
 
     @abstractmethod
-    def next_packet_id(self, client_id: str, packet_type: MQTTPacketType) -> int:
-        """Get the next packet ID for a client."""
+    def next_packet_id(self, client_id: str) -> int:
+        """Get the next pubblish packet ID for a client."""
         ...  # pragma: no cover
 
 
@@ -51,8 +51,6 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         MQTTPacketType.PUBREC: MQTTPacketType.PUBLISH,
         MQTTPacketType.PUBREL: MQTTPacketType.PUBREC,
         MQTTPacketType.PUBCOMP: MQTTPacketType.PUBREL,
-        MQTTPacketType.SUBACK: MQTTPacketType.SUBSCRIBE,
-        MQTTPacketType.UNSUBACK: MQTTPacketType.UNSUBSCRIBE,
     }
 
     def __init__(self):
@@ -86,16 +84,21 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         except KeyError:
             raise ValueError(f"Cannot ack packet of type {packet.packet_type}")
         packet_id = packet.packet_id
-        ref_packet = next((p for p in self._sessions[client_id] if p.packet_type == ref_packet_type and p.packet_id == packet_id), None)
+        ref_packet = next(
+            (p for p in self._sessions[client_id] if p.packet_type == ref_packet_type and p.packet_id == packet_id),
+            None
+        )
         if ref_packet is None:
             raise KeyError(f"Packet: {ref_packet_type}:{packet_id} not found in session for client: {client_id}")
         self._sessions[client_id].remove(ref_packet)
         return ref_packet
 
-    def next_packet_id(self, client_id: str, packet_type: MQTTPacketType) -> int:
+    def next_packet_id(self, client_id: str) -> int:
         if client_id not in self._sessions:
             self._sessions[client_id] = []
-        packet_ids = sorted([p.packet_id for p in self._sessions[client_id] if p.packet_type == packet_type])
+        packet_ids = frozenset(
+            p.packet_id for p in self._sessions[client_id] if p.packet_type in (MQTTPacketType.PUBLISH, MQTTPacketType.PUBREL)
+        )
         if not packet_ids:
             return 1
         next_id = max(packet_ids) + 1

@@ -79,10 +79,14 @@ class Session:
             MQTTPacketType.UNSUBACK: self._handle_unsuback,
             MQTTPacketType.AUTH: self._handle_auth,
         }
-        # This lock protects _persistence and _inflight.
+        # This lock protects _persistence, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
         self._persistence = persistence if persistence is not None else InMemorySessionPersistence()
         self._inflight: set[MQTTPacketWithId] = set()
+        self._next_packet_ids = {
+            MQTTPacketType.SUBSCRIBE: 1,
+            MQTTPacketType.UNSUBSCRIBE: 1,
+        }
 
     def __enter__(self) -> "Session":
         return self
@@ -236,32 +240,12 @@ class Session:
         error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
         if error_codes:
             logger.error(f"Received SUBACK with error codes: {packet.reason_codes}")
-        with self._lock:
-            try:
-                ref_packet = self._persistence.ack(self.client_id, packet)
-            except KeyError:
-                logger.exception(f"Received SUBACK for unknown packet ID: {packet.packet_id}")
-            try:
-                self._inflight.remove(ref_packet)
-            except KeyError:
-                logger.exception(f"Received SUBACK for unknown packet: {ref_packet}")
-            self._flush()
 
     def _handle_unsuback(self, packet: MQTTUnsubAckPacket) -> None:
         """Handle an UNSUBACK packet from the server."""
         error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
         if error_codes:
             logger.error(f"Received UNSUBACK with error codes: {packet.reason_codes}")
-        with self._lock:
-            try:
-                ref_packet = self._persistence.ack(self.client_id, packet)
-            except KeyError:
-                logger.exception(f"Received UNSUBACK for unknown packet ID: {packet.packet_id}")
-            try:
-                self._inflight.remove(ref_packet)
-            except KeyError:
-                logger.exception(f"Received UNSUBACK for unknown packet: {ref_packet}")
-            self._flush()
 
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
@@ -362,48 +346,48 @@ class Session:
             if not self.client_id:
                 raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
             with self._lock:
-                packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.PUBLISH)
+                packet_id = self._persistence.next_packet_id(self.client_id)
                 packet.packet_id = packet_id
                 self._send_retained(packet)
         else:
-            try:
-                self._send_packet(packet)
-            except Exception:
-                logger.exception("Failed to send qos=0 packet, dropping it")
+            self._send_packet(packet)
+
+    def _next_packet_id(self, packet_type: MQTTPacketType) -> int:
+        """Get the next packet ID for a given packet type.
+        
+        Should only be used for SUBSCRIBE and UNSUBSCRIBE packets. Get PUBLISH IDs from the persistence store."""
+        with self._lock:
+            packet_id = self._next_packet_ids[packet_type]
+            self._next_packet_ids[packet_type] += 1
+            if self._next_packet_ids[packet_type] > MAX_PACKET_ID:
+                self._next_packet_ids[packet_type] = 1
+        return packet_id
 
     def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
         """Subscribe to a single topic."""
         if not self.client_id:
             raise RuntimeError("Cannot subscribe without a client ID, wait for connection first")
         topics = ((topic, qos),)
-        with self._lock:
-            packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.SUBSCRIBE)
-            packet = MQTTSubscribePacket(
-                packet_id=packet_id,
-                topics=topics,
-                properties=properties,
-            )
-            self._send_retained(packet)
+        packet_id = self._next_packet_id(MQTTPacketType.SUBSCRIBE)
+        packet = MQTTSubscribePacket(
+            packet_id=packet_id,
+            topics=topics,
+            properties=properties,
+        )
+        self._send_packet(packet)
 
     def unsubscribe(self, topic: str, properties: MQTTPropertyDict | None = None) -> None:
         """Unsubscribe from a single topic."""
         if not self.client_id:
             raise RuntimeError("Cannot unsubscribe without a client ID, wait for connection first")
         topics = [topic]
-        with self._lock:
-            packet_id = self._persistence.next_packet_id(self.client_id, MQTTPacketType.UNSUBSCRIBE)
-            packet = MQTTUnsubscribePacket(
-                packet_id=packet_id,
-                topics=topics,
-                properties=properties,
-            )
-            self._persistence.put(self.client_id, packet)
-            if len(self._inflight) < self.server_receive_maximum:
-                try:
-                    self._send_packet(packet)
-                    self._inflight.add(packet)
-                except Exception:
-                    logger.exception("Failed to send packet, deferring")
+        packet_id = self._next_packet_id(MQTTPacketType.UNSUBSCRIBE)
+        packet = MQTTUnsubscribePacket(
+            packet_id=packet_id,
+            topics=topics,
+            properties=properties,
+        )
+        self._send_packet(packet)
 
     def auth(
         self,
