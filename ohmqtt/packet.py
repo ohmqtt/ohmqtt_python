@@ -254,9 +254,11 @@ class MQTTPublishPacket(MQTTPacketWithId):
         qos: int = 0,
         retain: bool = False,
         dup: bool = False,
-        packet_id: int = 0,
+        packet_id: int | None = None,
         properties: MQTTPropertyDict | None = None,
     ):
+        if qos > 0 and packet_id is None:
+            raise ValueError("Packet ID must be set for QoS > 0")
         self.topic = topic
         self.payload = payload
         self.qos = qos
@@ -292,7 +294,7 @@ class MQTTPublishPacket(MQTTPacketWithId):
             packet_id, packet_id_length = decode_uint16(data[offset:])
             offset += packet_id_length
         else:
-            packet_id = 0
+            packet_id = None
         props, props_length = decode_properties(data[offset:])
         validate_properties(props, MQTTPacketType.PUBLISH)
         offset += props_length

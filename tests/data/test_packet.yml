@@ -135,6 +135,7 @@ test_packet_publish_encode:
   - args:
       topic: "bar"
       qos: 0
+      packet_id: 5
       retain: false
       dup: false
       payload: "baz"
