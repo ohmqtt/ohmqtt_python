@@ -316,7 +316,7 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketTyp
 
 def hash_properties(properties: MQTTPropertyDict) -> int:
     """Calculate the hash of the properties."""
-    def _hashable_value(value):
+    def _hashable_value(value: object) -> object:
         """Hash a value."""
         if isinstance(value, set):
             return frozenset(value)

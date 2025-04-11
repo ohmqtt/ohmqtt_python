@@ -31,7 +31,7 @@ class MQTTPacket(metaclass=ABCMeta):
         return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
 
     def __str__(self) -> str:
-        def truncate(s) -> str:
+        def truncate(s: object) -> str:
             if isinstance(s, bytes):
                 return s[:16].hex(" ") + "..." if len(s) > 16 else s.hex(" ")
             else:

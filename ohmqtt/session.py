@@ -1,6 +1,7 @@
 import logging
 import ssl
 import threading
+from types import TracebackType
 from typing import Any, Callable, Final, Mapping, Sequence
 
 from .connection import Connection
@@ -91,7 +92,7 @@ class Session:
     def __enter__(self) -> "Session":
         return self
     
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.disconnect()
 
     def _send_packet(self, packet: MQTTPacket) -> None:
@@ -298,7 +299,7 @@ class Session:
         recv_buffer_sz: int = 65535,
         tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
-        tls_hostname: str | None = None,
+        tls_hostname: str = "",
         connect_properties: MQTTPropertyDict | None = None,
     ) -> None:
         """Connect to a server."""

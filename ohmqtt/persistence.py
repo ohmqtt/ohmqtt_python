@@ -53,7 +53,7 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         MQTTPacketType.PUBCOMP: MQTTPacketType.PUBREL,
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sessions = {}
 
     def clear(self, client_id: str) -> None:

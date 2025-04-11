@@ -2,7 +2,10 @@ import logging
 import selectors
 import socket
 import threading
+from types import TracebackType
 from typing import Callable
+
+from .tls_socket import TLSSocket
 
 
 logger = logging.getLogger(__name__)
@@ -12,7 +15,7 @@ SocketWriterErrorCallback = Callable[[Exception], None]
 
 class SocketWriter(threading.Thread):
     """Non-blocking send interface for a socket."""
-    def __init__(self, sock: socket.socket, error_cb: SocketWriterErrorCallback | None = None) -> None:
+    def __init__(self, sock: socket.socket | TLSSocket, error_cb: SocketWriterErrorCallback | None = None) -> None:
         super().__init__(daemon=True)
         assert not sock.getblocking(), "Socket must be non-blocking"
         self._sock = sock
@@ -33,7 +36,7 @@ class SocketWriter(threading.Thread):
         self.start()
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.close()
 
     def send(self, data: bytes) -> bool:
@@ -77,7 +80,7 @@ class SocketWriter(threading.Thread):
             else:
                 self._buffer = self._buffer[num_sent:]
 
-    def run(self):
+    def run(self) -> None:
         try:
             sel = selectors.DefaultSelector()
             sel.register(self._sock, selectors.EVENT_WRITE)

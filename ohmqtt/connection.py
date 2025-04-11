@@ -4,6 +4,7 @@ import socket
 import ssl
 import threading
 import time
+from types import TracebackType
 from typing import Callable, cast, Final
 
 from .error import MQTTError
@@ -25,7 +26,7 @@ class Connection(threading.Thread):
     
     This thread will read from the socket, decode buffers from the stream,
     send and monitor keepalive pings, and call the appropriate callbacks."""
-    sock: socket.socket | TLSSocket | None = None
+    sock: socket.socket | TLSSocket | None
     _writer: SocketWriter | None = None
     _close_exc: Exception | None = None
 
@@ -40,7 +41,7 @@ class Connection(threading.Thread):
         recv_buffer_sz: int = 65535,
         tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
-        tls_hostname: str | None = None,
+        tls_hostname: str = "",
     ):
         super().__init__(daemon=True)
 
@@ -54,6 +55,7 @@ class Connection(threading.Thread):
         self.tls = tls
         self.tls_context = tls_context
         self.tls_hostname = tls_hostname
+        self.sock = None
 
         self._recv_buffer = bytearray(recv_buffer_sz)
         # Use a pipe to signal the thread to close.
@@ -75,7 +77,7 @@ class Connection(threading.Thread):
         self.start()
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         # Block until the thread is closed, to ensure that the thread shuts down cleanly.
         # Otherwise we may race dereferencing the callbacks.
         self.close()
@@ -188,7 +190,7 @@ class Connection(threading.Thread):
         This method is called from the SocketWriter thread when an error occurs."""
         self.close(block=False, exc=exc)
 
-    def run(self):
+    def run(self) -> None:
         try:
             self.sock = socket.create_connection((self.host, self.port), all_errors=True)
             if self.tls:
@@ -204,9 +206,9 @@ class Connection(threading.Thread):
 
             sel = selectors.DefaultSelector()
             sel.register(self._close_pipe_r, selectors.EVENT_READ)
-            sel.register(self.sock, selectors.EVENT_READ)
+            sel.register(self.sock.fileno(), selectors.EVENT_READ)
             if self.tls:
-                sel.modify(self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE)
+                sel.modify(self.sock.fileno(), selectors.EVENT_READ | selectors.EVENT_WRITE)
                 while not self._handshake_done:
                     events = sel.select()
                     for key, _ in events:
@@ -222,7 +224,7 @@ class Connection(threading.Thread):
                             except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
                                 continue
                 self._writer = SocketWriter(self.sock, self.handle_write_error)
-                sel.modify(self.sock, selectors.EVENT_READ)
+                sel.modify(self.sock.fileno(), selectors.EVENT_READ)
             while True:
                 do_keepalive = self.keepalive_interval > 0
                 if do_keepalive:

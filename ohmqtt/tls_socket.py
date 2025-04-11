@@ -1,5 +1,6 @@
 import socket
 import ssl
+from types import TracebackType
 
 
 class TLSSocket:
@@ -13,7 +14,7 @@ class TLSSocket:
     def __enter__(self) -> "TLSSocket":
         return self
     
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.close()
 
     def do_handshake(self) -> None:
