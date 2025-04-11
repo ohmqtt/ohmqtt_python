@@ -6,7 +6,6 @@ from .packet import MQTTPacketWithId, MQTTPublishPacket
 
 
 class SessionPersistenceBackend(metaclass=ABCMeta):
-    """Interface for retaining MQTT session state."""
     @abstractmethod
     def clear(self, client_id: str) -> None:
         """Clear all packets from the session for a client."""
@@ -46,7 +45,6 @@ class SessionPersistenceBackend(metaclass=ABCMeta):
 
 
 class InMemorySessionPersistence(SessionPersistenceBackend):
-    """Stores MQTT session state in volatile memory."""
     _sessions: dict[str, list[MQTTPacketWithId]]
     _ack_map: Mapping[MQTTPacketType, MQTTPacketType] = {
         MQTTPacketType.PUBACK: MQTTPacketType.PUBLISH,

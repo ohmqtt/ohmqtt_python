@@ -335,28 +335,21 @@ class Session:
         properties: MQTTPropertyDict | None = None,
     ) -> None:
         """Publish a message to a topic."""
-        if qos > 0:
+        packet = MQTTPublishPacket(
+            topic=topic,
+            payload=payload,
+            qos=qos,
+            retain=retain,
+            properties=properties,
+        )
+        if packet.qos > 0:
             if not self.client_id:
                 raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
             with self._lock:
                 packet_id = self._persistence.next_packet_id(self.client_id)
-                packet = MQTTPublishPacket(
-                    topic=topic,
-                    payload=payload,
-                    qos=qos,
-                    packet_id=packet_id,
-                    retain=retain,
-                    properties=properties,
-                )
+                packet.packet_id = packet_id
                 self._send_retained(packet)
         else:
-            packet = MQTTPublishPacket(
-                topic=topic,
-                payload=payload,
-                qos=qos,
-                retain=retain,
-                properties=properties,
-            )
             self._send_packet(packet)
 
     def _next_packet_id(self, packet_type: MQTTPacketType) -> int:
