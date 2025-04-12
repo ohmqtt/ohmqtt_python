@@ -52,7 +52,7 @@ def send_to_session(MockConnection, mock_connection, packet: MQTTPacket) -> None
     MockConnection.call_args.kwargs["read_cb"](mock_connection, packet)
 
 
-@pytest.mark.parametrize("client_id", ["", "test_client_id"])
+@pytest.mark.parametrize("client_id", ["", "a_client_id"])
 def test_session_happy_path(client_id, callbacks, mocker):
     mock_connection = mocker.Mock(spec=Connection)
     MockConnection = mocker.patch("ohmqtt.session.Connection", return_value=mock_connection)

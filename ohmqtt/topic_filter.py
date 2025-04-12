@@ -1,6 +1,7 @@
 class MQTTTopicFilter:
     """A topic filter for MQTT."""
     __slots__ = ("_topic_filter",)
+    _topic_filter: str
 
     def __init__(self, topic_filter: str):
         if len(topic_filter) == 0:
@@ -17,9 +18,22 @@ class MQTTTopicFilter:
                 raise ValueError("Multi-level wildcard '#' must be preceded by a '/' unless it is the only character in the topic filter")
         self._topic_filter = topic_filter
 
+    def __hash__(self) -> int:
+        # The hash of a TopicFilter must be the hash of the topic filter string.
+        return hash(self._topic_filter)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, MQTTTopicFilter):
+            return self._topic_filter == other._topic_filter
+        elif isinstance(other, str):
+            # Allow comparison with a string.
+            return self._topic_filter == other
+        else:
+            return NotImplemented
+
     @property
     def topic_filter(self) -> str:
-        """Get the topic filter."""
+        """Get the topic filter string."""
         return self._topic_filter
 
     def match(self, topic: str) -> bool:

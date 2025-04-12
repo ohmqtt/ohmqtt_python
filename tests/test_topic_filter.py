@@ -92,3 +92,18 @@ def test_topic_filter_single_level_wildcard_match_hidden():
 
     filter = MQTTTopicFilter("+/monitor/Clients")
     assert not filter.match("$SYS/monitor/Clients")
+
+def test_topic_filter_hash():
+    # The hash of a TopicFilter must be the hash of the topic filter string.
+    filter = MQTTTopicFilter("sport/tennis/player1")
+    assert hash(filter) == hash("sport/tennis/player1")
+
+def test_topic_filter_equality():
+    filter1 = MQTTTopicFilter("sport/tennis/player1")
+    filter2 = MQTTTopicFilter("sport/tennis/player1")
+    filter3 = MQTTTopicFilter("sport/tennis/player2")
+    assert filter1 == filter2
+    assert filter1 != filter3
+    assert filter1 == "sport/tennis/player1"
+    assert not filter1 == "not_the_filter"
+    assert not filter1 == 12345
