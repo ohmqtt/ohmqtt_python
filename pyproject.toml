@@ -29,5 +29,5 @@ include = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=ohmqtt -v"
+addopts = "--cov=ohmqtt --cov-report=term-missing -v"
 
