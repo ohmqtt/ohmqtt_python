@@ -31,6 +31,12 @@ class MQTTTopicFilter:
         else:
             return NotImplemented
 
+    def __repr__(self) -> str:
+        return f"MQTTTopicFilter{{{self._topic_filter}}}"
+
+    def __str__(self) -> str:
+        return repr(self)
+
     @property
     def topic_filter(self) -> str:
         """Get the topic filter string."""

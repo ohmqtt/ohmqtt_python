@@ -107,3 +107,8 @@ def test_topic_filter_equality():
     assert filter1 == "sport/tennis/player1"
     assert not filter1 == "not_the_filter"
     assert not filter1 == 12345
+
+def test_topic_filter_repr_str():
+    filter = MQTTTopicFilter("sport/tennis/player1")
+    assert repr(filter) == "MQTTTopicFilter{sport/tennis/player1}"
+    assert str(filter) == repr(filter)
