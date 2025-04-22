@@ -3,7 +3,7 @@ from typing import Callable, Final
 
 from .property import MQTTPropertyDict
 from .session import Session
-from .topic_filter import MQTTTopicFilter
+from .subscriptions import Subscriptions
 
 logger: Final = logging.getLogger(__name__)
 
@@ -14,14 +14,14 @@ class Client:
     """High level interface for the MQTT client."""
     client_id: str
     session: Session
-    subscriptions: dict[MQTTTopicFilter, list[ClientSubscribeCallback]]
+    subscriptions: Subscriptions
 
     def __init__(
         self,
         client_id: str,
     ) -> None:
         self.client_id = client_id
-        self.subscriptions = {}
+        self.subscriptions = Subscriptions()
         self.session = Session(client_id, message_cb=self.on_message)
 
     def connect(self, host: str, port: int) -> None:
@@ -46,22 +46,25 @@ class Client:
         properties: MQTTPropertyDict | None = None,
     ) -> None:
         """Subscribe to a topic filter with a callback."""
-        self.subscriptions[MQTTTopicFilter(topic_filter)] = callback
+        self.subscriptions.add(topic_filter, callback)
         self.session.subscribe(topic_filter, qos=qos, properties=properties)
 
-    def unsubscribe(self, topic_filter: str) -> None:
-        """Unsubscribe from a topic filter."""
-        try:
-            del self.subscriptions[topic_filter]
-        except KeyError:
-            logger.exception(f"Unsubscribe called for an untracked topic filter: {topic_filter}")
-        # Unsubscribe from the server even if the topic filter was not tracked.
-        self.session.unsubscribe(topic_filter)
+    def unsubscribe(self, topic_filter: str, callback: ClientSubscribeCallback | None = None) -> None:
+        """Unsubscribe from a topic filter.
+
+        If a callback is provided it will be removed, otherwise all callbacks for the topic filter will be removed."""
+        remaining = 0
+        if callback is None:
+            self.subscriptions.remove_all(topic_filter)
+        else:
+            remaining = self.subscriptions.remove(topic_filter, callback)
+        if remaining == 0:
+            self.session.unsubscribe(topic_filter)
 
     def on_message(self, session: Session, topic: str, payload: bytes, properties: MQTTPropertyDict) -> None:
         """Callback for when a message is received."""
         logger.debug(f"Received message on topic {topic}: {payload.hex()}")
-        callbacks = [callbacks for filter, callbacks in self.subscriptions.items() if filter.match(topic)]
+        callbacks = self.subscriptions.get_callbacks(topic)
         for callback in callbacks:
             try:
                 callback(self, topic, payload, properties)

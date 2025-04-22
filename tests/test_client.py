@@ -26,7 +26,6 @@ def test_client_happy_path(MockSession, mock_session):
     )
     assert client.client_id == "test_client"
     assert client.session == mock_session
-    assert client.subscriptions == {}
     assert client.session.connect.call_count == 0
     assert client.session.publish.call_count == 0
     assert client.session.subscribe.call_count == 0
@@ -69,6 +68,7 @@ def test_client_happy_path(MockSession, mock_session):
     )
     mock_session.publish.reset_mock()
 
+
 def test_client_unsubscribe_untracked(MockSession, mock_session):
     """Test that unsubscribing from an untracked topic filter does not raise an error."""
     client = Client(client_id="test_client")
@@ -76,6 +76,7 @@ def test_client_unsubscribe_untracked(MockSession, mock_session):
     client.unsubscribe("test/topic")
     mock_session.unsubscribe.assert_called_once_with("test/topic")
     mock_session.unsubscribe.reset_mock()
+
 
 def test_client_subscribe_callback_error(MockSession, mock_session):
     """Test that an error in the subscribe callback is not raised."""
@@ -88,3 +89,29 @@ def test_client_subscribe_callback_error(MockSession, mock_session):
 
     # Must not raise an Exception.
     client.on_message(client.session, "test/topic", b"test_payload", None)
+
+
+def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
+    """Test that unsubscribing a callback works as expected."""
+    received = []
+
+    callback1 = lambda c, t, p, pr: received.append((c, t, p, pr))
+    callback2 = lambda c, t, p, pr: received.append((c, t, p, pr))
+
+    client = Client(client_id="test_client")
+    client.connect("localhost", 1883)
+    client.subscribe("test/+", callback1)
+    client.subscribe("test/+", callback2)
+
+    client.on_message(client.session, "test/topic", b"test_payload", None)
+    assert len(received) == 2
+    received.clear()
+
+    client.unsubscribe("test/+", callback1)
+    client.on_message(client.session, "test/topic", b"test_payload", None)
+    assert len(received) == 1
+    received.clear()
+
+    client.unsubscribe("test/+", callback2)
+    client.on_message(client.session, "test/topic", b"test_payload", None)
+    assert len(received) == 0
