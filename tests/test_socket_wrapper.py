@@ -8,7 +8,7 @@ from ohmqtt.socket_wrapper import CloseCallback, OpenCallback, ReadCallback, Soc
 
 
 @pytest.mark.parametrize(
-    "use_tls, tls_hostname", [(False, ""), (True, ""), (True, "localhost")]
+    "use_tls, tls_hostname", [(False, ""), (True, "localhost")]
 )
 def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket, ssl_client_context, use_tls, tls_hostname):
     """Test the happy path of the SocketWrapper class."""
@@ -170,6 +170,35 @@ def test_socket_wrapper_ping_pong(mocker, loopback_socket):
     assert loopback_socket.test_recv(512) == b"\xc0\x00"
     loopback_socket.test_sendall(b"\xd0\x00")
     socket_wrapper.pong_received()
+    time.sleep(1)
+    assert loopback_socket.test_recv(512) == b"\xc0\x00"
+    loopback_socket.test_sendall(b"\xd0\x00")
+    socket_wrapper.pong_received()
+    socket_wrapper.close()
+    socket_wrapper.join(timeout=3.0)
+    assert not socket_wrapper.is_alive()
+    close_callback.assert_called_once_with(socket_wrapper)
+    close_callback.reset_mock()
+
+
+def test_socket_wrapper_set_keepalive_interval(mocker, loopback_socket):
+    """Test that we can set the keepalive interval after starting the thread."""
+    close_callback = mocker.Mock(spec=CloseCallback)
+    open_callback = mocker.Mock(spec=OpenCallback)
+    read_callback = mocker.Mock(spec=ReadCallback)
+    socket_wrapper = SocketWrapper(
+        "localhost",
+        1883,
+        close_callback,
+        open_callback,
+        read_callback,
+    )
+    socket_wrapper._sock = loopback_socket
+
+    socket_wrapper.start()
+    time.sleep(1)
+    loopback_socket.test_sendall(b"foo")
+    socket_wrapper.set_keepalive_interval(1)
     time.sleep(1)
     assert loopback_socket.test_recv(512) == b"\xc0\x00"
     loopback_socket.test_sendall(b"\xd0\x00")

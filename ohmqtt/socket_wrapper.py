@@ -51,7 +51,7 @@ class SocketWrapper(threading.Thread):
         self._tls_hostname = tls_hostname
         self._use_tls = use_tls
         self._tls_context = ssl.create_default_context() if use_tls and tls_context is None else tls_context
-        self._tls_hostname = tls_hostname if tls_hostname else host
+        self._tls_hostname = tls_hostname
 
         self._write_buffer = bytearray()
         self._interrupt_r, self._interrupt_w = socket.socketpair()
@@ -88,6 +88,15 @@ class SocketWrapper(threading.Thread):
     def pong_received(self) -> None:
         """Indicate that a pong was received from the server."""
         self._pong_deadline = 0.0
+
+    def set_keepalive_interval(self, interval: int) -> None:
+        """Set the keepalive interval for the socket.
+
+        This is the interval in seconds between pings to the server. A value of 0 disables keepalive."""
+        self._keepalive_interval = interval
+        if interval > 0:
+            self._pong_deadline = 0.0
+            self._interrupt_w.send(b"\x00")
 
     def _call_open_callback(self) -> None:
         """Call the open callback if it is still available.
