@@ -1,5 +1,6 @@
 import socket
 import time
+import weakref
 
 import pytest
 
@@ -7,7 +8,7 @@ from ohmqtt.socket_wrapper import CloseCallback, OpenCallback, ReadCallback, Soc
 
 
 @pytest.mark.parametrize(
-    "use_tls, tls_hostname", [(False, ""), (True, "localhost")]
+    "use_tls, tls_hostname", [(False, ""), (True, ""), (True, "localhost")]
 )
 def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket, ssl_client_context, use_tls, tls_hostname):
     """Test the happy path of the SocketWrapper class."""
@@ -22,13 +23,13 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
     close_callback = mocker.Mock(spec=CloseCallback)
     open_callback = mocker.Mock(spec=OpenCallback)
     read_callback = mocker.Mock(spec=ReadCallback)
-    context = ssl_client_context(loopback_tls_socket.cert_pem)
     socket_wrapper = SocketWrapper(
         "localhost",
         1883,
         close_callback,
         open_callback,
         read_callback,
+        tcp_nodelay=False,  # TCP_NODELAY is not supported for AF_UNIX socketpairs we are using in this test.
         use_tls=use_tls,
         tls_hostname=tls_hostname,
         tls_context=tls_context,
@@ -54,3 +55,47 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
 
     close_callback.assert_called_once_with(socket_wrapper)
     close_callback.reset_mock()
+
+
+def test_socket_wrapper_refs():
+    """Test that the SocketWrapper class does not cause circular references."""
+    close_callback = lambda _: None
+    open_callback = lambda _: None
+    read_callback = lambda _, __: None
+    socket_wrapper = SocketWrapper(
+        "localhost",
+        1883,
+        close_callback,
+        open_callback,
+        read_callback,
+    )
+
+    # Expect that SocketWrapper does not have strong references
+    #   to the callbacks, so they can be freed when dereferenced.
+    refs = [weakref.ref(cb) for cb in (close_callback, open_callback, read_callback)]
+    del [close_callback, open_callback, read_callback]
+    for ref in refs:
+        assert ref() is None
+
+    # Also check for internal circular references.
+    ref = weakref.ref(socket_wrapper)
+    del socket_wrapper
+    assert ref() is None
+
+
+def test_socket_wrapper_nodelay(mocker):
+    """Test that the SocketWrapper class sets TCP_NODELAY."""
+    mock_socket = mocker.Mock(spec=socket.socket)
+    mocker.patch("socket.socket", return_value=mock_socket)
+    close_callback = mocker.Mock(spec=CloseCallback)
+    open_callback = mocker.Mock(spec=OpenCallback)
+    read_callback = mocker.Mock(spec=ReadCallback)
+    socket_wrapper = SocketWrapper(
+        "localhost",
+        1883,
+        close_callback,
+        open_callback,
+        read_callback,
+        tcp_nodelay=True,
+    )
+    mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
