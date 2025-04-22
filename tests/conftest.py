@@ -27,6 +27,7 @@ class LoopbackSocket:
     Return an instance of this class from a mock to use as a socket in tests."""
     def __init__(self):
         self.mocksock, self.testsock = socket.socketpair()
+        self.testsock.settimeout(3.0)
         self.connect_calls = []
 
     def test_close(self) -> None:
