@@ -47,7 +47,7 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
     read_callback.reset_mock()
 
     socket_wrapper.send(b"world")
-    assert loop.test_recv(5) == b"world"
+    assert loop.test_recv(512) == b"world"
 
     socket_wrapper.close()
     socket_wrapper.join(timeout=1.0)
@@ -99,3 +99,83 @@ def test_socket_wrapper_nodelay(mocker):
         tcp_nodelay=True,
     )
     mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+
+def test_socket_wrapper_ping_no_response(mocker, loopback_socket):
+    """Test that the SocketWrapper class sends pings and disconnects on no receipt."""
+    close_callback = mocker.Mock(spec=CloseCallback)
+    open_callback = mocker.Mock(spec=OpenCallback)
+    read_callback = mocker.Mock(spec=ReadCallback)
+    socket_wrapper = SocketWrapper(
+        "localhost",
+        1883,
+        close_callback,
+        open_callback,
+        read_callback,
+        keepalive_interval=1,
+    )
+    socket_wrapper._sock = loopback_socket
+
+    socket_wrapper.start()
+    time.sleep(1.5)
+    assert loopback_socket.test_recv(512) == b"\xc0\x00"
+    socket_wrapper.join(timeout=1.5)
+    assert not socket_wrapper.is_alive()
+    close_callback.assert_called_once_with(socket_wrapper)
+    close_callback.reset_mock()
+
+
+def test_socket_wrapper_ping_no_pong(mocker, loopback_socket):
+    """Test that the SocketWrapper class sends pings and disconnects on no receipt."""
+    close_callback = mocker.Mock(spec=CloseCallback)
+    open_callback = mocker.Mock(spec=OpenCallback)
+    read_callback = mocker.Mock(spec=ReadCallback)
+    socket_wrapper = SocketWrapper(
+        "localhost",
+        1883,
+        close_callback,
+        open_callback,
+        read_callback,
+        keepalive_interval=1,
+    )
+    socket_wrapper._sock = loopback_socket
+
+    socket_wrapper.start()
+    time.sleep(1)
+    assert loopback_socket.test_recv(512) == b"\xc0\x00"
+    loopback_socket.test_sendall(b"\x00\x00")  # Not a pong, we won't acknowledge it anyway.
+    socket_wrapper.join(timeout=3.0)
+    assert not socket_wrapper.is_alive()
+    close_callback.assert_called_once_with(socket_wrapper)
+    close_callback.reset_mock()
+
+
+def test_socket_wrapper_ping_pong(mocker, loopback_socket):
+    """Test that the SocketWrapper class sends pings and disconnects on no receipt."""
+    close_callback = mocker.Mock(spec=CloseCallback)
+    open_callback = mocker.Mock(spec=OpenCallback)
+    read_callback = mocker.Mock(spec=ReadCallback)
+    socket_wrapper = SocketWrapper(
+        "localhost",
+        1883,
+        close_callback,
+        open_callback,
+        read_callback,
+        keepalive_interval=1,
+    )
+    socket_wrapper._sock = loopback_socket
+
+    socket_wrapper.start()
+    time.sleep(1)
+    assert loopback_socket.test_recv(512) == b"\xc0\x00"
+    loopback_socket.test_sendall(b"\xd0\x00")
+    socket_wrapper.pong_received()
+    time.sleep(1)
+    assert loopback_socket.test_recv(512) == b"\xc0\x00"
+    loopback_socket.test_sendall(b"\xd0\x00")
+    socket_wrapper.pong_received()
+    socket_wrapper.close()
+    socket_wrapper.join(timeout=3.0)
+    assert not socket_wrapper.is_alive()
+    close_callback.assert_called_once_with(socket_wrapper)
+    close_callback.reset_mock()
