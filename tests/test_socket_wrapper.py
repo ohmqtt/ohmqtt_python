@@ -19,7 +19,6 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
     else:
         tls_context = None
         loop = loopback_socket
-    mocker.patch("socket.socket", return_value=loop)
     close_callback = mocker.Mock(spec=CloseCallback)
     open_callback = mocker.Mock(spec=OpenCallback)
     read_callback = mocker.Mock(spec=ReadCallback)
@@ -29,11 +28,12 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
         close_callback,
         open_callback,
         read_callback,
-        tcp_nodelay=False,  # TCP_NODELAY is not supported for AF_UNIX socketpairs we are using in this test.
         use_tls=use_tls,
         tls_hostname=tls_hostname,
         tls_context=tls_context,
     )
+
+    socket_wrapper._sock = loop
 
     socket_wrapper.start()
     time.sleep(0.1)
