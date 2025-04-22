@@ -36,16 +36,15 @@ def test_client_happy_path(MockSession, mock_session):
     mock_session.connect.assert_called_once_with("localhost", 1883)
     mock_session.connect.reset_mock()
 
-    client.subscribe("test/+", lambda c, t, p, pr: received.append((c, t, p, pr)))
+    client.subscribe("test/+", lambda t, p, pr: received.append((t, p, pr)))
     mock_session.subscribe.assert_called_once_with("test/+", qos=2, properties=None)
     mock_session.subscribe.reset_mock()
 
     client.on_message(client.session, "test/topic", b"test_payload", None)
     assert len(received) == 1
-    assert received[0][0] == client
-    assert received[0][1] == "test/topic"
-    assert received[0][2] == b"test_payload"
-    assert received[0][3] is None
+    assert received[0][0] == "test/topic"
+    assert received[0][1] == b"test_payload"
+    assert received[0][2] is None
     received.clear()
 
     client.on_message(client.session, "foo/bar", b"test_payload", None)
@@ -95,8 +94,8 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
     """Test that unsubscribing a callback works as expected."""
     received = []
 
-    callback1 = lambda c, t, p, pr: received.append((c, t, p, pr))
-    callback2 = lambda c, t, p, pr: received.append((c, t, p, pr))
+    callback1 = lambda t, p, pr: received.append((t, p, pr))
+    callback2 = lambda t, p, pr: received.append((t, p, pr))
 
     client = Client(client_id="test_client")
     client.connect("localhost", 1883)

@@ -1,13 +1,12 @@
 import logging
-from typing import Callable, Final
+from typing import Final
 
 from .property import MQTTPropertyDict
 from .session import Session
-from .subscriptions import Subscriptions
+from .subscriptions import Subscriptions, SubscribeCallback
 
 logger: Final = logging.getLogger(__name__)
 
-ClientSubscribeCallback = Callable[["Client", str, bytes, MQTTPropertyDict], None]
 
 
 class Client:
@@ -41,7 +40,7 @@ class Client:
     def subscribe(
         self,
         topic_filter: str,
-        callback: ClientSubscribeCallback,
+        callback: SubscribeCallback,
         qos: int = 2,
         properties: MQTTPropertyDict | None = None,
     ) -> None:
@@ -49,7 +48,7 @@ class Client:
         self.subscriptions.add(topic_filter, callback)
         self.session.subscribe(topic_filter, qos=qos, properties=properties)
 
-    def unsubscribe(self, topic_filter: str, callback: ClientSubscribeCallback | None = None) -> None:
+    def unsubscribe(self, topic_filter: str, callback: SubscribeCallback | None = None) -> None:
         """Unsubscribe from a topic filter.
 
         If a callback is provided it will be removed, otherwise all callbacks for the topic filter will be removed."""
@@ -67,6 +66,6 @@ class Client:
         callbacks = self.subscriptions.get_callbacks(topic)
         for callback in callbacks:
             try:
-                callback(self, topic, payload, properties)
+                callback(topic, payload, properties)
             except Exception:
                 logger.exception(f"Unhandled error in subscribe callback for topic: {topic}")
