@@ -40,6 +40,7 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
         use_tls=use_tls,
         tls_hostname=tls_hostname,
         tls_context=tls_context,
+        tcp_nodelay=False,
     )
 
     socket_wrapper.sock = loop
@@ -79,6 +80,7 @@ def test_socket_wrapper_refs(loopback_socket):
         keepalive_callback,
         open_callback,
         read_callback,
+        tcp_nodelay=False,
     )
     socket_wrapper.sock = loopback_socket
     socket_wrapper.start()
@@ -130,6 +132,7 @@ def test_socket_wrapper_ping_no_response(mocker, loopback_socket):
         open_callback,
         read_callback,
         keepalive_interval=1,
+        tcp_nodelay=False,
     )
     socket_wrapper.sock = loopback_socket
 
@@ -160,6 +163,7 @@ def test_socket_wrapper_ping_no_pong(mocker, loopback_socket):
         open_callback,
         read_callback,
         keepalive_interval=1,
+        tcp_nodelay=False,
     )
     socket_wrapper.sock = loopback_socket
 
@@ -194,6 +198,7 @@ def test_socket_wrapper_ping_pong(mocker, loopback_socket):
         open_callback,
         read_callback,
         keepalive_interval=1,
+        tcp_nodelay=False,
     )
     socket_wrapper.sock = loopback_socket
 
@@ -228,6 +233,7 @@ def test_socket_wrapper_set_keepalive_interval(mocker, loopback_socket):
         keepalive_callback,
         open_callback,
         read_callback,
+        tcp_nodelay=False,
     )
     socket_wrapper.sock = loopback_socket
 

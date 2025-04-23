@@ -35,7 +35,7 @@ class SocketWrapper(threading.Thread):
         read_callback: SocketReadCallback,
         *,
         keepalive_interval: int = 0,
-        tcp_nodelay: bool = False,
+        tcp_nodelay: bool = True,
         use_tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
@@ -58,6 +58,7 @@ class SocketWrapper(threading.Thread):
         self._tls_hostname = tls_hostname
 
         self._write_buffer = bytearray()
+        self._write_buffer_lock = threading.Lock()
         self._interrupt_r, self._interrupt_w = socket.socketpair()
         self._closing = False
         self._keepalive_interval = keepalive_interval
@@ -73,21 +74,10 @@ class SocketWrapper(threading.Thread):
         self._interrupt()
 
     def send(self, data: bytes) -> None:
-        """Write data to the socket.
-
-        This method is non-blocking and will raise an exception if the socket is not connected.
-        Any data not written immediately will be buffered and sent when the socket is ready."""
-        try:
-            sent = self.sock.send(data)
-            self._last_send = time.monotonic()
-            if sent < len(data):
-                # If some but not all data was sent, buffer the remaining data.
-                self._write_buffer.extend(data[sent:])
-                self._interrupt()
-        except (ssl.SSLWantWriteError, BlockingIOError):
-            # If the socket was not ready for writing, buffer the data.
+        """Write data to the socket."""
+        with self._write_buffer_lock:
             self._write_buffer.extend(data)
-            self._interrupt()
+        self._interrupt()
 
     def ping_sent(self) -> None:
         """Indicate that a ping was sent to the server."""
@@ -126,16 +116,17 @@ class SocketWrapper(threading.Thread):
 
     def _try_write(self) -> None:
         """Try to flush the write buffer to the socket."""
-        try:
-            sent = self.sock.send(self._write_buffer)
-            self._last_send = time.monotonic()
-        except (ssl.SSLWantWriteError, BlockingIOError):
-            pass
-        else:
-            if sent < len(self._write_buffer):
-                self._write_buffer = self._write_buffer[sent:]
+        with self._write_buffer_lock:
+            try:
+                sent = self.sock.send(self._write_buffer)
+                self._last_send = time.monotonic()
+            except (ssl.SSLWantWriteError, BlockingIOError):
+                pass
             else:
-                self._write_buffer.clear()
+                if sent < len(self._write_buffer):
+                    self._write_buffer = self._write_buffer[sent:]
+                else:
+                    self._write_buffer.clear()
 
     def _try_read(self) -> None:
         """Try to read data from the socket."""
@@ -188,7 +179,7 @@ class SocketWrapper(threading.Thread):
                 write_check = (self.sock,) if self._write_buffer else tuple()
                 readable, writable, _ = select.select([self.sock, self._interrupt_r], write_check, [], next_timeout)
 
-                if self._write_buffer and self.sock in writable:
+                if self.sock in writable:
                     self._try_write()
 
                 if self.sock in readable:
