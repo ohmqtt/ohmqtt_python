@@ -359,11 +359,9 @@ class MQTTPublishPacket(MQTTPacketWithId):
         return self._properties.copy()
 
     def encode(self) -> bytes:
-        flags = int(self.retain)
-        flags += self.qos << 1
-        flags += self.dup * 8
+        flags = int(self.retain) + (self.qos << 1) + (self.dup * 8)
         if self.qos > 0:
-            data = b"".join((encode_string(self.topic), encode_uint16(self.packet_id), encode_properties(self.properties), self.payload))
+            data = b"".join((encode_string(self.topic), self.packet_id.to_bytes(2, byteorder="big"), encode_properties(self.properties), self.payload))
         else:
             data = b"".join((encode_string(self.topic), encode_properties(self.properties), self.payload))
         return encode_packet(self.packet_type, flags, data)
