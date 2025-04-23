@@ -225,7 +225,7 @@ _MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[str]] = {
 
 
 # Allowed MQTT properties in a Will message.
-_MQTTPropertyAllowedInWill: frozenset[MQTTPropertyId] = frozenset({
+_MQTTPropertyAllowedInWill: frozenset[str] = frozenset({
     "PayloadFormatIndicator",
     "MessageExpiryInterval",
     "ContentType",
