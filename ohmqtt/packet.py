@@ -342,18 +342,15 @@ class MQTTPublishPacket(MQTTPacketWithId):
         return self._properties.copy()
 
     def encode(self) -> bytes:
+        flags = int(self.retain)
+        flags += self.qos << 1
+        flags += self.dup * 8
         if self.qos > 0:
-            datas = [encode_string(self.topic), encode_uint16(self.packet_id), encode_properties(self.properties), self.payload]
-            flags = self.qos << 1
+            data = b"".join((encode_string(self.topic), encode_uint16(self.packet_id), encode_properties(self.properties), self.payload))
         else:
-            datas = [encode_string(self.topic), encode_properties(self.properties), self.payload]
-            flags = 0
-        flags += self.retain
-        if self.dup:
-            flags += 8
-        data = b"".join(datas)
+            data = b"".join((encode_string(self.topic), encode_properties(self.properties), self.payload))
         return encode_packet(self.packet_type, flags, data)
-    
+
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPublishPacket":
         qos = (flags >> 1) & 0x03
@@ -902,9 +899,9 @@ ControlPacketClasses: Mapping[MQTTPacketType, type[MQTTPacket]] = {
 
 def decode_packet(data: bytes) -> MQTTPacket:
     try:
-        packet_type = MQTTPacketType(data[0] >> 4)
+        packet_type = MQTTPacketType(data[0] // 16)
     except ValueError:
-        raise MQTTError(f"Invalid packet type {data[0] >> 4}", MQTTReasonCode.MalformedPacket)
+        raise MQTTError(f"Invalid packet type {data[0] // 16}", MQTTReasonCode.MalformedPacket)
     flags = data[0] % 0x10
 
     length, sz = decode_varint(data[1:])
@@ -916,7 +913,7 @@ def decode_packet(data: bytes) -> MQTTPacket:
 
 
 def encode_packet(packet_type: MQTTPacketType, flags: int, data: bytes) -> bytes:
-    head = (packet_type.value << 4) + flags
+    head = (packet_type.value * 16) + flags
     length = encode_varint(len(data))
     return head.to_bytes(1, byteorder="big") + length + data
 

@@ -261,7 +261,6 @@ class Session:
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
         try:
-            assert self.connection is not None
             if packet.qos == 1:
                 ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
                 self._send_packet(ack_packet)
