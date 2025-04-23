@@ -95,11 +95,21 @@ class Session:
     def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.disconnect()
 
+    def _log_send(self, packet: MQTTPacket) -> None:
+        """Log a packet being sent."""
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"---> {packet}")
+
+    def _log_recv(self, packet: MQTTPacket) -> None:
+        """Log a packet being received."""
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"<--- {packet}")
+
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
         if self.connection is None:
             raise RuntimeError("No connection")
-        logger.debug(f"---> {packet}")
+        self._log_send(packet)
         self.connection.send(packet.encode())
 
     def _send_retained(self, packet: MQTTPacketWithId) -> None:
@@ -144,7 +154,7 @@ class Session:
 
     def _connection_read_callback(self, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
-        logger.debug(f"<--- {packet}")
+        self._log_recv(packet)
         if packet.packet_type in self._read_handlers:
             self._read_handlers[packet.packet_type](packet)
 
@@ -260,7 +270,6 @@ class Session:
                 self._send_retained(rec_packet)
             # Calling the message callback must be the last thing we do with the packet.
             if self.message_callback is not None:
-                logger.debug(f"Calling message callback for packet: {packet}")
                 try:
                     self.message_callback(self, packet.topic, packet.payload, packet.properties)
                 except Exception:
