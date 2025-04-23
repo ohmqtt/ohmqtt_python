@@ -40,7 +40,7 @@ class SessionPersistenceBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def next_packet_id(self, client_id: str) -> int:
-        """Get the next pubblish packet ID for a client."""
+        """Get the next publish packet ID for a client."""
         ...  # pragma: no cover
 
 
