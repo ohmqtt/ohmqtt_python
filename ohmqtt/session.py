@@ -260,23 +260,18 @@ class Session:
 
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
-        try:
-            if packet.qos == 1:
-                ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
-                self._send_packet(ack_packet)
-            elif packet.qos == 2:
-                rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
-                self._send_retained(rec_packet)
-            # Calling the message callback must be the last thing we do with the packet.
-            if self.message_callback is not None:
-                try:
-                    self.message_callback(self, packet.topic, packet.payload, packet.properties)
-                except Exception:
-                    logger.exception("Unhandled exception in message callback")
-        except MQTTError:
-            raise
-        except Exception:
-            logger.exception("Unhandled exception in publish callback")
+        if packet.qos == 1:
+            ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
+            self._send_packet(ack_packet)
+        elif packet.qos == 2:
+            rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
+            self._send_retained(rec_packet)
+        # Calling the message callback must be the last thing we do with the packet.
+        if self.message_callback is not None:
+            try:
+                self.message_callback(self, packet.topic, packet.payload, packet.properties)
+            except Exception:
+                logger.exception("Unhandled exception in message callback")
 
     def _handle_auth(self, packet: MQTTAuthPacket) -> None:
         """Handle an AUTH packet from the server."""

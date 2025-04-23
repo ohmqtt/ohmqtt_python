@@ -120,16 +120,16 @@ class SocketWrapper(threading.Thread):
 
     def _try_write(self) -> None:
         """Try to flush the write buffer to the socket."""
-        with self._write_buffer_lock:
-            try:
+        try:
+            with self._write_buffer_lock:
                 sent = self.sock.send(self._write_buffer)
                 self._last_send = time.monotonic()
                 if sent < len(self._write_buffer):
                     self._write_buffer = self._write_buffer[sent:]
                 else:
                     self._write_buffer.clear()
-            except (ssl.SSLWantWriteError, BlockingIOError):
-                pass
+        except ssl.SSLWantWriteError:
+            pass
 
     def _try_read(self) -> None:
         """Try to read data from the socket."""
@@ -137,7 +137,7 @@ class SocketWrapper(threading.Thread):
             data = self.sock.recv(65535)
             self._last_recv = time.monotonic()
             self._read_callback(data)
-        except (ssl.SSLWantReadError, BlockingIOError):
+        except ssl.SSLWantReadError:
             pass
 
     def _get_next_timeout(self) -> float | None:
