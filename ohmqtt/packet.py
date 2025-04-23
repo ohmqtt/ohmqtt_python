@@ -285,7 +285,6 @@ class MQTTPublishPacket(MQTTPacketWithId):
         self._dup = dup
         self._packet_id = packet_id
         self._properties = properties if properties is not None else {}
-        self._update_hash()
 
     def _update_hash(self) -> None:
         self._hash = hash((
@@ -300,12 +299,24 @@ class MQTTPublishPacket(MQTTPacketWithId):
         ))
 
     def __hash__(self) -> int:
+        if not hasattr(self, "_hash"):
+            self._update_hash()
         return self._hash
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return NotImplemented
-        return self._hash == hash(other)
+        return hash(self) == hash(other)
+
+    def __str__(self) -> str:
+        def truncate(s: object) -> str:
+            if isinstance(s, bytes):
+                return f"({len(s)} bytes)"
+            else:
+                return str(s)
+        # TODO: truncate property values
+        attrs = ", ".join([f"{k}={truncate(getattr(self, k))}" for k in self.__slots__ if k != "_hash"])
+        return f"{self.__class__.__name__}[{attrs}]"
 
     @property
     def topic(self) -> str:
