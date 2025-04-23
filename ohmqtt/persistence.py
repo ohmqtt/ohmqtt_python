@@ -24,7 +24,7 @@ class SessionPersistenceBackend(metaclass=ABCMeta):
         ...  # pragma: no cover
 
     @abstractmethod
-    def get(self, client_id: str, exclude: set[MQTTPacketWithId], count: int) -> list[MQTTPacketWithId]:
+    def get(self, client_id: str, exclude: set[int], count: int) -> list[MQTTPacketWithId]:
         """Get packets from the session for a client."""
         ...  # pragma: no cover
 
@@ -86,7 +86,6 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
             return []
         slice = itertools.islice((p for p in self._sessions[client_id].packets if p.packet_id not in exclude), count)
         return list(slice)
-        #return [p for p in self._sessions[client_id].packets if p not in exclude][:count]
 
     def mark_dup(self, client_id: str, packet_id: int) -> None:
         packet = next((p for p in self._sessions[client_id].packets if p.packet_type == MQTTPacketType.PUBLISH and p.packet_id == packet_id), None)
