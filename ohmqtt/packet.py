@@ -337,12 +337,6 @@ class MQTTPublishPacket(MQTTPacketWithId):
     def packet_id(self) -> int:
         return self._packet_id
 
-    @packet_id.setter
-    def packet_id(self, value: int) -> None:
-        if self._packet_id != value:
-            self._packet_id = value
-            self._update_hash()
-
     @property
     def properties(self) -> MQTTPropertyDict:
         return self._properties.copy()
