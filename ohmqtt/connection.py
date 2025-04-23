@@ -71,31 +71,33 @@ class Connection:
         if self._partial:
             data = self._partial + data
             self._partial = b""
-        while data:
+        offset = 0
+        while offset < len(data):
+            loop_offset = offset
             if len(data) < 2:
                 # Not enough data to parse the fixed header.
                 # Save the partial data and return.
-                self._partial = data
+                self._partial = data[loop_offset:]
                 return
             # Check the length of the packet against the buffer size.
             # We assume that the packet is well-formed and the length is correct.
             # If it is not, we will catch it later in decode_packet.
-            offset = 1  # Skip the first byte of the fixed header.
+            offset += 1  # Skip the first byte of the fixed header.
             try:
                 remaining_len, consumed = decode_varint(data[offset:])
             except MQTTError:
                 # In this case, the partial data boundary may be in the middle of the varint.
                 # If so, save the partial data and return.
-                if len(data) < 5:
-                    self._partial = data
+                if len(data) - loop_offset < 5:
+                    self._partial = data[loop_offset:]
                     return
                 raise
             offset += consumed
-            if len(data[offset:]) < remaining_len:
+            if len(data) - offset < remaining_len:
                 # If the packet is incomplete, save the partial data and return.
-                self._partial = data
+                self._partial = data[loop_offset:]
                 return
-            packet = decode_packet(data[:offset + remaining_len])
+            packet = decode_packet(data[loop_offset:offset + remaining_len])
             if packet.packet_type == MQTTPacketType.PINGRESP:
                 self.sock.pong_received()
             elif packet.packet_type == MQTTPacketType.PINGREQ:
@@ -108,4 +110,4 @@ class Connection:
                 if "ServerKeepAlive" in packet.properties:
                     # Override the keepalive interval with the server's value.
                     self.sock.set_keepalive_interval(packet.properties["ServerKeepAlive"])
-            data = data[offset + remaining_len:]
+            offset += remaining_len
