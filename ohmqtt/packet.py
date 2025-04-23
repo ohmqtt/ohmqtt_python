@@ -269,7 +269,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
 class MQTTPublishPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.PUBLISH
-    __slots__ = ("_properties", "_packet_id", "_topic", "_payload", "_qos", "_retain", "_dup", "_hash")
+    __slots__ = ("properties", "packet_id", "topic", "payload", "qos", "retain", "dup")
 
     def __init__(
         self,
@@ -282,106 +282,44 @@ class MQTTPublishPacket(MQTTPacketWithId):
         packet_id: int = 0,
         properties: MQTTPropertyDict | None = None,
     ):
-        self._topic = topic
-        self._payload = payload
-        self._qos = qos
-        self._retain = retain
-        self._dup = dup
-        self._packet_id = packet_id
-        self._properties = properties if properties is not None else {}
-
-    def _update_hash(self) -> None:
-        self._hash = hash((
-            self.packet_type,
-            self._topic,
-            self._payload,
-            self._qos,
-            self._retain,
-            self._dup,
-            self._packet_id,
-            hash_properties(self._properties),
-        ))
+        self.topic = topic
+        self.payload = payload
+        self.qos = qos
+        self.retain = retain
+        self.dup = dup
+        self.packet_id = packet_id
+        self.properties = properties if properties is not None else {}
 
     def __hash__(self) -> int:
-        if not hasattr(self, "_hash"):
-            self._update_hash()
-        return self._hash
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return hash(self) == hash(other)
-
-    def __str__(self) -> str:
-        def truncate(s: object) -> str:
-            if isinstance(s, bytes):
-                return f"({len(s)} bytes)"
-            else:
-                return str(s)
-        # TODO: truncate property values
-        attrs = ", ".join([f"{k}={truncate(getattr(self, k))}" for k in self.__slots__ if k != "_hash"])
-        return f"{self.__class__.__name__}[{attrs}]"
-
-    @property
-    def topic(self) -> str:
-        return self._topic
-
-    @property
-    def payload(self) -> bytes:
-        return self._payload
-
-    @property
-    def qos(self) -> int:
-        return self._qos
-
-    @property
-    def retain(self) -> bool:
-        return self._retain
-
-    @property
-    def dup(self) -> bool:
-        return self._dup
-    
-    @dup.setter
-    def dup(self, value: bool) -> None:
-        if self._dup != value:
-            self._dup = value
-            if hasattr(self, "_hash"):
-                delattr(self, "_hash")
-
-    @property
-    def packet_id(self) -> int:
-        return self._packet_id
-
-    @packet_id.setter
-    def packet_id(self, value: int) -> None:
-        if self._packet_id != value:
-            self._packet_id = value
-            if hasattr(self, "_hash"):
-                delattr(self, "_hash")
-
-    @property
-    def properties(self) -> MQTTPropertyDict:
-        return self._properties.copy()
+        return hash((
+            self.packet_type,
+            self.topic,
+            self.payload,
+            self.qos,
+            self.retain,
+            self.dup,
+            self.packet_id,
+            hash_properties(self.properties),
+        ))
 
     def encode(self) -> bytes:
         encoded = bytearray()
-        head = HEAD_PUBLISH + self._retain + (self._qos << 1) + (self._dup << 3)
-        length = len(self._topic) + len(self._payload) + 2
-        if self._qos > 0:
+        head = HEAD_PUBLISH + self.retain + (self.qos << 1) + (self.dup << 3)
+        length = len(self.topic) + len(self.payload) + 2
+        if self.qos > 0:
             length += 2
-        if self._properties:
-            props = encode_properties(self._properties)
+        if self.properties:
+            props = encode_properties(self.properties)
         else:
             props = b"\x00"
         length += len(props)
         encoded.append(head)
         encoded.extend(encode_varint(length))
-        encoded.extend(encode_string(self._topic))
-        if self._qos > 0:
-            encoded.extend(self._packet_id.to_bytes(2, byteorder="big"))
+        encoded.extend(encode_string(self.topic))
+        if self.qos > 0:
+            encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
         encoded.extend(props)
-        encoded.extend(self._payload)
+        encoded.extend(self.payload)
         return bytes(encoded)
 
     @classmethod
