@@ -21,6 +21,9 @@ dev = [
 
 [tool.mypy]
 files = ["ohmqtt"]
+strict = true
+strict_bytes = true
+strict_equality = true
 
 [tool.ruff]
 include = [
@@ -29,5 +32,12 @@ include = [
 ]
 
 [tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+    "ignore::ResourceWarning",
+]
 addopts = "--cov=ohmqtt --cov-report=term-missing -v"
+
+[tool.setuptools.packages.find]
+include = ["ohmqtt"]
 
