@@ -41,7 +41,7 @@ def test_persistence_in_memory_opers():
     gotten = persistence.get("test_client", set(), 10)
     assert gotten == pub_packets[:10]
 
-    gotten = persistence.get("test_client", set(pub_packets[:10]), 10)
+    gotten = persistence.get("test_client", {p.packet_id for p in pub_packets[:10]}, 10)
     assert gotten == pub_packets[10:]
 
     persistence.mark_dup("test_client", pub_packets[0].packet_id)

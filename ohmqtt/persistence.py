@@ -81,10 +81,10 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         elif packet.packet_type == MQTTPacketType.PUBREL:
             self._sessions[client_id].pubrel_ids.add(packet.packet_id)
 
-    def get(self, client_id: str, exclude: set[MQTTPacketWithId], count: int) -> list[MQTTPacketWithId]:
+    def get(self, client_id: str, exclude: set[int], count: int) -> list[MQTTPacketWithId]:
         if client_id not in self._sessions:
             return []
-        slice = itertools.islice((p for p in self._sessions[client_id].packets if p not in exclude), count)
+        slice = itertools.islice((p for p in self._sessions[client_id].packets if p.packet_id not in exclude), count)
         return list(slice)
         #return [p for p in self._sessions[client_id].packets if p not in exclude][:count]
 

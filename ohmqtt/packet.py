@@ -346,7 +346,8 @@ class MQTTPublishPacket(MQTTPacketWithId):
     def dup(self, value: bool) -> None:
         if self._dup != value:
             self._dup = value
-            delattr(self, "_hash")
+            if hasattr(self, "_hash"):
+                delattr(self, "_hash")
 
     @property
     def packet_id(self) -> int:
@@ -356,7 +357,8 @@ class MQTTPublishPacket(MQTTPacketWithId):
     def packet_id(self, value: int) -> None:
         if self._packet_id != value:
             self._packet_id = value
-            delattr(self, "_hash")
+            if hasattr(self, "_hash"):
+                delattr(self, "_hash")
 
     @property
     def properties(self) -> MQTTPropertyDict:

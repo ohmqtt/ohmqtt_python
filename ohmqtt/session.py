@@ -83,7 +83,7 @@ class Session:
         # This lock protects _persistence, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
         self._persistence = persistence if persistence is not None else InMemorySessionPersistence()
-        self._inflight: set[MQTTPacketWithId] = set()
+        self._inflight: set[int] = set()
         self._next_packet_ids = {
             MQTTPacketType.SUBSCRIBE: 1,
             MQTTPacketType.UNSUBSCRIBE: 1,
@@ -119,7 +119,7 @@ class Session:
             if len(self._inflight) < self.server_receive_maximum:
                 try:
                     self._send_packet(packet)
-                    self._inflight.add(packet)
+                    self._inflight.add(packet.packet_id)
                 except Exception:
                     logger.exception("Failed to send packet, deferring")
                     if packet.packet_type == MQTTPacketType.PUBLISH:
@@ -191,7 +191,7 @@ class Session:
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet ID: {packet.packet_id}")
             try:
-                self._inflight.remove(ref_packet)
+                self._inflight.remove(ref_packet.packet_id)
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet: {ref_packet}")
             self._flush()
@@ -208,7 +208,7 @@ class Session:
                 logger.exception(f"Received PUBREC for unknown packet ID: {packet.packet_id}")
                 reason_code = MQTTReasonCode.PacketIdentifierNotFound
             try:
-                self._inflight.remove(ref_packet)
+                self._inflight.remove(ref_packet.packet_id)
             except KeyError:
                 logger.exception(f"Received PUBREC for unknown packet: {ref_packet}")
             rel_packet = MQTTPubRelPacket(packet_id=packet.packet_id, reason_code=reason_code)
@@ -226,7 +226,7 @@ class Session:
                 logger.exception(f"Received PUBREL for unknown packet ID: {packet.packet_id}")
                 reason_code = MQTTReasonCode.PacketIdentifierNotFound
             try:
-                self._inflight.remove(ref_packet)
+                self._inflight.remove(ref_packet.packet_id)
             except KeyError:
                 logger.exception(f"Received PUBREL for unknown packet: {ref_packet}")
             comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id, reason_code=reason_code)
@@ -242,7 +242,7 @@ class Session:
             except KeyError:
                 logger.exception(f"Received PUBCOMP for unknown packet ID: {packet.packet_id}")
             try:
-                self._inflight.remove(ref_packet)
+                self._inflight.remove(ref_packet.packet_id)
             except KeyError:
                 logger.exception(f"Received PUBCOMP for unknown packet: {ref_packet}")
 
@@ -430,7 +430,7 @@ class Session:
             for packet in pending_packets:
                 try:
                     self._send_packet(packet)
-                    self._inflight.add(packet)
+                    self._inflight.add(packet.packet_id)
                 except Exception:
                     logger.exception("Unhandled exception while flushing pending packets")
                     if packet.packet_type == MQTTPacketType.PUBLISH:
