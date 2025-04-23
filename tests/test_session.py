@@ -65,9 +65,8 @@ def test_session_happy_path(client_id, callbacks, mocker):
     ) as session:
         session.connect("localhost", 1883)
 
-        # Assert that the Connection was created and started.
+        # Assert that the Connection was created.
         assert MockConnection.call_count == 1
-        assert mock_connection.start.call_count == 1
 
         # Simulate the Connection calling back.
         # Session should send a CONNECT packet.

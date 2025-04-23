@@ -5,13 +5,12 @@ import ssl
 import threading
 import time
 from typing import Callable
-import weakref
 
 logger = logging.getLogger(__name__)
 
-CloseCallback = Callable[["SocketWrapper"], None]
-OpenCallback = Callable[["SocketWrapper"], None]
-ReadCallback = Callable[["SocketWrapper", bytes], None]
+SocketCloseCallback = Callable[[], None]
+SocketOpenCallback = Callable[[], None]
+SocketReadCallback = Callable[[bytes], None]
 
 
 class SocketWrapperCloseCondition(Exception):
@@ -21,15 +20,17 @@ class SocketWrapperCloseCondition(Exception):
 
 class SocketWrapper(threading.Thread):
     """Non-blocking socket wrapper with TLS and application keepalive support."""
-    _sock: socket.socket | ssl.SSLSocket
+    host: str
+    port: int
+    sock: socket.socket | ssl.SSLSocket
 
     def __init__(
         self,
         host: str,
         port: int,
-        close_callback: CloseCallback,
-        open_callback: OpenCallback,
-        read_callback: ReadCallback,
+        close_callback: SocketCloseCallback,
+        open_callback: SocketOpenCallback,
+        read_callback: SocketReadCallback,
         *,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = False,
@@ -38,14 +39,14 @@ class SocketWrapper(threading.Thread):
         tls_hostname: str = "",
     ) -> None:
         super().__init__(daemon=True)
-        self._host = host
-        self._port = port
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.host = host
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if tcp_nodelay:
-            self._sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self._close_callback_ref = weakref.ref(close_callback)
-        self._open_callback_ref = weakref.ref(open_callback)
-        self._read_callback_ref = weakref.ref(read_callback)
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self._close_callback = close_callback
+        self._open_callback = open_callback
+        self._read_callback = read_callback
         self._use_tls = use_tls
         self._tls_context = tls_context
         self._tls_hostname = tls_hostname
@@ -74,7 +75,7 @@ class SocketWrapper(threading.Thread):
         This method is non-blocking and will raise an exception if the socket is not connected.
         Any data not written immediately will be buffered and sent when the socket is ready."""
         try:
-            sent = self._sock.send(data)
+            sent = self.sock.send(data)
             self._last_send = time.monotonic()
             if sent < len(data):
                 # If some but not all data was sent, buffer the remaining data.
@@ -98,50 +99,24 @@ class SocketWrapper(threading.Thread):
             self._pong_deadline = 0.0
             self._interrupt_w.send(b"\x00")
 
-    def _call_open_callback(self) -> None:
-        """Call the open callback if it is still available.
-
-        Otherwise raise a SocketWrapperCloseCondition exception."""
-        open_callback = self._open_callback_ref()
-        if open_callback is not None:
-            try:
-                open_callback(self)
-            except Exception:
-                logger.exception("Error while calling open callback")
-        else:
-            raise SocketWrapperCloseCondition("Open callback is no longer available")
-
-    def _call_read_callback(self, data: bytes) -> None:
-        """Call the read callback if it is still available.
-
-        Otherwise raise a SocketWrapperCloseCondition exception."""
-        read_callback = self._read_callback_ref()
-        if read_callback is not None:
-            try:
-                read_callback(self, data)
-            except Exception:
-                logger.exception("Error while calling read callback")
-        else:
-            raise SocketWrapperCloseCondition("Read callback is no longer available")
-
     def _handshake_loop(self) -> None:
         """Run the TLS handshake in a loop until it is complete."""
         assert self._tls_context is not None
-        self._sock = self._tls_context.wrap_socket(self._sock, server_hostname=self._tls_hostname, do_handshake_on_connect=False)
-        self._sock.setblocking(False)
+        self.sock = self._tls_context.wrap_socket(self.sock, server_hostname=self._tls_hostname, do_handshake_on_connect=False)
+        self.sock.setblocking(False)
         while not self._closing:
             try:
-                self._sock.do_handshake()
+                self.sock.do_handshake()
                 break
             except ssl.SSLWantReadError:
-                select.select([self._sock, self._interrupt_r], [], [])
+                select.select([self.sock, self._interrupt_r], [], [])
             except ssl.SSLWantWriteError:
-                select.select([self._interrupt_r], [self._sock], [])
+                select.select([self._interrupt_r], [self.sock], [])
 
     def _try_write(self) -> None:
         """Try to flush the write buffer to the socket."""
         try:
-            sent = self._sock.send(self._write_buffer)
+            sent = self.sock.send(self._write_buffer)
             self._last_send = time.monotonic()
         except (ssl.SSLWantWriteError, BlockingIOError):
             pass
@@ -154,12 +129,12 @@ class SocketWrapper(threading.Thread):
     def _try_read(self) -> None:
         """Try to read data from the socket."""
         try:
-            data = self._sock.recv(65535)
+            data = self.sock.recv(65535)
             self._last_recv = time.monotonic()
         except (ssl.SSLWantReadError, BlockingIOError):
             pass
         else:
-            self._call_read_callback(data)
+            self._read_callback(data)
 
     def _get_next_timeout(self) -> float | None:
         """Get the next timeout for the socket.
@@ -177,26 +152,26 @@ class SocketWrapper(threading.Thread):
 
     def run(self) -> None:
         try:
-            self._sock.connect((self._host, self._port))
+            self.sock.connect((self.host, self.port))
 
             if self._use_tls:
                 self._handshake_loop()
             else:
-                self._sock.setblocking(False)
+                self.sock.setblocking(False)
             if not self._closing:
-                self._call_open_callback()
+                self._open_callback()
             self._last_recv = time.monotonic()
             self._last_send = self._last_recv
 
             while not self._closing:
                 next_timeout = self._get_next_timeout()
-                write_check = (self._sock,) if self._write_buffer else tuple()
-                readable, writable, err = select.select([self._sock, self._interrupt_r], write_check, [], next_timeout)
+                write_check = (self.sock,) if self._write_buffer else tuple()
+                readable, writable, err = select.select([self.sock, self._interrupt_r], write_check, [], next_timeout)
 
-                if self._write_buffer and self._sock in writable:
+                if self._write_buffer and self.sock in writable:
                     self._try_write()
 
-                if self._sock in readable:
+                if self.sock in readable:
                     self._try_read()
 
                 if self._interrupt_r in readable:
@@ -213,18 +188,13 @@ class SocketWrapper(threading.Thread):
                         raise SocketWrapperCloseCondition("No pong received in time")
 
         except SocketWrapperCloseCondition as exc:
-            logger.debug(f"SocketWrapperCloseCondition: {exc}")
+            logger.info(f"Closing socket: {exc}")
         except Exception:
             logger.exception("Unhandled error in socket read thread")
         finally:
             try:
-                close_callback = self._close_callback_ref()
-                if close_callback is not None:
-                    close_callback(self)
-                else:
-                    logger.debug("Close callback is no longer available")
-                del close_callback  # Future-proofing: remove the reference to the callback.
+                self._close_callback()
             except Exception:
                 logger.exception("Error while calling close callback")
             self._write_buffer.clear()
-            self._sock.close()
+            self.sock.close()

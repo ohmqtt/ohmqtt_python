@@ -118,7 +118,7 @@ class Session:
                 logger.debug("Deferring send due to server receive maximum")
 
 
-    def _connection_open_callback(self, conn: Connection) -> None:
+    def _connection_open_callback(self) -> None:
         """Handle a connection open event."""
         packet = MQTTConnectPacket(
             client_id=self.client_id,
@@ -128,7 +128,7 @@ class Session:
         )
         self._send_packet(packet)
 
-    def _connection_close_callback(self, conn: Connection, exc: Exception | None) -> None:
+    def _connection_close_callback(self) -> None:
         """Handle a connection close event."""
         with self._lock:
             self.server_receive_maximum = 0
@@ -142,7 +142,7 @@ class Session:
             except Exception:
                 logger.exception("Unhandled exception in close callback")
 
-    def _connection_read_callback(self, conn: Connection, packet: MQTTPacket) -> None:
+    def _connection_read_callback(self, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
         logger.debug(f"<--- {packet}")
         if packet.packet_type in self._read_handlers:
@@ -296,8 +296,7 @@ class Session:
         protocol_version: int = 5,
         clean_start: bool = False,
         keepalive_interval: int = 0,
-        recv_buffer_sz: int = 65535,
-        tls: bool = False,
+        use_tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
         connect_properties: MQTTPropertyDict | None = None,
@@ -311,15 +310,13 @@ class Session:
                 host=host,
                 port=port,
                 keepalive_interval=keepalive_interval,
-                close_cb=self._connection_close_callback,
-                connect_cb=self._connection_open_callback,
-                read_cb=self._connection_read_callback,
-                recv_buffer_sz=recv_buffer_sz,
-                tls=tls,
+                close_callback=self._connection_close_callback,
+                open_callback=self._connection_open_callback,
+                read_callback=self._connection_read_callback,
+                use_tls=use_tls,
                 tls_context=tls_context,
                 tls_hostname=tls_hostname,
             )
-            self.connection.start()
 
     def disconnect(self) -> None:
         """Disconnect from the server."""
