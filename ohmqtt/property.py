@@ -52,6 +52,10 @@ class MQTTPropertyDict(TypedDict, total=False):
     SharedSubscriptionAvailable: bool
 
 
+_MQTTPropertyNameLookup: Mapping[int, str] = {prop.value: prop.name for prop in MQTTPropertyId}
+_MQTTPropertyIdLookup: Mapping[str, int] = {prop.name: prop.value for prop in MQTTPropertyId}
+
+
 # Possible property serializer function signatures.
 _SerializerTypes = (
     Callable[[bool], bytes] |
@@ -61,34 +65,34 @@ _SerializerTypes = (
     Callable[[tuple[str, str]], bytes]
 )
 # MQTT property serializers.
-MQTTPropertySerializers: Mapping[MQTTPropertyId, _SerializerTypes] = {
-    MQTTPropertyId.PayloadFormatIndicator: encode_uint8,
-    MQTTPropertyId.MessageExpiryInterval: encode_uint32,
-    MQTTPropertyId.ContentType: encode_string,
-    MQTTPropertyId.ResponseTopic: encode_string,
-    MQTTPropertyId.CorrelationData: encode_binary,
-    MQTTPropertyId.SubscriptionIdentifier: encode_varint,
-    MQTTPropertyId.SessionExpiryInterval: encode_uint32,
-    MQTTPropertyId.AssignedClientIdentifier: encode_string,
-    MQTTPropertyId.ServerKeepAlive: encode_uint16,
-    MQTTPropertyId.AuthenticationMethod: encode_string,
-    MQTTPropertyId.AuthenticationData: encode_binary,
-    MQTTPropertyId.RequestProblemInformation: encode_bool,
-    MQTTPropertyId.WillDelayInterval: encode_uint32,
-    MQTTPropertyId.RequestResponseInformation: encode_bool,
-    MQTTPropertyId.ResponseInformation: encode_string,
-    MQTTPropertyId.ServerReference: encode_string,
-    MQTTPropertyId.ReasonString: encode_string,
-    MQTTPropertyId.ReceiveMaximum: encode_uint16,
-    MQTTPropertyId.TopicAliasMaximum: encode_uint16,
-    MQTTPropertyId.TopicAlias: encode_uint16,
-    MQTTPropertyId.MaximumQoS: encode_uint8,
-    MQTTPropertyId.RetainAvailable: encode_bool,
-    MQTTPropertyId.UserProperty: encode_string_pair,
-    MQTTPropertyId.MaximumPacketSize: encode_uint32,
-    MQTTPropertyId.WildcardSubscriptionAvailable: encode_bool,
-    MQTTPropertyId.SubscriptionIdentifierAvailable: encode_bool,
-    MQTTPropertyId.SharedSubscriptionAvailable: encode_bool,
+_MQTTPropertySerializers: Mapping[str, _SerializerTypes] = {
+    "PayloadFormatIndicator": encode_uint8,
+    "MessageExpiryInterval": encode_uint32,
+    "ContentType": encode_string,
+    "ResponseTopic": encode_string,
+    "CorrelationData": encode_binary,
+    "SubscriptionIdentifier": encode_varint,
+    "SessionExpiryInterval": encode_uint32,
+    "AssignedClientIdentifier": encode_string,
+    "ServerKeepAlive": encode_uint16,
+    "AuthenticationMethod": encode_string,
+    "AuthenticationData": encode_binary,
+    "RequestProblemInformation": encode_bool,
+    "WillDelayInterval": encode_uint32,
+    "RequestResponseInformation": encode_bool,
+    "ResponseInformation": encode_string,
+    "ServerReference": encode_string,
+    "ReasonString": encode_string,
+    "ReceiveMaximum": encode_uint16,
+    "TopicAliasMaximum": encode_uint16,
+    "TopicAlias": encode_uint16,
+    "MaximumQoS": encode_uint8,
+    "RetainAvailable": encode_bool,
+    "UserProperty": encode_string_pair,
+    "MaximumPacketSize": encode_uint32,
+    "WildcardSubscriptionAvailable": encode_bool,
+    "SubscriptionIdentifierAvailable": encode_bool,
+    "SharedSubscriptionAvailable": encode_bool,
 }
 
 
@@ -101,134 +105,134 @@ _DeserializerTypes = (
     Callable[[bytes], tuple[tuple[str, str], int]]
 )
 # MQTT property deserializers.
-MQTTPropertyDeserializers: Mapping[MQTTPropertyId, _DeserializerTypes] = {
-    MQTTPropertyId.PayloadFormatIndicator: decode_uint8,
-    MQTTPropertyId.MessageExpiryInterval: decode_uint32,
-    MQTTPropertyId.ContentType: decode_string,
-    MQTTPropertyId.ResponseTopic: decode_string,
-    MQTTPropertyId.CorrelationData: decode_binary,
-    MQTTPropertyId.SubscriptionIdentifier: decode_varint,
-    MQTTPropertyId.SessionExpiryInterval: decode_uint32,
-    MQTTPropertyId.AssignedClientIdentifier: decode_string,
-    MQTTPropertyId.ServerKeepAlive: decode_uint16,
-    MQTTPropertyId.AuthenticationMethod: decode_string,
-    MQTTPropertyId.AuthenticationData: decode_binary,
-    MQTTPropertyId.RequestProblemInformation: decode_bool,
-    MQTTPropertyId.WillDelayInterval: decode_uint32,
-    MQTTPropertyId.RequestResponseInformation: decode_bool,
-    MQTTPropertyId.ResponseInformation: decode_string,
-    MQTTPropertyId.ServerReference: decode_string,
-    MQTTPropertyId.ReasonString: decode_string,
-    MQTTPropertyId.ReceiveMaximum: decode_uint16,
-    MQTTPropertyId.TopicAliasMaximum: decode_uint16,
-    MQTTPropertyId.TopicAlias: decode_uint16,
-    MQTTPropertyId.MaximumQoS: decode_uint8,
-    MQTTPropertyId.RetainAvailable: decode_bool,
-    MQTTPropertyId.UserProperty: decode_string_pair,
-    MQTTPropertyId.MaximumPacketSize: decode_uint32,
-    MQTTPropertyId.WildcardSubscriptionAvailable: decode_bool,
-    MQTTPropertyId.SubscriptionIdentifierAvailable: decode_bool,
-    MQTTPropertyId.SharedSubscriptionAvailable: decode_bool,
+_MQTTPropertyDeserializers: Mapping[str, _DeserializerTypes] = {
+    "PayloadFormatIndicator": decode_uint8,
+    "MessageExpiryInterval": decode_uint32,
+    "ContentType": decode_string,
+    "ResponseTopic": decode_string,
+    "CorrelationData": decode_binary,
+    "SubscriptionIdentifier": decode_varint,
+    "SessionExpiryInterval": decode_uint32,
+    "AssignedClientIdentifier": decode_string,
+    "ServerKeepAlive": decode_uint16,
+    "AuthenticationMethod": decode_string,
+    "AuthenticationData": decode_binary,
+    "RequestProblemInformation": decode_bool,
+    "WillDelayInterval": decode_uint32,
+    "RequestResponseInformation": decode_bool,
+    "ResponseInformation": decode_string,
+    "ServerReference": decode_string,
+    "ReasonString": decode_string,
+    "ReceiveMaximum": decode_uint16,
+    "TopicAliasMaximum": decode_uint16,
+    "TopicAlias": decode_uint16,
+    "MaximumQoS": decode_uint8,
+    "RetainAvailable": decode_bool,
+    "UserProperty": decode_string_pair,
+    "MaximumPacketSize": decode_uint32,
+    "WildcardSubscriptionAvailable": decode_bool,
+    "SubscriptionIdentifierAvailable": decode_bool,
+    "SharedSubscriptionAvailable": decode_bool,
 }
 
 
 # Allowed MQTT property types for each packet type.
-MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[MQTTPropertyId]] = {
+_MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[str]] = {
     MQTTPacketType.CONNECT: frozenset({  # [MQ5 3.1.2.11]
-        MQTTPropertyId.SessionExpiryInterval,
-        MQTTPropertyId.ReceiveMaximum,
-        MQTTPropertyId.MaximumPacketSize,
-        MQTTPropertyId.TopicAliasMaximum,
-        MQTTPropertyId.RequestResponseInformation,
-        MQTTPropertyId.RequestProblemInformation,
-        MQTTPropertyId.UserProperty,
-        MQTTPropertyId.AuthenticationMethod,
-        MQTTPropertyId.AuthenticationData,
+        "SessionExpiryInterval",
+        "ReceiveMaximum",
+        "MaximumPacketSize",
+        "TopicAliasMaximum",
+        "RequestResponseInformation",
+        "RequestProblemInformation",
+        "UserProperty",
+        "AuthenticationMethod",
+        "AuthenticationData",
     }),
     MQTTPacketType.CONNACK: frozenset({  # [MQ5 3.2.2.3]
-        MQTTPropertyId.SessionExpiryInterval,
-        MQTTPropertyId.ReceiveMaximum,
-        MQTTPropertyId.MaximumQoS,
-        MQTTPropertyId.RetainAvailable,
-        MQTTPropertyId.MaximumPacketSize,
-        MQTTPropertyId.AssignedClientIdentifier,
-        MQTTPropertyId.TopicAliasMaximum,
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
-        MQTTPropertyId.WildcardSubscriptionAvailable,
-        MQTTPropertyId.SubscriptionIdentifierAvailable,
-        MQTTPropertyId.SharedSubscriptionAvailable,
-        MQTTPropertyId.ServerKeepAlive,
-        MQTTPropertyId.ResponseInformation,
-        MQTTPropertyId.ServerReference,
-        MQTTPropertyId.AuthenticationMethod,
-        MQTTPropertyId.AuthenticationData,
+        "SessionExpiryInterval",
+        "ReceiveMaximum",
+        "MaximumQoS",
+        "RetainAvailable",
+        "MaximumPacketSize",
+        "AssignedClientIdentifier",
+        "TopicAliasMaximum",
+        "ReasonString",
+        "UserProperty",
+        "WildcardSubscriptionAvailable",
+        "SubscriptionIdentifierAvailable",
+        "SharedSubscriptionAvailable",
+        "ServerKeepAlive",
+        "ResponseInformation",
+        "ServerReference",
+        "AuthenticationMethod",
+        "AuthenticationData",
     }),
     MQTTPacketType.PUBLISH: frozenset({  # [MQ5 3.3.2.3]
-        MQTTPropertyId.PayloadFormatIndicator,
-        MQTTPropertyId.MessageExpiryInterval,
-        MQTTPropertyId.TopicAlias,
-        MQTTPropertyId.ResponseTopic,
-        MQTTPropertyId.CorrelationData,
-        MQTTPropertyId.UserProperty,
-        MQTTPropertyId.SubscriptionIdentifier,
-        MQTTPropertyId.ContentType,
+        "PayloadFormatIndicator",
+        "MessageExpiryInterval",
+        "TopicAlias",
+        "ResponseTopic",
+        "CorrelationData",
+        "UserProperty",
+        "SubscriptionIdentifier",
+        "ContentType",
     }),
     MQTTPacketType.PUBACK: frozenset({  # [MQ5 3.4.2.2]
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "ReasonString",
+        "UserProperty",
     }),
     MQTTPacketType.PUBREC: frozenset({  # [MQ5 3.5.2.2]
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "ReasonString",
+        "UserProperty",
     }),
     MQTTPacketType.PUBREL: frozenset({  # [MQ5 3.6.2.2]
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "ReasonString",
+        "UserProperty",
     }),
     MQTTPacketType.PUBCOMP: frozenset({  # [MQ5 3.7.2.2]
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "ReasonString",
+        "UserProperty",
     }),
     MQTTPacketType.SUBSCRIBE: frozenset({  # [MQ5 3.8.2.1]
-        MQTTPropertyId.SubscriptionIdentifier,
-        MQTTPropertyId.UserProperty,
+        "SubscriptionIdentifier",
+        "UserProperty",
     }),
     MQTTPacketType.SUBACK: frozenset({  # [MQ5 3.9.2.1]
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "ReasonString",
+        "UserProperty",
     }),
     MQTTPacketType.UNSUBSCRIBE: frozenset({  # [MQ5 3.10.2.1]
-        MQTTPropertyId.UserProperty,
+        "UserProperty",
     }),
     MQTTPacketType.UNSUBACK: frozenset({  # [MQ5 3.11.2.1]
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "ReasonString",
+        "UserProperty",
     }),
     MQTTPacketType.DISCONNECT: frozenset({  # [MQ5 3.14.2.2]
-        MQTTPropertyId.SessionExpiryInterval,
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
-        MQTTPropertyId.ServerReference,
+        "SessionExpiryInterval",
+        "ReasonString",
+        "UserProperty",
+        "ServerReference",
     }),
     MQTTPacketType.AUTH: frozenset({  # [MQ5 3.15.2.2]
-        MQTTPropertyId.AuthenticationMethod,
-        MQTTPropertyId.AuthenticationData,
-        MQTTPropertyId.ReasonString,
-        MQTTPropertyId.UserProperty,
+        "AuthenticationMethod",
+        "AuthenticationData",
+        "ReasonString",
+        "UserProperty",
     }),
 }
 
 
 # Allowed MQTT properties in a Will message.
-MQTTPropertyAllowedInWill: frozenset[MQTTPropertyId] = frozenset({
-    MQTTPropertyId.PayloadFormatIndicator,
-    MQTTPropertyId.MessageExpiryInterval,
-    MQTTPropertyId.ContentType,
-    MQTTPropertyId.ResponseTopic,
-    MQTTPropertyId.CorrelationData,
-    MQTTPropertyId.WillDelayInterval,
-    MQTTPropertyId.UserProperty,
+_MQTTPropertyAllowedInWill: frozenset[MQTTPropertyId] = frozenset({
+    "PayloadFormatIndicator",
+    "MessageExpiryInterval",
+    "ContentType",
+    "ResponseTopic",
+    "CorrelationData",
+    "WillDelayInterval",
+    "UserProperty",
 })
 
 
@@ -239,8 +243,8 @@ def encode_properties(properties: MQTTPropertyDict) -> bytes:
         return b"\x00"
     data = bytearray()
     for key, prop_value in properties.items():
-        prop_id = MQTTPropertyId[key]
-        serializer = MQTTPropertySerializers[prop_id]
+        prop_id = _MQTTPropertyIdLookup[key]
+        serializer = _MQTTPropertySerializers[key]
 
         # MQTT specification calls for a variable integer for the property ID,
         #   but we know that the IDs are all 1 byte long,
@@ -264,29 +268,32 @@ def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
     """Decode MQTT properties from a buffer.
     
     Returns a tuple of the decoded properties and the number of bytes consumed."""
-    length, offset = decode_varint(data)
+    length, length_sz = decode_varint(data)
     if length == 0:
         # Fast path for empty properties.
         return {}, 1
+    data = data[length_sz:]
+    remaining = length
     properties: MQTTPropertyDict = {}
-    while offset < length:
+    while remaining:
         # The spec calls for a variable integer for the property ID,
         #   but we know that the IDs are all 1 byte long,
         #   so we will decode them as uint8 to save a branch.
-        key = data[offset]
-        offset += 1
-        prop_key = MQTTPropertyId(key)
-        prop_name = prop_key.name
-        deserializer: _DeserializerTypes = MQTTPropertyDeserializers[prop_key]
-        value, value_length = deserializer(data[offset:])
-        offset += value_length
+        key = data[0]
+        data  = data[1:]
+        remaining -= 1
+        prop_name = _MQTTPropertyNameLookup[key]
+        deserializer: _DeserializerTypes = _MQTTPropertyDeserializers[prop_name]
+        value, sz = deserializer(data)
+        data = data[sz:]
+        remaining -= sz
         # Ignore typing below because mypy doesn't support non-literal TypedDict keys.
-        if prop_key == MQTTPropertyId.SubscriptionIdentifier:
+        if prop_name == "SubscriptionIdentifier":
             # This property may appear multiple times, in any order.
             if prop_name not in properties:
                 properties[prop_name] = set() # type: ignore
             properties[prop_name].add(value) # type: ignore
-        elif prop_key == MQTTPropertyId.UserProperty:
+        elif prop_name == "UserProperty":
             # This property may appear multiple times, in any order.
             if prop_name not in properties:
                 properties[prop_name] = [] # type: ignore
@@ -294,7 +301,7 @@ def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
         else:
             # Other properties must appear exactly once.
             properties[prop_name] = value # type: ignore
-    return properties, offset
+    return properties, length + length_sz
 
 
 def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketType | None = None, is_will: bool = False) -> None:
@@ -302,11 +309,14 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketTyp
     if not properties:
         # Fast path for empty properties.
         return
-    allowed_properties = MQTTPropertyPacketTypes[packet_type] if packet_type is not None else set()
+    allowed_properties = _MQTTPropertyPacketTypes[packet_type] if packet_type is not None else set()
     if is_will:
-        allowed_properties = allowed_properties | MQTTPropertyAllowedInWill
-    if allowed_properties and any(MQTTPropertyId[key] not in allowed_properties for key in properties):
-        disallowed = ", ".join([str(MQTTPropertyId[key]) for key in properties if MQTTPropertyId[key] not in allowed_properties])
+        allowed_properties = allowed_properties | _MQTTPropertyAllowedInWill
+    #if allowed_properties and any(key not in allowed_properties for key in properties):
+    if not allowed_properties and packet_type is None:
+        allowed_properties = frozenset(_MQTTPropertyIdLookup.keys())
+    if not frozenset(properties.keys()).issubset(allowed_properties):
+        disallowed = ", ".join([key for key in properties if key not in allowed_properties])
         raise MQTTError(
             f"Disallowed propert(ies) found in packet type {packet_type} (will: {is_will}): {disallowed}",
             MQTTReasonCode.ProtocolError,
