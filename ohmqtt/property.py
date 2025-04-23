@@ -237,26 +237,27 @@ def encode_properties(properties: MQTTPropertyDict) -> bytes:
     if not properties:
         # Fast path for empty properties.
         return b"\x00"
-    data = b""
+    data = bytearray()
     for key, prop_value in properties.items():
         prop_id = MQTTPropertyId[key]
         serializer = MQTTPropertySerializers[prop_id]
 
         # MQTT specification calls for a variable integer for the property ID,
         #   but we know that the IDs are all 1 byte long,
-        #   so we will encode them as uint8 to save a branch.
-        encoded_prop_id = encode_uint8(prop_id)
+        #   so we will encode them as single bytes to save a branch.
 
         if key in ("SubscriptionIdentifier", "UserProperty"):
             # These properties may appear multiple times, in any order.
             # Ignore typing here because mypy doesn't follow the TypedDict.
-            for sub_value in prop_value: # type: ignore
-                data += encoded_prop_id + serializer(sub_value)
+            for sub_value in prop_value:  # type: ignore
+                data.append(prop_id)
+                data.extend(serializer(sub_value))
         else:
+            data.append(prop_id)
             # Ignore typing here because mypy doesn't follow the TypedDict.
-            data += encoded_prop_id + serializer(prop_value) # type: ignore
+            data.extend(serializer(prop_value))  # type: ignore
 
-    return encode_varint(len(data)) + data
+    return encode_varint(len(data)) + bytes(data)
 
 
 def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:

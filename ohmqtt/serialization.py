@@ -107,7 +107,9 @@ def decode_string(data: bytes) -> tuple[str, int]:
 
 def encode_string_pair(values: tuple[str, str]) -> bytes:
     """Encode a UTF-8 string pair to a buffer."""
-    return encode_string(values[0]) + encode_string(values[1])
+    left = values[0].encode("utf-8")
+    right = values[1].encode("utf-8")
+    return len(left).to_bytes(2, byteorder="big") + left + len(right).to_bytes(2, byteorder="big") + right
 
 
 def decode_string_pair(data: bytes) -> tuple[tuple[str, str], int]:

@@ -19,6 +19,8 @@ from .serialization import (
     decode_varint,
 )
 
+HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH.value << 4
+
 
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
@@ -359,12 +361,24 @@ class MQTTPublishPacket(MQTTPacketWithId):
         return self._properties.copy()
 
     def encode(self) -> bytes:
-        flags = int(self.retain) + (self.qos << 1) + (self.dup * 8)
-        if self.qos > 0:
-            data = b"".join((encode_string(self.topic), self.packet_id.to_bytes(2, byteorder="big"), encode_properties(self.properties), self.payload))
+        encoded = bytearray()
+        head = HEAD_PUBLISH + self._retain + (self._qos << 1) + (self._dup << 3)
+        length = len(self._topic) + len(self._payload) + 2
+        if self._qos > 0:
+            length += 2
+        if self._properties:
+            props = encode_properties(self._properties)
         else:
-            data = b"".join((encode_string(self.topic), encode_properties(self.properties), self.payload))
-        return encode_packet(self.packet_type, flags, data)
+            props = b"\x00"
+        length += len(props)
+        encoded.append(head)
+        encoded.extend(encode_varint(length))
+        encoded.extend(encode_string(self._topic))
+        if self._qos > 0:
+            encoded.extend(self._packet_id.to_bytes(2, byteorder="big"))
+        encoded.extend(props)
+        encoded.extend(self._payload)
+        return bytes(encoded)
 
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPublishPacket":
