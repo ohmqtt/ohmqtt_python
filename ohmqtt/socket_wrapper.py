@@ -140,7 +140,7 @@ class SocketWrapper(threading.Thread):
     def _try_read(self) -> None:
         """Try to read data from the socket."""
         try:
-            data = self.sock.recv(65535)
+            data = self.sock.recv(32768)
             self._last_recv = time.monotonic()
         except (ssl.SSLWantReadError, BlockingIOError):
             pass
