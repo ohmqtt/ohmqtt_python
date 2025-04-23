@@ -70,6 +70,7 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
 
         assert packet == packet
         assert packet == decoded
+        assert packet != b"not a packet"
         assert hash(packet) == hash(decoded)
         assert str(packet) == str(decoded)
 

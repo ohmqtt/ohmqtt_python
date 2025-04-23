@@ -40,10 +40,6 @@ class MQTTPacket(metaclass=ABCMeta):
         attrs = ", ".join([f"{k}={truncate(getattr(self, k))}" for k in self.__slots__])
         return f"{self.__class__.__name__}[{attrs}]"
 
-    def __hash__(self) -> int:
-        # Hash property dicts as frozensets.
-        return hash(tuple(getattr(self, attr) if attr not in ("properties", "will_props") else hash_properties(getattr(self, attr)) for attr in self.__slots__))
-
     @abstractmethod
     def encode(self) -> bytes:
         ...  # pragma: no cover
@@ -104,6 +100,23 @@ class MQTTConnectPacket(MQTTPacket):
         self.username = username
         self.password = password
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.client_id,
+            self.keep_alive,
+            self.protocol_version,
+            self.clean_start,
+            self.will_topic,
+            self.will_payload,
+            self.will_qos,
+            self.will_retain,
+            self.username,
+            self.password,
+            hash_properties(self.properties),
+            hash_properties(self.will_props),
+        ))
 
     def encode(self) -> bytes:
         connect_flags = (
@@ -226,6 +239,14 @@ class MQTTConnAckPacket(MQTTPacket):
         self.reason_code = reason_code
         self.session_present = session_present
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.session_present,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
     
     def encode(self) -> bytes:
         data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + encode_properties(self.properties)
@@ -244,7 +265,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
 class MQTTPublishPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.PUBLISH
-    __slots__ = ("properties", "packet_id", "topic", "payload", "qos", "retain", "dup")
+    __slots__ = ("_properties", "_packet_id", "_topic", "_payload", "_qos", "_retain", "_dup", "_hash")
 
     def __init__(
         self,
@@ -257,13 +278,74 @@ class MQTTPublishPacket(MQTTPacketWithId):
         packet_id: int = 0,
         properties: MQTTPropertyDict | None = None,
     ):
-        self.topic = topic
-        self.payload = payload
-        self.qos = qos
-        self.retain = retain
-        self.dup = dup
-        self.packet_id = packet_id
-        self.properties = properties if properties is not None else {}
+        self._topic = topic
+        self._payload = payload
+        self._qos = qos
+        self._retain = retain
+        self._dup = dup
+        self._packet_id = packet_id
+        self._properties = properties if properties is not None else {}
+        self._update_hash()
+
+    def _update_hash(self) -> None:
+        self._hash = hash((
+            self.packet_type,
+            self._topic,
+            self._payload,
+            self._qos,
+            self._retain,
+            self._dup,
+            self._packet_id,
+            hash_properties(self._properties),
+        ))
+
+    def __hash__(self) -> int:
+        return self._hash
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self._hash == hash(other)
+
+    @property
+    def topic(self) -> str:
+        return self._topic
+
+    @property
+    def payload(self) -> bytes:
+        return self._payload
+
+    @property
+    def qos(self) -> int:
+        return self._qos
+
+    @property
+    def retain(self) -> bool:
+        return self._retain
+
+    @property
+    def dup(self) -> bool:
+        return self._dup
+    
+    @dup.setter
+    def dup(self, value: bool) -> None:
+        if self._dup != value:
+            self._dup = value
+            self._update_hash()
+
+    @property
+    def packet_id(self) -> int:
+        return self._packet_id
+
+    @packet_id.setter
+    def packet_id(self, value: int) -> None:
+        if self._packet_id != value:
+            self._packet_id = value
+            self._update_hash()
+
+    @property
+    def properties(self) -> MQTTPropertyDict:
+        return self._properties.copy()
 
     def encode(self) -> bytes:
         if self.qos > 0:
@@ -323,6 +405,14 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
 
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
         if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
@@ -367,6 +457,14 @@ class MQTTPubRecPacket(MQTTPacketWithId):
         self.packet_id = packet_id
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
@@ -413,6 +511,14 @@ class MQTTPubRelPacket(MQTTPacketWithId):
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
 
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
         if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
@@ -457,6 +563,14 @@ class MQTTPubCompPacket(MQTTPacketWithId):
         self.packet_id = packet_id
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
@@ -504,6 +618,14 @@ class MQTTSubscribePacket(MQTTPacketWithId):
         self.packet_id = packet_id
         self.properties = properties if properties is not None else {}
 
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.topics,
+            hash_properties(self.properties),
+        ))
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
         data += encode_properties(self.properties)
@@ -546,6 +668,14 @@ class MQTTSubAckPacket(MQTTPacketWithId):
         self.reason_codes = tuple(reason_codes)
         self.properties = properties if properties is not None else {}
 
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.reason_codes,
+            hash_properties(self.properties),
+        ))
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
         data += encode_properties(self.properties)
@@ -575,6 +705,14 @@ class MQTTUnsubscribePacket(MQTTPacketWithId):
         self.topics = tuple(topics)
         self.packet_id = packet_id
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.topics,
+            hash_properties(self.properties),
+        ))
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id) + encode_properties(self.properties)
@@ -609,6 +747,14 @@ class MQTTUnsubAckPacket(MQTTPacketWithId):
         self.reason_codes = tuple(reason_codes)
         self.properties = properties if properties is not None else {}
 
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.packet_id,
+            self.reason_codes,
+            hash_properties(self.properties),
+        ))
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id) + encode_properties(self.properties)
         for reason_code in self.reason_codes:
@@ -633,6 +779,11 @@ class MQTTPingReqPacket(MQTTPacket):
     packet_type = MQTTPacketType.PINGREQ
     __slots__ = tuple()
 
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+        ))
+
     def encode(self) -> bytes:
         return encode_packet(self.packet_type, 0, b"")
     
@@ -648,6 +799,11 @@ class MQTTPingReqPacket(MQTTPacket):
 class MQTTPingRespPacket(MQTTPacket):
     packet_type = MQTTPacketType.PINGRESP
     __slots__ = tuple()
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+        ))
 
     def encode(self) -> bytes:
         return encode_packet(self.packet_type, 0, b"")
@@ -668,6 +824,13 @@ class MQTTDisconnectPacket(MQTTPacket):
     def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTPropertyDict | None = None):
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
@@ -696,6 +859,13 @@ class MQTTAuthPacket(MQTTPacket):
     def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTPropertyDict | None = None):
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
+
+    def __hash__(self) -> int:
+        return hash((
+            self.packet_type,
+            self.reason_code,
+            hash_properties(self.properties),
+        ))
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
