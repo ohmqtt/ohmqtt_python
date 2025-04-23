@@ -21,6 +21,8 @@ from .serialization import (
 
 HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
 
+_MQTTPacketTypeLookup = {t.value: t.name for t in MQTTPacketType}
+
 
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
@@ -907,29 +909,29 @@ class MQTTAuthPacket(MQTTPacket):
         return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)
 
 
-ControlPacketClasses: Mapping[MQTTPacketType, type[MQTTPacket]] = {
-    MQTTPacketType.CONNECT: MQTTConnectPacket,
-    MQTTPacketType.CONNACK: MQTTConnAckPacket,
-    MQTTPacketType.PUBLISH: MQTTPublishPacket,
-    MQTTPacketType.PUBACK: MQTTPubAckPacket,
-    MQTTPacketType.PUBREC: MQTTPubRecPacket,
-    MQTTPacketType.PUBREL: MQTTPubRelPacket,
-    MQTTPacketType.PUBCOMP: MQTTPubCompPacket,
-    MQTTPacketType.SUBSCRIBE: MQTTSubscribePacket,
-    MQTTPacketType.SUBACK: MQTTSubAckPacket,
-    MQTTPacketType.UNSUBSCRIBE: MQTTUnsubscribePacket,
-    MQTTPacketType.UNSUBACK: MQTTUnsubAckPacket,
-    MQTTPacketType.PINGREQ: MQTTPingReqPacket,
-    MQTTPacketType.PINGRESP: MQTTPingRespPacket,
-    MQTTPacketType.DISCONNECT: MQTTDisconnectPacket,
-    MQTTPacketType.AUTH: MQTTAuthPacket,
+_ControlPacketClasses: Mapping[int, type[MQTTPacket]] = {
+    MQTTPacketType.CONNECT.value: MQTTConnectPacket,
+    MQTTPacketType.CONNACK.value: MQTTConnAckPacket,
+    MQTTPacketType.PUBLISH.value: MQTTPublishPacket,
+    MQTTPacketType.PUBACK.value: MQTTPubAckPacket,
+    MQTTPacketType.PUBREC.value: MQTTPubRecPacket,
+    MQTTPacketType.PUBREL.value: MQTTPubRelPacket,
+    MQTTPacketType.PUBCOMP.value: MQTTPubCompPacket,
+    MQTTPacketType.SUBSCRIBE.value: MQTTSubscribePacket,
+    MQTTPacketType.SUBACK.value: MQTTSubAckPacket,
+    MQTTPacketType.UNSUBSCRIBE.value: MQTTUnsubscribePacket,
+    MQTTPacketType.UNSUBACK.value: MQTTUnsubAckPacket,
+    MQTTPacketType.PINGREQ.value: MQTTPingReqPacket,
+    MQTTPacketType.PINGRESP.value: MQTTPingRespPacket,
+    MQTTPacketType.DISCONNECT.value: MQTTDisconnectPacket,
+    MQTTPacketType.AUTH.value: MQTTAuthPacket,
 }
 
 
 def decode_packet(data: bytes) -> MQTTPacket:
     try:
-        packet_type = MQTTPacketType(data[0] // 16)
-    except ValueError:
+        decoder = _ControlPacketClasses[data[0] // 16]
+    except KeyError:
         raise MQTTError(f"Invalid packet type {data[0] // 16}", MQTTReasonCode.MalformedPacket)
     flags = data[0] % 0x10
 
@@ -938,7 +940,7 @@ def decode_packet(data: bytes) -> MQTTPacket:
     remainder = data[offset:]
     if len(remainder) != length:
         raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode.MalformedPacket)
-    return ControlPacketClasses[packet_type].decode(flags, remainder)
+    return decoder.decode(flags, remainder)
 
 
 def encode_packet(packet_type: MQTTPacketType, flags: int, data: bytes) -> bytes:
