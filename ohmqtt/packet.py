@@ -19,7 +19,7 @@ from .serialization import (
     decode_varint,
 )
 
-HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH.value << 4
+HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
 
 
 class MQTTPacket(metaclass=ABCMeta):
