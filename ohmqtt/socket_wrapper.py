@@ -120,23 +120,21 @@ class SocketWrapper(threading.Thread):
             try:
                 sent = self.sock.send(self._write_buffer)
                 self._last_send = time.monotonic()
-            except (ssl.SSLWantWriteError, BlockingIOError):
-                pass
-            else:
                 if sent < len(self._write_buffer):
                     self._write_buffer = self._write_buffer[sent:]
                 else:
                     self._write_buffer.clear()
+            except (ssl.SSLWantWriteError, BlockingIOError):
+                pass
 
     def _try_read(self) -> None:
         """Try to read data from the socket."""
         try:
-            data = self.sock.recv(32768)
+            data = self.sock.recv(65535)
             self._last_recv = time.monotonic()
+            self._read_callback(data)
         except (ssl.SSLWantReadError, BlockingIOError):
             pass
-        else:
-            self._read_callback(data)
 
     def _get_next_timeout(self) -> float | None:
         """Get the next timeout for the socket.
