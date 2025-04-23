@@ -22,7 +22,7 @@ def test_client_happy_path(MockSession, mock_session):
     client = Client(client_id="test_client")
     MockSession.assert_called_once_with(
         "test_client",
-        message_cb=client.on_message,
+        message_callback=client.on_message,
     )
     assert client.client_id == "test_client"
     assert client.session == mock_session

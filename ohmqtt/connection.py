@@ -4,7 +4,7 @@ from typing import Callable, cast, Final
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType
-from .packet import decode_packet, MQTTPacket, MQTTConnAckPacket
+from .packet import decode_packet, MQTTPacket, MQTTConnAckPacket, PING, PONG
 from .serialization import decode_varint
 from .socket_wrapper import SocketWrapper
 
@@ -38,6 +38,7 @@ class Connection:
             host,
             port,
             close_callback=self._close_callback,
+            keepalive_callback=self._keepalive_callback,
             open_callback=self._open_callback,
             read_callback=self._read_packet,
             keepalive_interval=keepalive_interval,
@@ -57,6 +58,11 @@ class Connection:
     def send(self, data: bytes) -> None:
         """Send data to the broker."""
         self.sock.send(data)
+
+    def _keepalive_callback(self, sock: SocketWrapper) -> None:
+        """Called by the socket wrapper when a keepalive is due."""
+        sock.send(PING)
+        sock.ping_sent()
 
     def _read_packet(self, data: bytes) -> None:
         """Called by the client when a new packet is received.
@@ -93,7 +99,7 @@ class Connection:
             if packet.packet_type == MQTTPacketType.PINGRESP:
                 self.sock.pong_received()
             elif packet.packet_type == MQTTPacketType.PINGREQ:
-                self.sock.send(b"\xd0\x00")
+                self.sock.send(PONG)
             else:
                 # All non-ping packets are passed to the read callback.
                 self._read_callback(packet)

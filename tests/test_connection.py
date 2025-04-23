@@ -13,8 +13,8 @@ from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
-    MQTTPingReqPacket,
-    MQTTPingRespPacket,
+    PING,
+    PONG,
 )
 from ohmqtt.socket_wrapper import SocketWrapper
 
@@ -61,6 +61,7 @@ def test_connection_happy_path(callbacks, mocker):
         "localhost",
         1883,
         close_callback=callbacks.close_callback,
+        keepalive_callback=connection._keepalive_callback,
         open_callback=callbacks.open_callback,
         read_callback=connection._read_packet,
         keepalive_interval=3,
@@ -91,12 +92,12 @@ def test_connection_happy_path(callbacks, mocker):
     mock_socket_wrapper.set_keepalive_interval.reset_mock()
 
     # Receiving a PINGREQ
-    connection._read_packet(MQTTPingReqPacket().encode())
-    mock_socket_wrapper.send.assert_called_once_with(MQTTPingRespPacket().encode())
+    connection._read_packet(PING)
+    mock_socket_wrapper.send.assert_called_once_with(PONG)
     mock_socket_wrapper.send.reset_mock()
 
     # Receiving a PINGRESP
-    connection._read_packet(MQTTPingRespPacket().encode())
+    connection._read_packet(PONG)
     mock_socket_wrapper.pong_received.assert_called_once_with()
     mock_socket_wrapper.pong_received.reset_mock()
 
@@ -109,6 +110,13 @@ def test_connection_happy_path(callbacks, mocker):
     connection._read_packet(packet.encode())
     callbacks.read_callback.assert_called_once_with(packet)
     callbacks.read_callback.reset_mock()
+
+    # Time for a keepalive
+    connection._keepalive_callback(mock_socket_wrapper)
+    mock_socket_wrapper.send.assert_called_once_with(PING)
+    mock_socket_wrapper.ping_sent.assert_called_once_with()
+    mock_socket_wrapper.send.reset_mock()
+    mock_socket_wrapper.ping_sent.reset_mock()
 
     connection.close()
     mock_socket_wrapper.close.assert_called_once_with()

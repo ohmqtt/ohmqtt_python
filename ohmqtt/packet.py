@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Mapping, Sequence
+from typing import Final, Mapping, Sequence
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTReasonCode
@@ -755,3 +755,8 @@ def encode_packet(packet_type: MQTTPacketType, flags: int, data: bytes) -> bytes
     head = (packet_type.value << 4) + flags
     length = encode_varint(len(data))
     return head.to_bytes(1, byteorder="big") + length + data
+
+
+# Ping packets can be singletons, pre-encode them.
+PING: Final = MQTTPingReqPacket().encode()
+PONG: Final = MQTTPingRespPacket().encode()

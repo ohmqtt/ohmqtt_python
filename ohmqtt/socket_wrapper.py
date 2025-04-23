@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 SocketCloseCallback = Callable[[], None]
 SocketOpenCallback = Callable[[], None]
 SocketReadCallback = Callable[[bytes], None]
+SocketKeepaliveCallback = Callable[["SocketWrapper"], None]
 
 
 class SocketWrapperCloseCondition(Exception):
@@ -29,6 +30,7 @@ class SocketWrapper(threading.Thread):
         host: str,
         port: int,
         close_callback: SocketCloseCallback,
+        keepalive_callback: SocketKeepaliveCallback,
         open_callback: SocketOpenCallback,
         read_callback: SocketReadCallback,
         *,
@@ -45,6 +47,7 @@ class SocketWrapper(threading.Thread):
         if tcp_nodelay:
             self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._close_callback = close_callback
+        self._keepalive_callback = keepalive_callback
         self._open_callback = open_callback
         self._read_callback = read_callback
         self._use_tls = use_tls
@@ -67,7 +70,7 @@ class SocketWrapper(threading.Thread):
 
         This method does not guarantee pending reads or writes will be completed."""
         self._closing = True
-        self._interrupt_w.send(b"\x00")
+        self._interrupt()
 
     def send(self, data: bytes) -> None:
         """Write data to the socket.
@@ -80,11 +83,15 @@ class SocketWrapper(threading.Thread):
             if sent < len(data):
                 # If some but not all data was sent, buffer the remaining data.
                 self._write_buffer.extend(data[sent:])
-                self._interrupt_w.send(b"\x00")
+                self._interrupt()
         except (ssl.SSLWantWriteError, BlockingIOError):
             # If the socket was not ready for writing, buffer the data.
             self._write_buffer.extend(data)
-            self._interrupt_w.send(b"\x00")
+            self._interrupt()
+
+    def ping_sent(self) -> None:
+        """Indicate that a ping was sent to the server."""
+        self._pong_deadline = time.monotonic() + self._keepalive_interval * 1.5
 
     def pong_received(self) -> None:
         """Indicate that a pong was received from the server."""
@@ -97,7 +104,11 @@ class SocketWrapper(threading.Thread):
         self._keepalive_interval = interval
         if interval > 0:
             self._pong_deadline = 0.0
-            self._interrupt_w.send(b"\x00")
+            self._interrupt()
+
+    def _interrupt(self) -> None:
+        """Interrupt select to wake up the thread."""
+        self._interrupt_w.send(b"\x00")
 
     def _handshake_loop(self) -> None:
         """Run the TLS handshake in a loop until it is complete."""
@@ -146,9 +157,18 @@ class SocketWrapper(threading.Thread):
             recv_timeout = self._last_recv + self._keepalive_interval * 1.5
             pong_timeout = self._pong_deadline if self._pong_deadline > 0.0 else recv_timeout + 1.0
             next_timeout = min(send_timeout, recv_timeout, pong_timeout) - now
-            if next_timeout > 0:
-                return next_timeout
+            return max(0.001, next_timeout)
         return None
+
+    def _check_keepalive(self) -> None:
+        """Check if the keepalive interval has been reached."""
+        now = time.monotonic()
+        if now - self._last_send > self._keepalive_interval and self._pong_deadline == 0.0:
+            self._keepalive_callback(self)
+        elif now - self._last_recv > self._keepalive_interval * 1.5:
+            raise SocketWrapperCloseCondition("No data received in time")
+        elif self._pong_deadline > 0.0 and now > self._pong_deadline:
+            raise SocketWrapperCloseCondition("No pong received in time")
 
     def run(self) -> None:
         try:
@@ -166,7 +186,7 @@ class SocketWrapper(threading.Thread):
             while not self._closing:
                 next_timeout = self._get_next_timeout()
                 write_check = (self.sock,) if self._write_buffer else tuple()
-                readable, writable, err = select.select([self.sock, self._interrupt_r], write_check, [], next_timeout)
+                readable, writable, _ = select.select([self.sock, self._interrupt_r], write_check, [], next_timeout)
 
                 if self._write_buffer and self.sock in writable:
                     self._try_write()
@@ -174,18 +194,11 @@ class SocketWrapper(threading.Thread):
                 if self.sock in readable:
                     self._try_read()
 
-                if self._interrupt_r in readable:
-                    self._interrupt_r.recv(128)
+                if self._keepalive_interval > 0 and not self._closing:
+                    self._check_keepalive()
 
-                now = time.monotonic()
-                if self._keepalive_interval > 0:
-                    if now - self._last_send > self._keepalive_interval and self._pong_deadline == 0.0:
-                        self._pong_deadline = now + self._keepalive_interval
-                        self.send(b"\xc0\x00")  # This is an MQTT Ping packet.
-                    elif now - self._last_recv > self._keepalive_interval * 1.5:
-                        raise SocketWrapperCloseCondition("No data received in time")
-                    elif self._pong_deadline > 0.0 and now > self._pong_deadline:
-                        raise SocketWrapperCloseCondition("No pong received in time")
+                if self._interrupt_r in readable:
+                    self._interrupt_r.recv(512)
 
         except SocketWrapperCloseCondition as exc:
             logger.info(f"Closing socket: {exc}")
