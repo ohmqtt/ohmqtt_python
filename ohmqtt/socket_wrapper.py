@@ -75,9 +75,13 @@ class SocketWrapper(threading.Thread):
 
     def send(self, data: bytes) -> None:
         """Write data to the socket."""
+        if self._closing:
+            return
         with self._write_buffer_lock:
+            do_interrupt = not self._write_buffer
             self._write_buffer.extend(data)
-        self._interrupt()
+        if do_interrupt:
+            self._interrupt()
 
     def ping_sent(self) -> None:
         """Indicate that a ping was sent to the server."""
@@ -194,6 +198,7 @@ class SocketWrapper(threading.Thread):
         except Exception:
             logger.exception("Unhandled error in socket read thread")
         finally:
+            self._closing = True
             try:
                 self._close_callback()
             except Exception:
