@@ -183,7 +183,8 @@ class MQTTConnectPacket(MQTTPacket):
 
         props, sz = decode_properties(data[offset:])
         offset += sz
-        validate_properties(props, MQTTPacketType.CONNECT)
+        if props:
+            validate_properties(props, MQTTPacketType.CONNECT)
 
         client_id, sz = decode_string(data[offset:])
         offset += sz
@@ -191,7 +192,8 @@ class MQTTConnectPacket(MQTTPacket):
         if will_flag:
             will_props, sz = decode_properties(data[offset:])
             offset += sz
-            validate_properties(will_props, is_will=True)
+            if will_props:
+                validate_properties(will_props, is_will=True)
             will_topic, sz = decode_string(data[offset:])
             offset += sz
             will_payload, sz = decode_binary(data[offset:])
@@ -333,12 +335,13 @@ class MQTTPublishPacket(MQTTPacketWithId):
         topic, topic_length = decode_string(data)
         offset = topic_length
         if qos > 0:
-            packet_id, packet_id_length = decode_uint16(data[offset:])
-            offset += packet_id_length
+            packet_id = int.from_bytes(data[offset:offset + 2], byteorder="big")
+            offset += 2
         else:
             packet_id = 0
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.PUBLISH)
+        if props:
+            validate_properties(props, MQTTPacketType.PUBLISH)
         offset += props_length
         payload = bytes(data[offset:])
         return MQTTPublishPacket(
@@ -401,7 +404,8 @@ class MQTTPubAckPacket(MQTTPacketWithId):
             # Properties alone may be omitted.
             return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code))
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.PUBACK)
+        if props:
+            validate_properties(props, MQTTPacketType.PUBACK)
         return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -454,7 +458,8 @@ class MQTTPubRecPacket(MQTTPacketWithId):
             # Properties alone may be omitted.
             return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code))
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.PUBREC)
+        if props:
+            validate_properties(props, MQTTPacketType.PUBREC)
         return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -507,7 +512,8 @@ class MQTTPubRelPacket(MQTTPacketWithId):
             # Properties alone may be omitted.
             return MQTTPubRelPacket(packet_id, MQTTReasonCode(reason_code))
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.PUBREL)
+        if props:
+            validate_properties(props, MQTTPacketType.PUBREL)
         return MQTTPubRelPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -560,8 +566,8 @@ class MQTTPubCompPacket(MQTTPacketWithId):
             # Properties alone may be omitted.
             return MQTTPubCompPacket(packet_id, MQTTReasonCode(reason_code))
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.PUBCOMP)
-        validate_properties(props, MQTTPacketType.PUBACK)
+        if props:
+            validate_properties(props, MQTTPacketType.PUBCOMP)
         return MQTTPubCompPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -603,7 +609,8 @@ class MQTTSubscribePacket(MQTTPacketWithId):
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.SUBSCRIBE)
+        if props:
+            validate_properties(props, MQTTPacketType.SUBSCRIBE)
         offset += props_length
         topics = []
         while offset < len(data):
@@ -653,7 +660,8 @@ class MQTTSubAckPacket(MQTTPacketWithId):
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.SUBACK)
+        if props:
+            validate_properties(props, MQTTPacketType.SUBACK)
         offset += props_length
         reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
@@ -690,7 +698,8 @@ class MQTTUnsubscribePacket(MQTTPacketWithId):
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.UNSUBSCRIBE)
+        if props:
+            validate_properties(props, MQTTPacketType.UNSUBSCRIBE)
         offset += props_length
         topics = []
         while offset < len(data):
@@ -731,7 +740,8 @@ class MQTTUnsubAckPacket(MQTTPacketWithId):
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
-        validate_properties(props, MQTTPacketType.UNSUBACK)
+        if props:
+            validate_properties(props, MQTTPacketType.UNSUBACK)
         offset += props_length
         reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)
@@ -845,7 +855,8 @@ class MQTTAuthPacket(MQTTPacket):
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
         props, props_sz = decode_properties(data[sz:])
-        validate_properties(props, MQTTPacketType.AUTH)
+        if props:
+            validate_properties(props, MQTTPacketType.AUTH)
         return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)
 
 

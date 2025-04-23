@@ -306,9 +306,6 @@ def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
 
 def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketType | None = None, is_will: bool = False) -> None:
     """Validate the properties against a packet type or as a will message."""
-    if not properties:
-        # Fast path for empty properties.
-        return
     allowed_properties = _MQTTPropertyPacketTypes[packet_type] if packet_type is not None else set()
     if is_will:
         allowed_properties = allowed_properties | _MQTTPropertyAllowedInWill
