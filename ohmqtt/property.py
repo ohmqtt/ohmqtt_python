@@ -273,8 +273,8 @@ def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
         # The spec calls for a variable integer for the property ID,
         #   but we know that the IDs are all 1 byte long,
         #   so we will decode them as uint8 to save a branch.
-        key, key_length = decode_uint8(data[offset:])
-        offset += key_length
+        key = data[offset]
+        offset += 1
         prop_key = MQTTPropertyId(key)
         prop_name = prop_key.name
         deserializer: _DeserializerTypes = MQTTPropertyDeserializers[prop_key]
