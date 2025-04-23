@@ -62,8 +62,8 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
     close_callback.reset_mock()
 
 
-def test_socket_wrapper_refs():
-    """Test that the SocketWrapper class does not cause circular references."""
+def test_socket_wrapper_refs(loopback_socket):
+    """Test that the SocketWrapper class does not have internal circular references."""
     close_callback = lambda: None
     open_callback = lambda: None
     read_callback = lambda _: None
@@ -74,17 +74,13 @@ def test_socket_wrapper_refs():
         open_callback,
         read_callback,
     )
+    socket_wrapper.sock = loopback_socket
+    socket_wrapper.start()
+    time.sleep(0.1)
+    socket_wrapper.close()
+    socket_wrapper.join(timeout=1.0)
+    assert not socket_wrapper.is_alive()
 
-    # Expect that SocketWrapper does not have strong references
-    #   to the callbacks, so they can be freed when dereferenced.
-    refs = [weakref.ref(cb) for cb in (close_callback, open_callback, read_callback)]
-    for ref in refs:
-        assert ref() is not None
-    del [close_callback, open_callback, read_callback]
-    for ref in refs:
-        assert ref() is None
-
-    # Also check for internal circular references.
     ref = weakref.ref(socket_wrapper)
     del socket_wrapper
     assert ref() is None

@@ -49,7 +49,7 @@ def expect_message_from_session(callbacks, session, publish_packet) -> None:
 
 def send_to_session(MockConnection, mock_connection, packet: MQTTPacket) -> None:
     """Send a packet to the session."""
-    MockConnection.call_args.kwargs["read_cb"](mock_connection, packet)
+    MockConnection.call_args.kwargs["read_callback"](packet)
 
 
 @pytest.mark.parametrize("client_id", ["", "a_client_id"])
@@ -58,10 +58,10 @@ def test_session_happy_path(client_id, callbacks, mocker):
     MockConnection = mocker.patch("ohmqtt.session.Connection", return_value=mock_connection)
     with Session(
         client_id=client_id,
-        auth_cb=callbacks["auth"],
-        close_cb=callbacks["close"],
-        open_cb=callbacks["open"],
-        message_cb=callbacks["message"],
+        auth_callback=callbacks["auth"],
+        close_callback=callbacks["close"],
+        open_callback=callbacks["open"],
+        message_callback=callbacks["message"],
     ) as session:
         session.connect("localhost", 1883)
 
@@ -70,7 +70,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
 
         # Simulate the Connection calling back.
         # Session should send a CONNECT packet.
-        MockConnection.call_args.kwargs["connect_cb"](mock_connection)
+        MockConnection.call_args.kwargs["open_callback"]()
         connect_packet = expect_from_session(MockConnection, mock_connection, MQTTConnectPacket)
         assert connect_packet.client_id == client_id
 

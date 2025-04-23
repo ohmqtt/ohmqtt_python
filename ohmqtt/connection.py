@@ -4,7 +4,7 @@ from typing import Callable, cast, Final
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType
-from .packet import decode_packet, MQTTPacket, MQTTConnAckPacket, MQTTDisconnectPacket
+from .packet import decode_packet, MQTTPacket, MQTTConnAckPacket
 from .serialization import decode_varint
 from .socket_wrapper import SocketWrapper
 

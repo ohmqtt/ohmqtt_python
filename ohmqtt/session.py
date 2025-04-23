@@ -57,16 +57,16 @@ class Session:
         client_id: str = "",
         persistence: SessionPersistenceBackend | None = None,
         *,
-        auth_cb: SessionAuthCallback | None = None,
-        close_cb: SessionCloseCallback | None = None,
-        open_cb: SessionOpenCallback | None = None,
-        message_cb: SessionMessageCallback | None = None,
+        auth_callback: SessionAuthCallback | None = None,
+        close_callback: SessionCloseCallback | None = None,
+        open_callback: SessionOpenCallback | None = None,
+        message_callback: SessionMessageCallback | None = None,
     ) -> None:
         self.client_id = client_id
-        self.auth_cb = auth_cb
-        self.close_cb = close_cb
-        self.open_cb = open_cb
-        self.message_cb = message_cb
+        self.auth_callback = auth_callback
+        self.close_callback = close_callback
+        self.open_callback = open_callback
+        self.message_callback = message_callback
         self.server_receive_maximum = 0
         self.server_topic_alias_maximum = 0
         self._read_handlers: Mapping[MQTTPacketType, Callable[[Any], None]] = {
@@ -134,9 +134,9 @@ class Session:
             self.server_receive_maximum = 0
             self.server_topic_alias_maximum = 0
             self._inflight.clear()
-        if self.close_cb is not None:
+        if self.close_callback is not None:
             try:
-                self.close_cb(self)
+                self.close_callback(self)
             except MQTTError:
                 raise
             except Exception:
@@ -164,8 +164,8 @@ class Session:
                 self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
             self._flush()
         try:
-            if self.open_cb is not None:
-                self.open_cb(self)
+            if self.open_callback is not None:
+                self.open_callback(self)
         except MQTTError:
             raise
         except Exception:
@@ -259,10 +259,10 @@ class Session:
                 rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
                 self._send_retained(rec_packet)
             # Calling the message callback must be the last thing we do with the packet.
-            if self.message_cb is not None:
+            if self.message_callback is not None:
                 logger.debug(f"Calling message callback for packet: {packet}")
                 try:
-                    self.message_cb(self, packet.topic, packet.payload, packet.properties)
+                    self.message_callback(self, packet.topic, packet.payload, packet.properties)
                 except Exception:
                     logger.exception("Unhandled exception in message callback")
         except MQTTError:
@@ -274,9 +274,9 @@ class Session:
         """Handle an AUTH packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received AUTH with error code: {packet.reason_code}")
-        if self.auth_cb is not None:
+        if self.auth_callback is not None:
             try:
-                self.auth_cb(
+                self.auth_callback(
                     self,
                     packet.reason_code,
                     packet.properties.get("AuthenticationMethod"),

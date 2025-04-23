@@ -21,7 +21,7 @@ class Client:
     ) -> None:
         self.client_id = client_id
         self.subscriptions = Subscriptions()
-        self.session = Session(client_id, message_cb=self.on_message)
+        self.session = Session(client_id, message_callback=self.on_message)
 
     def connect(self, host: str, port: int) -> None:
         self.session.connect(host, port)

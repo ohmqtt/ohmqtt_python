@@ -79,7 +79,7 @@ def test_client_unsubscribe_untracked(MockSession, mock_session):
 
 def test_client_subscribe_callback_error(MockSession, mock_session):
     """Test that an error in the subscribe callback is not raised."""
-    def error_callback(client, topic, payload, properties):
+    def error_callback(topic, payload, properties):
         raise ValueError("Test error")
 
     client = Client(client_id="test_client")
