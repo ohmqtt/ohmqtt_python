@@ -435,4 +435,4 @@ class Session:
                     logger.exception("Unhandled exception while flushing pending packets")
                     if packet.packet_type == MQTTPacketType.PUBLISH:
                         self._persistence.mark_dup(self.client_id, packet.packet_id)
-                    break
+                    raise
