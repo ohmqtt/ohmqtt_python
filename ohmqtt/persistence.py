@@ -48,8 +48,7 @@ class SessionPersistenceBackend(metaclass=ABCMeta):
 
 @dataclass
 class _SessionState:
-    publish_ids: set[int] = field(default_factory=set)
-    pubrel_ids: set[int] = field(default_factory=set)
+    packet_ids: set[int] = field(default_factory=set)
     packets: list[MQTTPacketWithId] = field(default_factory=list)
 
 
@@ -77,9 +76,7 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
             self._sessions[client_id] = _SessionState()
         self._sessions[client_id].packets.append(packet)
         if packet.packet_type == MQTTPacketType.PUBLISH:
-            self._sessions[client_id].publish_ids.add(packet.packet_id)
-        elif packet.packet_type == MQTTPacketType.PUBREL:
-            self._sessions[client_id].pubrel_ids.add(packet.packet_id)
+            self._sessions[client_id].packet_ids.add(packet.packet_id)
 
     def get(self, client_id: str, exclude: set[int], count: int) -> list[MQTTPacketWithId]:
         if client_id not in self._sessions:
@@ -106,10 +103,10 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         if ref_packet is None:
             raise KeyError(f"Packet: {ref_packet_type}:{packet_id} not found in session for client: {client_id}")
         self._sessions[client_id].packets.remove(ref_packet)
-        if ref_packet.packet_type == MQTTPacketType.PUBLISH:
-            self._sessions[client_id].publish_ids.remove(ref_packet.packet_id)
+        if ref_packet.packet_type == MQTTPacketType.PUBLISH and ref_packet.qos == 1:
+            self._sessions[client_id].packet_ids.remove(ref_packet.packet_id)
         elif ref_packet.packet_type == MQTTPacketType.PUBREL:
-            self._sessions[client_id].pubrel_ids.remove(ref_packet.packet_id)
+            self._sessions[client_id].packet_ids.remove(ref_packet.packet_id)
         return ref_packet
 
     def next_packet_id(self, client_id: str) -> int:
@@ -117,10 +114,9 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
             self._sessions[client_id] = _SessionState()
             return self._next_packet_id
         next_id = self._next_packet_id
-        used_ids = frozenset(self._sessions[client_id].publish_ids | self._sessions[client_id].pubrel_ids)
-        if len(used_ids) >= 65535:
+        if len(self._sessions[client_id].packet_ids) >= 65535:
             raise ValueError("No available packet IDs")
-        while next_id in used_ids:
+        while next_id in self._sessions[client_id].packet_ids:
             next_id += 1
             if next_id > 65535:
                 next_id = 1
