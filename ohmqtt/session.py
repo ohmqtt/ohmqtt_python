@@ -96,7 +96,7 @@ class Session:
         if self.connection is None:
             raise RuntimeError("No connection")
         self.connection.send(packet.encode())
-        if logging.DEBUG >= logger.level:
+        if logging.DEBUG >= logging.root.level:
             logger.debug(f"---> {packet}")
 
     def _connection_open_callback(self) -> None:
@@ -126,7 +126,7 @@ class Session:
 
     def _connection_read_callback(self, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
-        if logging.DEBUG >= logger.level:
+        if logging.DEBUG >= logging.root.level:
             logger.debug(f"<--- {packet}")
         if packet.packet_type in self._read_handlers:
             self._read_handlers[packet.packet_type](packet)
