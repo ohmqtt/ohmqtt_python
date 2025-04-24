@@ -1,6 +1,5 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
-import itertools
 from typing import cast, Mapping
 
 from .mqtt_spec import MQTTPacketType
@@ -24,7 +23,7 @@ class SessionPersistenceBackend(metaclass=ABCMeta):
         ...  # pragma: no cover
 
     @abstractmethod
-    def get(self, client_id: str, exclude: set[int], count: int) -> list[MQTTPacketWithId]:
+    def get(self, client_id: str, exclude: int, count: int) -> list[MQTTPacketWithId]:
         """Get packets from the session for a client."""
         ...  # pragma: no cover
 
@@ -78,11 +77,12 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         if packet.packet_type == MQTTPacketType.PUBLISH:
             self._sessions[client_id].packet_ids.add(packet.packet_id)
 
-    def get(self, client_id: str, exclude: set[int], count: int) -> list[MQTTPacketWithId]:
+    def get(self, client_id: str, exclude: int, count: int) -> list[MQTTPacketWithId]:
         if client_id not in self._sessions:
             return []
-        slice = itertools.islice((p for p in self._sessions[client_id].packets if p.packet_id not in exclude), count)
-        return list(slice)
+        if exclude > len(self._sessions[client_id].packets):
+            return []
+        return self._sessions[client_id].packets[exclude:exclude+count]
 
     def mark_dup(self, client_id: str, packet_id: int) -> None:
         packet = next((p for p in self._sessions[client_id].packets if p.packet_type == MQTTPacketType.PUBLISH and p.packet_id == packet_id), None)
@@ -103,7 +103,7 @@ class InMemorySessionPersistence(SessionPersistenceBackend):
         if ref_packet is None:
             raise KeyError(f"Packet: {ref_packet_type}:{packet_id} not found in session for client: {client_id}")
         self._sessions[client_id].packets.remove(ref_packet)
-        if ref_packet.packet_type == MQTTPacketType.PUBLISH and ref_packet.qos == 1:
+        if ref_packet.packet_type == MQTTPacketType.PUBLISH and cast(MQTTPublishPacket, ref_packet).qos == 1:
             self._sessions[client_id].packet_ids.remove(ref_packet.packet_id)
         elif ref_packet.packet_type == MQTTPacketType.PUBREL:
             self._sessions[client_id].packet_ids.remove(ref_packet.packet_id)

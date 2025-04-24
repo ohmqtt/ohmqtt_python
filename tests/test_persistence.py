@@ -35,17 +35,17 @@ def test_persistence_in_memory_opers():
         persistence.put("test_client", pub_packet)
     assert persistence.next_packet_id("test_client") == 21
 
-    gotten = persistence.get("test_client", set(), 20)
+    gotten = persistence.get("test_client", 0, 20)
     assert gotten == pub_packets[:]
 
-    gotten = persistence.get("test_client", set(), 10)
+    gotten = persistence.get("test_client", 0, 10)
     assert gotten == pub_packets[:10]
 
-    gotten = persistence.get("test_client", {p.packet_id for p in pub_packets[:10]}, 10)
+    gotten = persistence.get("test_client", 10, 10)
     assert gotten == pub_packets[10:]
 
     persistence.mark_dup("test_client", pub_packets[0].packet_id)
-    gotten = persistence.get("test_client", set(), 20)
+    gotten = persistence.get("test_client", 0, 20)
     assert gotten[1:] == pub_packets[1:]
     assert gotten[0].dup
 
@@ -57,7 +57,7 @@ def test_persistence_in_memory_opers():
     for ack_packet in ack_packets:
         persistence.ack("test_client", ack_packet)
 
-    gotten = persistence.get("test_client", set(), 10)
+    gotten = persistence.get("test_client", 0, 10)
     assert not gotten
 
     assert not persistence.has("test_client")
@@ -76,7 +76,7 @@ def test_persistence_in_memory_qos2():
 
     rec_packet = MQTTPubRecPacket(packet_id=pub_packet.packet_id)
     persistence.ack("test_client", rec_packet)
-    gotten = persistence.get("test_client", set(), 10)
+    gotten = persistence.get("test_client", 0, 10)
     assert not gotten
 
     rel_packet = MQTTPubRelPacket(packet_id=pub_packet.packet_id)
@@ -84,7 +84,7 @@ def test_persistence_in_memory_qos2():
 
     comp_packet = MQTTPubCompPacket(packet_id=pub_packet.packet_id)
     persistence.ack("test_client", comp_packet)
-    gotten = persistence.get("test_client", set(), 10)
+    gotten = persistence.get("test_client", 0, 10)
     assert not gotten
 
 

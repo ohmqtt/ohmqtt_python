@@ -83,7 +83,7 @@ class Session:
         # This lock protects _persistence, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
         self._persistence = persistence if persistence is not None else InMemorySessionPersistence()
-        self._inflight: set[int] = set()
+        self._inflight: int = 0
         self._next_packet_ids = {
             MQTTPacketType.SUBSCRIBE: 1,
             MQTTPacketType.UNSUBSCRIBE: 1,
@@ -116,10 +116,10 @@ class Session:
         """Add a packet to the persistence store and try to send it to the server."""
         with self._lock:
             self._persistence.put(self.client_id, packet)
-            if len(self._inflight) < self.server_receive_maximum:
+            if self._inflight < self.server_receive_maximum:
                 try:
                     self._send_packet(packet)
-                    self._inflight.add(packet.packet_id)
+                    self._inflight += 1
                 except Exception:
                     logger.exception("Failed to send packet, deferring")
                     if packet.packet_type == MQTTPacketType.PUBLISH:
@@ -143,7 +143,7 @@ class Session:
         with self._lock:
             self.server_receive_maximum = 0
             self.server_topic_alias_maximum = 0
-            self._inflight.clear()
+            self._inflight = 0
         if self.close_callback is not None:
             try:
                 self.close_callback(self)
@@ -191,7 +191,7 @@ class Session:
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet ID: {packet.packet_id}")
             try:
-                self._inflight.remove(ref_packet.packet_id)
+                self._inflight -= 1
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet: {ref_packet}")
             self._flush()
@@ -208,7 +208,7 @@ class Session:
                 logger.exception(f"Received PUBREC for unknown packet ID: {packet.packet_id}")
                 reason_code = MQTTReasonCode.PacketIdentifierNotFound
             try:
-                self._inflight.remove(ref_packet.packet_id)
+                self._inflight -= 1
             except KeyError:
                 logger.exception(f"Received PUBREC for unknown packet: {ref_packet}")
             rel_packet = MQTTPubRelPacket(packet_id=packet.packet_id, reason_code=reason_code)
@@ -226,7 +226,7 @@ class Session:
                 logger.exception(f"Received PUBREL for unknown packet ID: {packet.packet_id}")
                 reason_code = MQTTReasonCode.PacketIdentifierNotFound
             try:
-                self._inflight.remove(ref_packet.packet_id)
+                self._inflight -= 1
             except KeyError:
                 logger.exception(f"Received PUBREL for unknown packet: {ref_packet}")
             comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id, reason_code=reason_code)
@@ -242,7 +242,7 @@ class Session:
             except KeyError:
                 logger.exception(f"Received PUBCOMP for unknown packet ID: {packet.packet_id}")
             try:
-                self._inflight.remove(ref_packet.packet_id)
+                self._inflight -= 1
             except KeyError:
                 logger.exception(f"Received PUBCOMP for unknown packet: {ref_packet}")
 
@@ -425,12 +425,12 @@ class Session:
     def _flush(self) -> None:
         """Send queued packets up to the server's receive maximum."""
         with self._lock:
-            allowed_count = self.server_receive_maximum - len(self._inflight)
+            allowed_count = self.server_receive_maximum - self._inflight
             pending_packets = self._persistence.get(self.client_id, self._inflight, allowed_count)
             for packet in pending_packets:
                 try:
                     self._send_packet(packet)
-                    self._inflight.add(packet.packet_id)
+                    self._inflight += 1
                 except Exception:
                     logger.exception("Unhandled exception while flushing pending packets")
                     if packet.packet_type == MQTTPacketType.PUBLISH:
