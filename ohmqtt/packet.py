@@ -20,6 +20,7 @@ from .serialization import (
 )
 
 HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
+HEAD_PUBACK: Final = MQTTPacketType.PUBACK << 4
 
 _MQTTPacketTypeLookup = {t.value: t.name for t in MQTTPacketType}
 
@@ -379,14 +380,24 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         ))
 
     def encode(self) -> bytes:
-        data = encode_uint16(self.packet_id)
-        if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
-            # Reason code and properties may be omitted.
-            data += encode_uint8(self.reason_code.value)
-        if len(self.properties) > 0:
-            # Or just properties may be omitted.
-            data += encode_properties(self.properties)
-        return encode_packet(self.packet_type, 0, data)
+        encoded = bytearray()
+        head = HEAD_PUBACK
+        length = 2
+        has_reason_code = self.reason_code != MQTTReasonCode.Success
+        has_properties = bool(self.properties)
+        if has_reason_code:
+            length += 1
+        if has_properties:
+            props = encode_properties(self.properties)
+            length += len(props)
+        encoded.append(head)
+        encoded.extend(encode_varint(length))
+        encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
+        if has_reason_code:
+            encoded.extend(self.reason_code.value.to_bytes(1, byteorder="big"))
+        if has_properties:
+            encoded.extend(props)
+        return bytes(encoded)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPubAckPacket":
