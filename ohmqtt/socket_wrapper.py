@@ -125,10 +125,7 @@ class SocketWrapper(threading.Thread):
             with self._write_buffer_lock:
                 sent = self.sock.send(self._write_buffer)
                 self._last_send = time.monotonic()
-                if sent < len(self._write_buffer):
-                    self._write_buffer = self._write_buffer[sent:]
-                else:
-                    self._write_buffer.clear()
+                del self._write_buffer[:sent]
         except ssl.SSLWantWriteError:
             pass
 
