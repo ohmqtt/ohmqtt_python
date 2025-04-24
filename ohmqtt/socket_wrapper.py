@@ -65,6 +65,7 @@ class SocketWrapper(threading.Thread):
         self._last_send = 0.0
         self._last_recv = 0.0
         self._pong_deadline = 0.0
+        self._in_read = False
 
     def close(self) -> None:
         """Close the socket.
@@ -78,7 +79,7 @@ class SocketWrapper(threading.Thread):
         if self._closing:
             return
         with self._write_buffer_lock:
-            do_interrupt = not self._write_buffer
+            do_interrupt = not self._in_read and not self._write_buffer
             self._write_buffer.extend(data)
         if do_interrupt:
             self._interrupt()
@@ -133,11 +134,14 @@ class SocketWrapper(threading.Thread):
 
     def _try_read(self) -> None:
         """Try to read data from the socket."""
+        self._in_read = True
         try:
             self._last_recv = time.monotonic()
             self._read_callback(self.sock)
         except ssl.SSLWantReadError:
             pass
+        finally:
+            self._in_read = False
 
     def _get_next_timeout(self) -> float | None:
         """Get the next timeout for the socket.
