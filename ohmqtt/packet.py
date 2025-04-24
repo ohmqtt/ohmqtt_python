@@ -894,6 +894,17 @@ def decode_packet(data: bytes) -> MQTTPacket:
     return decoder.decode(flags, remainder)
 
 
+def decode_packet_from_parts(head: int, data: bytes) -> MQTTPacket:
+    """Finish decoding a packet which has already been split into parts by a socket reader."""
+    try:
+        decoder = _ControlPacketClasses[head // 16]
+    except KeyError:
+        raise MQTTError(f"Invalid packet type {head // 16}", MQTTReasonCode.MalformedPacket)
+    flags = head % 0x10
+
+    return decoder.decode(flags, data)
+
+
 def encode_packet(packet_type: MQTTPacketType, flags: int, data: bytes) -> bytes:
     head = (packet_type.value * 16) + flags
     length = encode_varint(len(data))

@@ -1,3 +1,4 @@
+import logging
 import pytest
 import time
 import weakref
@@ -42,7 +43,8 @@ def wait_for(callback, timeout=1.0):
     raise TimeoutError()
 
 
-def test_connection_happy_path(callbacks, mocker):
+def test_connection_happy_path(callbacks, mocker, loopback_socket):
+    loopback_socket.setblocking(False)
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     MockSocketWrapper = mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
@@ -85,19 +87,22 @@ def test_connection_happy_path(callbacks, mocker):
         reason_code=MQTTReasonCode.Success,
         properties={"ServerKeepAlive": 60},
     )
-    connection._read_packet(packet.encode())
+    loopback_socket.test_sendall(packet.encode())
+    connection._read_packet(loopback_socket)
     callbacks.read_callback.assert_called_once_with(packet)
     callbacks.read_callback.reset_mock()
     mock_socket_wrapper.set_keepalive_interval.assert_called_once_with(60)
     mock_socket_wrapper.set_keepalive_interval.reset_mock()
 
     # Receiving a PINGREQ
-    connection._read_packet(PING)
+    loopback_socket.test_sendall(PING)
+    connection._read_packet(loopback_socket)
     mock_socket_wrapper.send.assert_called_once_with(PONG)
     mock_socket_wrapper.send.reset_mock()
 
     # Receiving a PINGRESP
-    connection._read_packet(PONG)
+    loopback_socket.test_sendall(PONG)
+    connection._read_packet(loopback_socket)
     mock_socket_wrapper.pong_received.assert_called_once_with()
     mock_socket_wrapper.pong_received.reset_mock()
 
@@ -107,7 +112,8 @@ def test_connection_happy_path(callbacks, mocker):
         payload=b"test_payload",
         qos=0,
     )
-    connection._read_packet(packet.encode())
+    loopback_socket.test_sendall(packet.encode())
+    connection._read_packet(loopback_socket)
     callbacks.read_callback.assert_called_once_with(packet)
     callbacks.read_callback.reset_mock()
 
@@ -126,7 +132,8 @@ def test_connection_happy_path(callbacks, mocker):
     callbacks.close_callback.reset_mock()
 
 
-def test_connection_partial_read(callbacks, mocker):
+def test_connection_partial_read(callbacks, mocker, loopback_socket):
+    loopback_socket.setblocking(False)
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
@@ -140,19 +147,27 @@ def test_connection_partial_read(callbacks, mocker):
     packet = MQTTPublishPacket(
         topic="test/topic",
         payload=b"x" * 255,  # Length of packet must be long enough that the length varint is split.
-        qos=0,
+        qos=1,
+        packet_id=66,
     )
     encoded = packet.encode()
+    print(str(packet))
 
     for n in range(1, len(encoded)):
-        connection._read_packet(encoded[:n])
+        loopback_socket.test_sendall(encoded[:n])
+        connection._read_packet(loopback_socket)
         assert not callbacks.read_callback.called
-        connection._read_packet(encoded[n:])
-        callbacks.read_callback.assert_called_once_with(packet)
+        loopback_socket.test_sendall(encoded[n:])
+        connection._read_packet(loopback_socket)
+        assert callbacks.read_callback.called
+        recvd = callbacks.read_callback.call_args[0][0]
+        print(str(recvd))
+        assert recvd == packet
         callbacks.read_callback.reset_mock()
 
 
-def test_connection_garbage_read(callbacks, mocker):
+def test_connection_garbage_read(callbacks, mocker, loopback_socket):
+    loopback_socket.setblocking(False)
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
@@ -163,8 +178,9 @@ def test_connection_garbage_read(callbacks, mocker):
         read_callback=callbacks.read_callback,
     )
     encoded = b"\xff\xff\xff\xff\xffThis is not a valid MQTT packet."
+    loopback_socket.test_sendall(encoded)
     with pytest.raises(MQTTError):
-        connection._read_packet(encoded)
+        connection._read_packet(loopback_socket)
 
 
 def test_connection_refs(mocker):

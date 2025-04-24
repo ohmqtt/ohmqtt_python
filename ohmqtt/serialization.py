@@ -1,5 +1,7 @@
 """Primitives for encoding and decoding MQTT packet fields."""
 
+import socket
+import ssl
 from typing import Final
 
 from .error import MQTTError
@@ -181,3 +183,26 @@ def decode_varint(data: bytes) -> tuple[int, int]:
         raise ValueError("Varint underrun")
     except Exception as e:
         raise MQTTError("Failed to decode varint from buffer", MQTTReasonCode.MalformedPacket) from e
+
+
+def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int, mult: int) -> tuple[int, int, bool]:
+    """Incrementally decode a variable length integer from a socket.
+    
+    Returns -1 if there is not enough data to decode the varint."""
+    result = partial
+    sz = 0
+    while True:
+        try:
+            data = sock.recv(1)
+        except (BlockingIOError, ssl.SSLWantReadError):
+            return result, mult, False
+        if not data:
+            return result, mult, False
+        byte = data[0]
+        sz += 1
+        result += byte % 0x80 * mult
+        if result > MAX_VARINT:
+            raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
+        if byte < 0x80:
+            return result, mult, True
+        mult *= 0x80

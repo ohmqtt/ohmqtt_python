@@ -1,11 +1,11 @@
 import logging
+import socket
 import ssl
 from typing import Callable, cast, Final
 
-from .error import MQTTError
 from .mqtt_spec import MQTTPacketType
-from .packet import decode_packet, MQTTPacket, MQTTConnAckPacket, PING, PONG
-from .serialization import decode_varint
+from .packet import decode_packet_from_parts, MQTTPacket, MQTTConnAckPacket, PING, PONG
+from .serialization import decode_varint_from_socket
 from .socket_wrapper import SocketWrapper
 
 logger: Final = logging.getLogger(__name__)
@@ -49,7 +49,11 @@ class Connection:
         self.sock.start()
 
         # Buffer for partial packets on the receiving end.
-        self._partial = b""
+        self._partial_head = -1
+        self._partial_length = 0
+        self._partial_length_mult = 1
+        self._partial_length_complete = False
+        self._partial_data = bytearray()
 
     def close(self) -> None:
         """Signal the connection to close."""
@@ -64,50 +68,51 @@ class Connection:
         sock.send(PING)
         sock.ping_sent()
 
-    def _read_packet(self, data: bytes) -> None:
+    def _read_packet(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Called by the client when a new packet is received.
         
         Here we deal with picking out MQTT packets from the stream."""
-        if self._partial:
-            data = self._partial + data
-            self._partial = b""
-        offset = 0
-        while offset < len(data):
-            loop_offset = offset
-            if len(data) < 2:
-                # Not enough data to parse the fixed header.
-                # Save the partial data and return.
-                self._partial = data[loop_offset:]
-                return
-            # Check the length of the packet against the buffer size.
-            # We assume that the packet is well-formed and the length is correct.
-            # If it is not, we will catch it later in decode_packet.
-            offset += 1  # Skip the first byte of the fixed header.
-            try:
-                remaining_len, consumed = decode_varint(data[offset:])
-            except MQTTError:
-                # In this case, the partial data boundary may be in the middle of the varint.
-                # If so, save the partial data and return.
-                if len(data) - loop_offset < 5:
-                    self._partial = data[loop_offset:]
+        try:
+            if self._partial_head == -1:
+                partial_head = sock.recv(1)
+                if not partial_head:
+                    # Socket closed.
                     return
-                raise
-            offset += consumed
-            if len(data) - offset < remaining_len:
-                # If the packet is incomplete, save the partial data and return.
-                self._partial = data[loop_offset:]
+                self._partial_head = partial_head[0]
+            if not self._partial_length_complete:
+                decoded_length = decode_varint_from_socket(sock, self._partial_length, self._partial_length_mult)
+                self._partial_length, self._partial_length_mult, self._partial_length_complete = decoded_length
+            if not self._partial_length_complete:
+                # We don't have the full packet yet.
                 return
-            packet = decode_packet(data[loop_offset:offset + remaining_len])
-            if packet.packet_type == MQTTPacketType.PINGRESP:
-                self.sock.pong_received()
-            elif packet.packet_type == MQTTPacketType.PINGREQ:
-                self.sock.send(PONG)
-            else:
-                # All non-ping packets are passed to the read callback.
-                self._read_callback(packet)
-            if packet.packet_type == MQTTPacketType.CONNACK:
-                packet = cast(MQTTConnAckPacket, packet)
-                if "ServerKeepAlive" in packet.properties:
-                    # Override the keepalive interval with the server's value.
-                    self.sock.set_keepalive_interval(packet.properties["ServerKeepAlive"])
-            offset += remaining_len
+
+            while len(self._partial_data) < self._partial_length:
+                # Read the rest of the packet.
+                data = sock.recv(self._partial_length - len(self._partial_data))
+                if not data:
+                    # Socket closed.
+                    return
+                self._partial_data.extend(data)
+        except (BlockingIOError, ssl.SSLWantReadError):
+            # Packet is incomplete.
+            return
+
+        packet = decode_packet_from_parts(self._partial_head, bytes(self._partial_data))
+        self._partial_head = -1
+        self._partial_length = 0
+        self._partial_length_mult = 1
+        self._partial_length_complete = False
+        self._partial_data.clear()
+
+        if packet.packet_type == MQTTPacketType.PINGRESP:
+            self.sock.pong_received()
+        elif packet.packet_type == MQTTPacketType.PINGREQ:
+            self.sock.send(PONG)
+        else:
+            # All non-ping packets are passed to the read callback.
+            self._read_callback(packet)
+        if packet.packet_type == MQTTPacketType.CONNACK:
+            packet = cast(MQTTConnAckPacket, packet)
+            if "ServerKeepAlive" in packet.properties:
+                # Override the keepalive interval with the server's value.
+                self.sock.set_keepalive_interval(packet.properties["ServerKeepAlive"])

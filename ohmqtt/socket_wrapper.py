@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 SocketCloseCallback = Callable[[], None]
 SocketOpenCallback = Callable[[], None]
-SocketReadCallback = Callable[[bytes], None]
+SocketReadCallback = Callable[[socket.socket | ssl.SSLSocket], None]
 SocketKeepaliveCallback = Callable[["SocketWrapper"], None]
 
 
@@ -134,9 +134,8 @@ class SocketWrapper(threading.Thread):
     def _try_read(self) -> None:
         """Try to read data from the socket."""
         try:
-            data = self.sock.recv(65535)
             self._last_recv = time.monotonic()
-            self._read_callback(data)
+            self._read_callback(self.sock)
         except ssl.SSLWantReadError:
             pass
 
@@ -191,7 +190,7 @@ class SocketWrapper(threading.Thread):
                     self._check_keepalive()
 
                 if self._interrupt_r in readable:
-                    self._interrupt_r.recv(512)
+                    self._interrupt_r.recv(1024)
 
         except SocketWrapperCloseCondition as exc:
             logger.info(f"Closing socket: {exc}")

@@ -29,7 +29,8 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
     close_callback = mocker.Mock(spec=SocketCloseCallback)
     keepalive_callback = mocker.Mock(spec=SocketKeepaliveCallback)
     open_callback = mocker.Mock(spec=SocketOpenCallback)
-    read_callback = mocker.Mock(spec=SocketReadCallback)
+    reads = []
+    read_callback = lambda sock: reads.append(sock.recv(512))
     socket_wrapper = SocketWrapper(
         "localhost",
         1883,
@@ -53,8 +54,7 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
 
     loop.test_sendall(b"hello")
     time.sleep(0.1)
-    read_callback.assert_called_once_with(b"hello")
-    read_callback.reset_mock()
+    assert reads == [b"hello"]
 
     socket_wrapper.send(b"world")
     assert loop.test_recv(512) == b"world"
@@ -149,7 +149,8 @@ def test_socket_wrapper_ping_no_pong(mocker, loopback_socket):
     """Test that the SocketWrapper class sends pings and disconnects on no receipt."""
     close_callback = mocker.Mock(spec=SocketCloseCallback)
     open_callback = mocker.Mock(spec=SocketOpenCallback)
-    read_callback = mocker.Mock(spec=SocketReadCallback)
+    reads = []
+    read_callback = lambda sock: reads.append(sock.recv(512))
     keepalive_calls = []
     def keepalive_callback(s):
         s.send(PING)
@@ -172,8 +173,7 @@ def test_socket_wrapper_ping_no_pong(mocker, loopback_socket):
     assert len(keepalive_calls) == 1
     loopback_socket.test_sendall(b"\x00\x00")  # Not a pong, we won't acknowledge it anyway.
     time.sleep(0.1)
-    read_callback.assert_called_once_with(b"\x00\x00")
-    read_callback.reset_mock()
+    assert reads == [b"\x00\x00"]
     socket_wrapper.join(timeout=2.0)
     assert not socket_wrapper.is_alive()
     close_callback.assert_called_once_with()
@@ -184,7 +184,8 @@ def test_socket_wrapper_ping_pong(mocker, loopback_socket):
     """Test that the SocketWrapper class sends pings and handles pongs."""
     close_callback = mocker.Mock(spec=SocketCloseCallback)
     open_callback = mocker.Mock(spec=SocketOpenCallback)
-    read_callback = mocker.Mock(spec=SocketReadCallback)
+    reads = []
+    read_callback = lambda sock: reads.append(sock.recv(512))
     keepalive_calls = []
     def keepalive_callback(s):
         s.send(PING)
@@ -207,8 +208,7 @@ def test_socket_wrapper_ping_pong(mocker, loopback_socket):
     assert len(keepalive_calls) == 1
     loopback_socket.test_sendall(PONG)
     time.sleep(0.1)
-    read_callback.assert_called_once_with(PONG)
-    read_callback.reset_mock()
+    assert reads == [PONG]
     socket_wrapper.pong_received()
     socket_wrapper.join(timeout=2.0)
     assert not socket_wrapper.is_alive()
@@ -220,7 +220,8 @@ def test_socket_wrapper_set_keepalive_interval(mocker, loopback_socket):
     """Test that we can set the keepalive interval after starting the thread."""
     close_callback = mocker.Mock(spec=SocketCloseCallback)
     open_callback = mocker.Mock(spec=SocketOpenCallback)
-    read_callback = mocker.Mock(spec=SocketReadCallback)
+    reads = []
+    read_callback = lambda sock: reads.append(sock.recv(512))
     keepalive_calls = []
     def keepalive_callback(s):
         s.send(PING)
@@ -241,6 +242,8 @@ def test_socket_wrapper_set_keepalive_interval(mocker, loopback_socket):
     time.sleep(1.1)
     socket_wrapper.send(b"foo")  # Would be CONNECT
     loopback_socket.test_sendall(b"bar")  # Would be CONNACK
+    time.sleep(0.1)
+    assert reads == [b"bar"]
     socket_wrapper.set_keepalive_interval(1)
     time.sleep(1.1)
     assert len(keepalive_calls) == 1
