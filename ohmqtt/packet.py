@@ -892,7 +892,7 @@ _ControlPacketClasses: Mapping[int, type[MQTTPacket]] = {
 
 def decode_packet(data: bytes) -> MQTTPacket:
     try:
-        decoder = _ControlPacketClasses[data[0] // 16]
+        decoder = _ControlPacketClasses[data[0] // 0x10]
     except KeyError:
         raise MQTTError(f"Invalid packet type {data[0] // 16}", MQTTReasonCode.MalformedPacket)
     flags = data[0] % 0x10
@@ -906,9 +906,9 @@ def decode_packet(data: bytes) -> MQTTPacket:
 
 
 def decode_packet_from_parts(head: int, data: bytes) -> MQTTPacket:
-    """Finish decoding a packet which has already been split into parts by a socket reader."""
+    """Finish decoding a packet which has already been split into parts by an incremental reader."""
     try:
-        decoder = _ControlPacketClasses[head // 16]
+        decoder = _ControlPacketClasses[head // 0x10]
     except KeyError:
         raise MQTTError(f"Invalid packet type {head // 16}", MQTTReasonCode.MalformedPacket)
     flags = head % 0x10
