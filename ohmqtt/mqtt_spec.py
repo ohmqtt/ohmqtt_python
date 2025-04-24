@@ -1,6 +1,10 @@
 """Constants from the MQTT specification."""
 
 from enum import IntEnum
+from typing import Final
+
+
+MAX_PACKET_ID: Final = 0xffff
 
 
 class MQTTPacketType(IntEnum):

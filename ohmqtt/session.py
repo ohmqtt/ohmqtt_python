@@ -6,10 +6,9 @@ from typing import Any, Callable, Final, Mapping, Sequence
 
 from .connection import Connection
 from .error import MQTTError
-from .mqtt_spec import MQTTPacketType, MQTTReasonCode
+from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
 from .packet import (
     MQTTPacket,
-    MQTTPacketWithId,
     MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTPublishPacket,
@@ -23,15 +22,13 @@ from .packet import (
     MQTTUnsubAckPacket,
     MQTTAuthPacket,
 )
-from .persistence import SessionPersistenceBackend, InMemorySessionPersistence
 from .property import MQTTPropertyDict
+from .retention import MessageRetention
 
 logger: Final = logging.getLogger(__name__)
 
 # If session expiry interval is set to 0xFFFFFFFF, the session will never expire.
 MAX_SESSION_EXPIRY_INTERVAL: Final = 0xFFFFFFFF
-
-MAX_PACKET_ID: Final = 0xFFFF
 
 SessionAuthCallback = Callable[
     [
@@ -55,7 +52,6 @@ class Session:
     def __init__(
         self,
         client_id: str = "",
-        persistence: SessionPersistenceBackend | None = None,
         *,
         auth_callback: SessionAuthCallback | None = None,
         close_callback: SessionCloseCallback | None = None,
@@ -80,9 +76,9 @@ class Session:
             MQTTPacketType.UNSUBACK: self._handle_unsuback,
             MQTTPacketType.AUTH: self._handle_auth,
         }
-        # This lock protects _persistence, _inflight and _next_packet_ids.
+        # This lock protects _retention, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
-        self._persistence = persistence if persistence is not None else InMemorySessionPersistence()
+        self._retention = MessageRetention()
         self._inflight: int = 0
         self._next_packet_ids = {
             MQTTPacketType.SUBSCRIBE: 1,
@@ -100,22 +96,8 @@ class Session:
         if self.connection is None:
             raise RuntimeError("No connection")
         self.connection.send(packet.encode())
-
-    def _send_retained(self, packet: MQTTPacketWithId) -> None:
-        """Add a packet to the persistence store and try to send it to the server."""
-        with self._lock:
-            self._persistence.put(self.client_id, packet)
-            if self._inflight < self.server_receive_maximum:
-                try:
-                    self._send_packet(packet)
-                    self._inflight += 1
-                except Exception:
-                    logger.exception("Failed to send packet, deferring")
-                    if packet.packet_type == MQTTPacketType.PUBLISH:
-                        self._persistence.mark_dup(self.client_id, packet.packet_id)
-            else:
-                logger.debug("Deferring send due to server receive maximum")
-
+        if logging.DEBUG >= logger.level:
+            logger.debug(f"---> {packet}")
 
     def _connection_open_callback(self) -> None:
         """Handle a connection open event."""
@@ -133,6 +115,7 @@ class Session:
             self.server_receive_maximum = 0
             self.server_topic_alias_maximum = 0
             self._inflight = 0
+            self._retention.reset()
         if self.close_callback is not None:
             try:
                 self.close_callback(self)
@@ -143,6 +126,8 @@ class Session:
 
     def _connection_read_callback(self, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
+        if logging.DEBUG >= logger.level:
+            logger.debug(f"<--- {packet}")
         if packet.packet_type in self._read_handlers:
             self._read_handlers[packet.packet_type](packet)
 
@@ -175,49 +160,27 @@ class Session:
             logger.error(f"Received PUBACK with error code: {packet.reason_code}")
         with self._lock:
             try:
-                ref_packet = self._persistence.ack(self.client_id, packet)
+                self._retention.ack(packet.packet_id)
             except KeyError:
                 logger.exception(f"Received PUBACK for unknown packet ID: {packet.packet_id}")
-            try:
-                self._inflight -= 1
-            except KeyError:
-                logger.exception(f"Received PUBACK for unknown packet: {ref_packet}")
+            self._inflight -= 1
             self._flush()
 
     def _handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBREC with error code: {packet.reason_code}")
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success
         with self._lock:
-            try:
-                ref_packet = self._persistence.ack(self.client_id, packet)
-            except KeyError:
-                logger.exception(f"Received PUBREC for unknown packet ID: {packet.packet_id}")
-                reason_code = MQTTReasonCode.PacketIdentifierNotFound
-            try:
-                self._inflight -= 1
-            except KeyError:
-                logger.exception(f"Received PUBREC for unknown packet: {ref_packet}")
-            rel_packet = MQTTPubRelPacket(packet_id=packet.packet_id, reason_code=reason_code)
-            self._send_retained(rel_packet)
+            self._retention.ack(packet.packet_id)
+            self._inflight -= 1
+            self._flush()
 
     def _handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
         """Handle a PUBREL packet from the server."""
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBREL with error code: {packet.reason_code}")
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success
         with self._lock:
-            try:
-                ref_packet = self._persistence.ack(self.client_id, packet)
-            except KeyError:
-                logger.exception(f"Received PUBREL for unknown packet ID: {packet.packet_id}")
-                reason_code = MQTTReasonCode.PacketIdentifierNotFound
-            try:
-                self._inflight -= 1
-            except KeyError:
-                logger.exception(f"Received PUBREL for unknown packet: {ref_packet}")
-            comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id, reason_code=reason_code)
+            comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
             self._send_packet(comp_packet)
 
     def _handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
@@ -225,14 +188,9 @@ class Session:
         if packet.reason_code.value >= 0x80:
             logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
         with self._lock:
-            try:
-                ref_packet = self._persistence.ack(self.client_id, packet)
-            except KeyError:
-                logger.exception(f"Received PUBCOMP for unknown packet ID: {packet.packet_id}")
-            try:
-                self._inflight -= 1
-            except KeyError:
-                logger.exception(f"Received PUBCOMP for unknown packet: {ref_packet}")
+            self._retention.ack(packet.packet_id)
+            self._inflight -= 1
+            self._flush()
 
     def _handle_suback(self, packet: MQTTSubAckPacket) -> None:
         """Handle a SUBACK packet from the server."""
@@ -253,7 +211,7 @@ class Session:
             self._send_packet(ack_packet)
         elif packet.qos == 2:
             rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
-            self._send_retained(rec_packet)
+            self._send_packet(rec_packet)
         # Calling the message callback must be the last thing we do with the packet.
         if self.message_callback is not None:
             try:
@@ -327,17 +285,14 @@ class Session:
         if qos > 0:
             if not self.client_id:
                 raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
-            with self._lock:
-                packet_id = self._persistence.next_packet_id(self.client_id)
-                packet = MQTTPublishPacket(
-                    packet_id=packet_id,
-                    topic=topic,
-                    payload=payload,
-                    qos=qos,
-                    retain=retain,
-                    properties=properties,
-                )
-                self._send_retained(packet)
+            self._retention.add(
+                topic=topic,
+                payload=payload,
+                qos=qos,
+                retain=retain,
+                properties=properties,
+            )
+            self._flush()
         else:
             packet = MQTTPublishPacket(
                 topic=topic,
@@ -414,13 +369,12 @@ class Session:
         """Send queued packets up to the server's receive maximum."""
         with self._lock:
             allowed_count = self.server_receive_maximum - self._inflight
-            pending_packets = self._persistence.get(self.client_id, self._inflight, allowed_count)
-            for packet in pending_packets:
+            pending_messages = self._retention.get(allowed_count)
+            for message in pending_messages:
+                packet = message.render()
+                self._inflight += 1
                 try:
                     self._send_packet(packet)
-                    self._inflight += 1
                 except Exception:
                     logger.exception("Unhandled exception while flushing pending packets")
-                    if packet.packet_type == MQTTPacketType.PUBLISH:
-                        self._persistence.mark_dup(self.client_id, packet.packet_id)
-                    raise
+                    message.dup = True
