@@ -29,7 +29,11 @@ strict_equality = true
 include = [
     "pyproject.toml",
     "ohmqtt/**/*.py",
+    "tests/**/*.py",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E731"]
 
 [tool.pytest.ini_options]
 filterwarnings = [
