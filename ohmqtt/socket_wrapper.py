@@ -21,6 +21,25 @@ class SocketWrapperCloseCondition(Exception):
 
 class SocketWrapper(threading.Thread):
     """Non-blocking socket wrapper with TLS and application keepalive support."""
+    __slots__ = (
+        "_close_callback",
+        "_keepalive_callback",
+        "_open_callback",
+        "_read_callback",
+        "_tls_context",
+        "_tls_hostname",
+        "_use_tls",
+        "_write_buffer",
+        "_write_buffer_lock",
+        "_interrupt_r",
+        "_interrupt_w",
+        "_closing",
+        "_keepalive_interval",
+        "_last_send",
+        "_last_recv",
+        "_pong_deadline",
+        "_in_read",
+    )
     host: str
     port: int
     sock: socket.socket | ssl.SSLSocket
@@ -50,9 +69,6 @@ class SocketWrapper(threading.Thread):
         self._keepalive_callback = keepalive_callback
         self._open_callback = open_callback
         self._read_callback = read_callback
-        self._use_tls = use_tls
-        self._tls_context = tls_context
-        self._tls_hostname = tls_hostname
         self._use_tls = use_tls
         self._tls_context = ssl.create_default_context() if use_tls and tls_context is None else tls_context
         self._tls_hostname = tls_hostname

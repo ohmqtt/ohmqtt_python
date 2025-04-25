@@ -47,7 +47,25 @@ SessionMessageCallback = Callable[["Session", str, bytes, MQTTPropertyDict], Non
 
 
 class Session:
-    connection: Connection | None = None
+    __slots__ = (
+        "client_id",
+        "protocol_version",
+        "clean_start",
+        "connect_properties",
+        "server_receive_maximum",
+        "server_topic_alias_maximum",
+        "_lock",
+        "_retention",
+        "_inflight",
+        "_next_packet_ids",
+        "_read_handlers",
+        "auth_callback",
+        "close_callback",
+        "open_callback",
+        "message_callback",
+        "connection",
+    )
+    connection: Connection | None
 
     def __init__(
         self,
@@ -84,6 +102,7 @@ class Session:
             MQTTPacketType.SUBSCRIBE: 1,
             MQTTPacketType.UNSUBSCRIBE: 1,
         }
+        self.connection = None
 
     def __enter__(self) -> "Session":
         return self

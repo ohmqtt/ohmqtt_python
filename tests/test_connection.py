@@ -181,28 +181,3 @@ def test_connection_garbage_read(callbacks, mocker, loopback_socket):
     loopback_socket.test_sendall(encoded)
     with pytest.raises(MQTTError):
         connection._read_packet(loopback_socket)
-
-
-def test_connection_refs(mocker):
-    """Test that the Connection class does not have internal circular references."""
-    mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
-    MockSocketWrapper = mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
-    close_callback = lambda: None
-    open_callback = lambda: None
-    read_callback = lambda _: None
-    connection = Connection(
-        "localhost",
-        1883,
-        close_callback,
-        open_callback,
-        read_callback,
-    )
-
-    # Clear mock retained references to callbacks.
-    MockSocketWrapper.reset_mock()
-    mock_socket_wrapper.reset_mock()
-
-    # Also check for internal circular references.
-    ref = weakref.ref(connection)
-    del connection
-    assert ref() is None

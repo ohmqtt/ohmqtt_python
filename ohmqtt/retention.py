@@ -47,6 +47,7 @@ class RetainedMessage:
 
 class MessageRetention:
     """Container for retained messages in the session."""
+    __slots__ = ("messages", "next_packet_id")
     messages: dict[int, RetainedMessage]
     next_packet_id: int
 

@@ -11,6 +11,7 @@ logger: Final = logging.getLogger(__name__)
 
 class Client:
     """High level interface for the MQTT client."""
+    __slots__ = ("client_id", "session", "subscriptions")
     client_id: str
     session: Session
     subscriptions: Subscriptions

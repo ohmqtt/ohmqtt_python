@@ -17,6 +17,17 @@ ConnectionReadCallback = Callable[[MQTTPacket], None]
 
 class Connection:
     """Manage the lifecycle of a connection to the MQTT broker."""
+    __slots__ = (
+        "_close_callback",
+        "_open_callback",
+        "_read_callback",
+        "_partial_head",
+        "_partial_length",
+        "_partial_length_mult",
+        "_partial_length_complete",
+        "_partial_data",
+        "sock",
+    )
     sock: SocketWrapper
 
     def __init__(self,
