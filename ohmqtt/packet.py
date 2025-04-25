@@ -27,8 +27,6 @@ HEAD_PUBREC: Final = MQTTPacketType.PUBREC << 4
 HEAD_PUBREL: Final = (MQTTPacketType.PUBREL << 4) + 0x02
 HEAD_PUBCOMP: Final = MQTTPacketType.PUBCOMP << 4
 
-_MQTTPacketTypeLookup = {t.value: t.name for t in MQTTPacketType}
-
 
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
@@ -970,9 +968,10 @@ def decode_packet(data: bytes) -> MQTTPacket:
 
     The packet must be complete and correctly framed."""
     try:
-        decoder = _ControlPacketClasses[data[0] // 0x10]
+        cls_id = data[0] // 0x10
+        decoder = _ControlPacketClasses[cls_id]
     except KeyError:
-        raise MQTTError(f"Invalid packet type {data[0] // 16}", MQTTReasonCode.MalformedPacket)
+        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode.MalformedPacket)
     flags = data[0] % 0x10
 
     length, sz = decode_varint(data[1:])
@@ -986,9 +985,10 @@ def decode_packet(data: bytes) -> MQTTPacket:
 def decode_packet_from_parts(head: int, data: bytes) -> MQTTPacket:
     """Finish decoding a packet which has already been split into parts by an incremental reader."""
     try:
-        decoder = _ControlPacketClasses[head // 0x10]
+        cls_id = head // 0x10
+        decoder = _ControlPacketClasses[cls_id]
     except KeyError:
-        raise MQTTError(f"Invalid packet type {head // 16}", MQTTReasonCode.MalformedPacket)
+        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode.MalformedPacket)
     flags = head % 0x10
 
     return decoder.decode(flags, data)
