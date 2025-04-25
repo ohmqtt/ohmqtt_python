@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from typing import Final, Mapping, Sequence
 
@@ -21,6 +23,9 @@ from .serialization import (
 
 HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
 HEAD_PUBACK: Final = MQTTPacketType.PUBACK << 4
+HEAD_PUBREC: Final = MQTTPacketType.PUBREC << 4
+HEAD_PUBREL: Final = (MQTTPacketType.PUBREL << 4) + 0x02
+HEAD_PUBCOMP: Final = MQTTPacketType.PUBCOMP << 4
 
 _MQTTPacketTypeLookup = {t.value: t.name for t in MQTTPacketType}
 
@@ -356,6 +361,51 @@ class MQTTPublishPacket(MQTTPacketWithId):
         )
 
 
+def _encode_puback_common(
+    head: int,
+    packet: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubRelPacket | MQTTPubCompPacket,
+) -> bytes:
+    """Common encoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets."""
+    encoded = bytearray()
+    length = 2
+    has_reason_code = packet.reason_code != MQTTReasonCode.Success
+    has_properties = bool(packet.properties)
+    if has_reason_code:
+        length += 1
+    if has_properties:
+        props = encode_properties(packet.properties)
+        length += len(props)
+    encoded.append(head)
+    encoded.extend(encode_varint(length))
+    encoded.extend(packet.packet_id.to_bytes(2, byteorder="big"))
+    if has_reason_code:
+        encoded.extend(packet.reason_code.value.to_bytes(1, byteorder="big"))
+    if has_properties:
+        encoded.extend(props)
+    return bytes(encoded)
+
+
+def _decode_puback_common(packet_type: MQTTPacketType, data: bytes) -> tuple[int, MQTTReasonCode, MQTTPropertyDict]:
+    """Common decoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets.
+
+    Validity of flags is checked in the respective classes."""
+    offset = 0
+    packet_id, packet_id_length = decode_uint16(data[offset:])
+    offset += packet_id_length
+    if offset == len(data):
+        # Reason code and properties are optional.
+        return packet_id, MQTTReasonCode.Success, {}
+    reason_code, reason_code_length = decode_uint8(data[offset:])
+    offset += reason_code_length
+    if offset == len(data):
+        # Properties alone may be omitted.
+        return packet_id, MQTTReasonCode(reason_code), {}
+    props, props_length = decode_properties(data[offset:])
+    if props:
+        validate_properties(props, packet_type)
+    return packet_id, MQTTReasonCode(reason_code), props
+
+
 class MQTTPubAckPacket(MQTTPacketWithId):
     packet_type = MQTTPacketType.PUBACK
     __slots__ = ("properties", "packet_id", "reason_code",)
@@ -380,43 +430,13 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         ))
 
     def encode(self) -> bytes:
-        encoded = bytearray()
-        head = HEAD_PUBACK
-        length = 2
-        has_reason_code = self.reason_code != MQTTReasonCode.Success
-        has_properties = bool(self.properties)
-        if has_reason_code:
-            length += 1
-        if has_properties:
-            props = encode_properties(self.properties)
-            length += len(props)
-        encoded.append(head)
-        encoded.extend(encode_varint(length))
-        encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
-        if has_reason_code:
-            encoded.extend(self.reason_code.value.to_bytes(1, byteorder="big"))
-        if has_properties:
-            encoded.extend(props)
-        return bytes(encoded)
+        return _encode_puback_common(HEAD_PUBACK, self)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPubAckPacket":
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
-        offset = 0
-        packet_id, packet_id_length = decode_uint16(data[offset:])
-        offset += packet_id_length
-        if offset == len(data):
-            # Reason code and properties are optional.
-            return MQTTPubAckPacket(packet_id)
-        reason_code, reason_code_length = decode_uint8(data[offset:])
-        offset += reason_code_length
-        if offset == len(data):
-            # Properties alone may be omitted.
-            return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code))
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.PUBACK)
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBACK, data)
         return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -444,33 +464,13 @@ class MQTTPubRecPacket(MQTTPacketWithId):
         ))
 
     def encode(self) -> bytes:
-        data = encode_uint16(self.packet_id)
-        if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
-            # Reason code and properties may be omitted.
-            data += encode_uint8(self.reason_code.value)
-        if len(self.properties) > 0:
-            # Or just properties may be omitted.
-            data += encode_properties(self.properties)
-        return encode_packet(self.packet_type, 0, data)
+        return _encode_puback_common(HEAD_PUBREC, self)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPubRecPacket":
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
-        offset = 0
-        packet_id, packet_id_length = decode_uint16(data[offset:])
-        offset += packet_id_length
-        if offset == len(data):
-            # Reason code and properties are optional.
-            return MQTTPubRecPacket(packet_id)
-        reason_code, reason_code_length = decode_uint8(data[offset:])
-        offset += reason_code_length
-        if offset == len(data):
-            # Properties alone may be omitted.
-            return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code))
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.PUBREC)
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBREC, data)
         return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -498,33 +498,13 @@ class MQTTPubRelPacket(MQTTPacketWithId):
         ))
 
     def encode(self) -> bytes:
-        data = encode_uint16(self.packet_id)
-        if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
-            # Reason code and properties may be omitted.
-            data += encode_uint8(self.reason_code.value)
-        if len(self.properties) > 0:
-            # Or just properties may be omitted.
-            data += encode_properties(self.properties)
-        return encode_packet(self.packet_type, 2, data)
+        return _encode_puback_common(HEAD_PUBREL, self)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPubRelPacket":
         if flags != 2:
             raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode.MalformedPacket)
-        offset = 0
-        packet_id, packet_id_length = decode_uint16(data[offset:])
-        offset += packet_id_length
-        if offset == len(data):
-            # Reason code and properties are optional.
-            return MQTTPubRelPacket(packet_id)
-        reason_code, reason_code_length = decode_uint8(data[offset:])
-        offset += reason_code_length
-        if offset == len(data):
-            # Properties alone may be omitted.
-            return MQTTPubRelPacket(packet_id, MQTTReasonCode(reason_code))
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.PUBREL)
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBREL, data)
         return MQTTPubRelPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
@@ -552,33 +532,13 @@ class MQTTPubCompPacket(MQTTPacketWithId):
         ))
 
     def encode(self) -> bytes:
-        data = encode_uint16(self.packet_id)
-        if self.reason_code != MQTTReasonCode.Success or len(self.properties) > 0:
-            # Reason code and properties may be omitted.
-            data += encode_uint8(self.reason_code.value)
-        if len(self.properties) > 0:
-            # Or just properties may be omitted.
-            data += encode_properties(self.properties)
-        return encode_packet(self.packet_type, 0, data)
+        return _encode_puback_common(HEAD_PUBCOMP, self)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTPubCompPacket":
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
-        offset = 0
-        packet_id, packet_id_length = decode_uint16(data[offset:])
-        offset += packet_id_length
-        if offset == len(data):
-            # Reason code and properties are optional.
-            return MQTTPubCompPacket(packet_id)
-        reason_code, reason_code_length = decode_uint8(data[offset:])
-        offset += reason_code_length
-        if offset == len(data):
-            # Properties alone may be omitted.
-            return MQTTPubCompPacket(packet_id, MQTTReasonCode(reason_code))
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.PUBCOMP)
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBCOMP, data)
         return MQTTPubCompPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
