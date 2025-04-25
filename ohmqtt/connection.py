@@ -2,17 +2,42 @@ import socket
 import ssl
 from typing import Callable, cast, Final
 
+from .error import MQTTError
+from .mqtt_spec import MQTTReasonCode
 from .logger import get_logger
 from .mqtt_spec import MQTTPacketType
 from .packet import decode_packet_from_parts, MQTTPacket, MQTTConnAckPacket, PING, PONG
-from .serialization import decode_varint_from_socket
-from .socket_wrapper import SocketWrapper
+from .serialization import MAX_VARINT
+from .socket_wrapper import SocketWrapper, SocketWrapperCloseCondition
 
 logger: Final = get_logger("connection")
 
 ConnectionCloseCallback = Callable[[], None]
 ConnectionOpenCallback = Callable[[], None]
 ConnectionReadCallback = Callable[[MQTTPacket], None]
+
+
+def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int, mult: int) -> tuple[int, int, bool]:
+    """Incrementally decode a variable length integer from a socket.
+
+    Returns -1 if there is not enough data to decode the varint."""
+    result = partial
+    sz = 0
+    while True:
+        try:
+            data = sock.recv(1)
+        except (BlockingIOError, ssl.SSLWantReadError):
+            return result, mult, False
+        if not data:
+            raise SocketWrapperCloseCondition("Empty read")
+        byte = data[0]
+        sz += 1
+        result += byte % 0x80 * mult
+        if result > MAX_VARINT:
+            raise MQTTError("Varint overflow", MQTTReasonCode["MalformedPacket"])
+        if byte < 0x80:
+            return result, mult, True
+        mult *= 0x80
 
 
 class Connection:
@@ -77,6 +102,7 @@ class Connection:
         """Called by the socket wrapper when a keepalive is due."""
         sock.send(PING)
         sock.ping_sent()
+        logger.debug("---> ping")
 
     def _read_packet(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Called by the underlying SocketWrapper when the socket is ready to read.
@@ -87,27 +113,25 @@ class Connection:
             if self._partial_head == -1:
                 partial_head = sock.recv(1)
                 if not partial_head:
-                    # Socket closed.
-                    return
+                    # If we get an empty read for the first byte of a message, the socket is closed.
+                    raise SocketWrapperCloseCondition("Empty read")
                 self._partial_head = partial_head[0]
             if not self._partial_length_complete:
                 decoded_length = decode_varint_from_socket(sock, self._partial_length, self._partial_length_mult)
                 self._partial_length, self._partial_length_mult, self._partial_length_complete = decoded_length
-            if not self._partial_length_complete:
-                # We don't have the full packet yet.
-                return
+                if not self._partial_length_complete:
+                    return
 
             while len(self._partial_data) < self._partial_length:
                 # Read the rest of the packet.
                 data = sock.recv(self._partial_length - len(self._partial_data))
                 if not data:
-                    # Socket closed.
-                    return
+                    raise SocketWrapperCloseCondition("Empty read")
                 self._partial_data.extend(data)
         except (BlockingIOError, ssl.SSLWantReadError):
-            # Packet is incomplete.
             return
 
+        # We have a complete packet, decode it and clear the read buffer.
         packet = decode_packet_from_parts(self._partial_head, bytes(self._partial_data))
         self._partial_head = -1
         self._partial_length = 0
@@ -115,15 +139,21 @@ class Connection:
         self._partial_length_complete = False
         self._partial_data.clear()
 
+        # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType["PINGRESP"]:
             self.sock.pong_received()
+            logger.debug("<--- pong")
         elif packet.packet_type == MQTTPacketType["PINGREQ"]:
             self.sock.send(PONG)
+            logger.debug("<--- ping pong --->")
         else:
             # All non-ping packets are passed to the read callback.
             self._read_callback(packet)
+        # Handle connection-level server parameters here.
         if packet.packet_type == MQTTPacketType["CONNACK"]:
             packet = cast(MQTTConnAckPacket, packet)
             if "ServerKeepAlive" in packet.properties:
                 # Override the keepalive interval with the server's value.
-                self.sock.set_keepalive_interval(packet.properties["ServerKeepAlive"])
+                keepalive = packet.properties["ServerKeepAlive"]
+                self.sock.set_keepalive_interval(keepalive)
+                logger.debug(f"Keepalive interval set by server to {keepalive} seconds")
