@@ -946,7 +946,7 @@ class MQTTAuthPacket(MQTTPacket):
 
 
 # Map of packet types to their respective classes.
-_ControlPacketClasses: Mapping[int, type[MQTTPacket]] = {
+_ControlPacketClasses: Final[Mapping[int, type[MQTTPacket]]] = {
     MQTTPacketType["CONNECT"]: MQTTConnectPacket,
     MQTTPacketType["CONNACK"]: MQTTConnAckPacket,
     MQTTPacketType["PUBLISH"]: MQTTPublishPacket,

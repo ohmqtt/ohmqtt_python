@@ -1,4 +1,4 @@
-from typing import Callable, Mapping, Sequence, TypedDict
+from typing import Callable, Final, Mapping, Sequence, TypedDict
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTPropertyId, MQTTPropertyIdReverse, MQTTReasonCode
@@ -61,7 +61,7 @@ _SerializerTypes = (
     Callable[[tuple[str, str]], bytes]
 )
 # MQTT property serializers.
-_MQTTPropertySerializers: Mapping[str, _SerializerTypes] = {
+_MQTTPropertySerializers: Final[Mapping[str, _SerializerTypes]] = {
     "PayloadFormatIndicator": encode_uint8,
     "MessageExpiryInterval": encode_uint32,
     "ContentType": encode_string,
@@ -101,7 +101,7 @@ _DeserializerTypes = (
     Callable[[bytes], tuple[tuple[str, str], int]]
 )
 # MQTT property deserializers.
-_MQTTPropertyDeserializers: Mapping[str, _DeserializerTypes] = {
+_MQTTPropertyDeserializers: Final[Mapping[str, _DeserializerTypes]] = {
     "PayloadFormatIndicator": decode_uint8,
     "MessageExpiryInterval": decode_uint32,
     "ContentType": decode_string,
@@ -133,7 +133,7 @@ _MQTTPropertyDeserializers: Mapping[str, _DeserializerTypes] = {
 
 
 # Allowed MQTT property types for each packet type.
-_MQTTPropertyPacketTypes: Mapping[int, frozenset[str]] = {
+_MQTTPropertyPacketTypes: Final[Mapping[int, frozenset[str]]] = {
     MQTTPacketType["CONNECT"]: frozenset({  # [MQ5 3.1.2.11]
         "SessionExpiryInterval",
         "ReceiveMaximum",
@@ -221,7 +221,7 @@ _MQTTPropertyPacketTypes: Mapping[int, frozenset[str]] = {
 
 
 # Allowed MQTT properties in a Will message.
-_MQTTPropertyAllowedInWill: frozenset[str] = frozenset({
+_MQTTPropertyAllowedInWill: Final[frozenset[str]] = frozenset({
     "PayloadFormatIndicator",
     "MessageExpiryInterval",
     "ContentType",
