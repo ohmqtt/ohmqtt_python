@@ -103,6 +103,9 @@ class MessageRetention:
             return
         if self.messages[packet_id].qos == 1 or self.messages[packet_id].received:
             del self.messages[packet_id]
+            if not self.messages:
+                self.messages.clear()
+                self.next_packet_id = 1
         else:
             self.messages[packet_id].inflight = False
             self.messages[packet_id].received = True
