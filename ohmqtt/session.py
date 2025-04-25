@@ -6,6 +6,7 @@ from typing import Any, Callable, Final, Mapping, Sequence
 
 from .connection import Connection
 from .error import MQTTError
+from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
 from .packet import (
     MQTTPacket,
@@ -25,7 +26,7 @@ from .packet import (
 from .property import MQTTPropertyDict
 from .retention import MessageRetention
 
-logger: Final = logging.getLogger(__name__)
+logger: Final = get_logger("session")
 
 # If session expiry interval is set to 0xFFFFFFFF, the session will never expire.
 MAX_SESSION_EXPIRY_INTERVAL: Final = 0xFFFFFFFF

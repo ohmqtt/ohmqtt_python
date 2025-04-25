@@ -1,12 +1,13 @@
-import logging
 import select
 import socket
 import ssl
 import threading
 import time
-from typing import Callable
+from typing import Callable, Final
 
-logger = logging.getLogger(__name__)
+from .logger import get_logger
+
+logger: Final = get_logger("socket_wrapper")
 
 SocketCloseCallback = Callable[[], None]
 SocketOpenCallback = Callable[[], None]

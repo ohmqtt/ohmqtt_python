@@ -1,11 +1,11 @@
-import logging
 from typing import Final
 
+from .logger import get_logger
 from .property import MQTTPropertyDict
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback
 
-logger: Final = logging.getLogger(__name__)
+logger: Final = get_logger("client")
 
 
 
@@ -63,7 +63,6 @@ class Client:
 
     def on_message(self, session: Session, topic: str, payload: bytes, properties: MQTTPropertyDict) -> None:
         """Callback for when a message is received."""
-        logger.debug(f"Received message on topic {topic}: {payload.hex()}")
         callbacks = self.subscriptions.get_callbacks(topic)
         for callback in callbacks:
             try:

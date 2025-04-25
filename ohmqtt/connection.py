@@ -1,14 +1,14 @@
-import logging
 import socket
 import ssl
 from typing import Callable, cast, Final
 
+from .logger import get_logger
 from .mqtt_spec import MQTTPacketType
 from .packet import decode_packet_from_parts, MQTTPacket, MQTTConnAckPacket, PING, PONG
 from .serialization import decode_varint_from_socket
 from .socket_wrapper import SocketWrapper
 
-logger: Final = logging.getLogger(__name__)
+logger: Final = get_logger("connection")
 
 ConnectionCloseCallback = Callable[[], None]
 ConnectionOpenCallback = Callable[[], None]

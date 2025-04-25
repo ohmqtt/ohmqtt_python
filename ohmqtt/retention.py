@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 import itertools
-import logging
-from typing import Sequence
+from typing import Final, Sequence
 
+from .logger import get_logger
 from .property import MQTTPropertyDict
 from .packet import MQTTPacket, MQTTPublishPacket, MQTTPubRelPacket
 from .mqtt_spec import MQTTReasonCode, MAX_PACKET_ID
 
-logger = logging.getLogger(__name__)
+logger: Final = get_logger("retention")
 
 
 @dataclass(slots=True)
