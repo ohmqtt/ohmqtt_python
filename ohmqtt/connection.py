@@ -1,6 +1,6 @@
 import socket
 import ssl
-from typing import Callable, cast, Final
+from typing import Callable, cast, Final, NamedTuple
 
 from .error import MQTTError
 from .mqtt_spec import MQTTReasonCode
@@ -17,7 +17,17 @@ ConnectionOpenCallback = Callable[[], None]
 ConnectionReadCallback = Callable[[MQTTPacket], None]
 
 
-def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int, mult: int) -> tuple[int, int, bool]:
+class VarintDecodeResult(NamedTuple):
+    """Result of decoding a variable length integer."""
+    value: int
+    multiplier: int
+    complete: bool
+
+
+InitVarintDecodeState: Final = VarintDecodeResult(0, 1, False)
+
+
+def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int, mult: int) -> VarintDecodeResult:
     """Incrementally decode a variable length integer from a socket.
 
     Returns -1 if there is not enough data to decode the varint."""
@@ -27,7 +37,7 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         try:
             data = sock.recv(1)
         except (BlockingIOError, ssl.SSLWantReadError):
-            return result, mult, False
+            return VarintDecodeResult(result, mult, False)
         if not data:
             raise SocketWrapperCloseCondition("Empty read")
         byte = data[0]
@@ -36,7 +46,7 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         if result > MAX_VARINT:
             raise MQTTError("Varint overflow", MQTTReasonCode["MalformedPacket"])
         if byte < 0x80:
-            return result, mult, True
+            return VarintDecodeResult(result, mult, True)
         mult *= 0x80
 
 
@@ -85,9 +95,7 @@ class Connection:
 
         # Buffer for partial packets on the receiving end.
         self._partial_head = -1
-        self._partial_length = 0
-        self._partial_length_mult = 1
-        self._partial_length_complete = False
+        self._partial_length: VarintDecodeResult = InitVarintDecodeState
         self._partial_data = bytearray()
 
     def close(self) -> None:
@@ -113,30 +121,28 @@ class Connection:
             if self._partial_head == -1:
                 partial_head = sock.recv(1)
                 if not partial_head:
-                    # If we get an empty read for the first byte of a message, the socket is closed.
                     raise SocketWrapperCloseCondition("Empty read")
                 self._partial_head = partial_head[0]
-            if not self._partial_length_complete:
-                decoded_length = decode_varint_from_socket(sock, self._partial_length, self._partial_length_mult)
-                self._partial_length, self._partial_length_mult, self._partial_length_complete = decoded_length
-                if not self._partial_length_complete:
+            if not self._partial_length.complete:
+                self._partial_length = decode_varint_from_socket(sock, self._partial_length.value, self._partial_length.multiplier)
+                if not self._partial_length.complete:
+                    # If the socket didn't have enough data for us, we need to wait for more.
                     return
 
-            while len(self._partial_data) < self._partial_length:
+            while len(self._partial_data) < self._partial_length.value:
                 # Read the rest of the packet.
-                data = sock.recv(self._partial_length - len(self._partial_data))
+                data = sock.recv(self._partial_length.value - len(self._partial_data))
                 if not data:
                     raise SocketWrapperCloseCondition("Empty read")
                 self._partial_data.extend(data)
         except (BlockingIOError, ssl.SSLWantReadError):
+            # If the socket doesn't have enough data for us, we need to wait for more.
             return
 
         # We have a complete packet, decode it and clear the read buffer.
         packet = decode_packet_from_parts(self._partial_head, bytes(self._partial_data))
         self._partial_head = -1
-        self._partial_length = 0
-        self._partial_length_mult = 1
-        self._partial_length_complete = False
+        self._partial_length = InitVarintDecodeState
         self._partial_data.clear()
 
         # Ping requests and responses are handled at this layer.
