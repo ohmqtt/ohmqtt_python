@@ -30,6 +30,17 @@ class LoopbackSocket:
         self.testsock.settimeout(3.0)
         self.connect_calls = []
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.mocksock.close()
+        self.testsock.close()
+
+    def __del__(self):
+        self.mocksock.close()
+        self.testsock.close()
+
     def test_close(self) -> None:
         self.testsock.close()
 
@@ -99,7 +110,8 @@ class LoopbackSocket:
 
 @pytest.fixture
 def loopback_socket():
-    return LoopbackSocket()
+    with LoopbackSocket() as loopback:
+        yield loopback
 
 
 class LoopbackTLSSocket(LoopbackSocket):
@@ -133,7 +145,8 @@ class LoopbackTLSSocket(LoopbackSocket):
 
 @pytest.fixture
 def loopback_tls_socket():
-    return LoopbackTLSSocket()
+    with LoopbackTLSSocket() as loopback:
+        yield loopback
 
 
 @pytest.fixture

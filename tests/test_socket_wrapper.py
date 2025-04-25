@@ -41,9 +41,8 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
         tls_hostname=tls_hostname,
         tls_context=tls_context,
         tcp_nodelay=False,
+        sock=loop,
     )
-
-    socket_wrapper.sock = loop
 
     socket_wrapper.start()
     time.sleep(0.1)
@@ -69,7 +68,6 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
 def test_socket_wrapper_nodelay(mocker):
     """Test that the SocketWrapper class sets TCP_NODELAY."""
     mock_socket = mocker.Mock(spec=socket.socket)
-    mocker.patch("socket.socket", return_value=mock_socket)
     close_callback = mocker.Mock(spec=SocketCloseCallback)
     keepalive_callback = mocker.Mock(spec=SocketKeepaliveCallback)
     open_callback = mocker.Mock(spec=SocketOpenCallback)
@@ -82,6 +80,7 @@ def test_socket_wrapper_nodelay(mocker):
         open_callback,
         read_callback,
         tcp_nodelay=True,
+        sock=mock_socket,
     )
     mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
@@ -105,11 +104,11 @@ def test_socket_wrapper_ping_no_response(mocker, loopback_socket):
         read_callback,
         keepalive_interval=1,
         tcp_nodelay=False,
+        sock=loopback_socket,
     )
-    socket_wrapper.sock = loopback_socket
 
     socket_wrapper.start()
-    time.sleep(1.1)
+    assert loopback_socket.test_recv(512) == PING
     assert len(keepalive_calls) == 1
     socket_wrapper.join(timeout=1.6)
     assert not socket_wrapper.is_alive()
@@ -137,11 +136,11 @@ def test_socket_wrapper_ping_no_pong(mocker, loopback_socket):
         read_callback,
         keepalive_interval=1,
         tcp_nodelay=False,
+        sock=loopback_socket,
     )
-    socket_wrapper.sock = loopback_socket
 
     socket_wrapper.start()
-    time.sleep(1.1)
+    assert loopback_socket.test_recv(512) == PING
     assert len(keepalive_calls) == 1
     loopback_socket.test_sendall(b"\x00\x00")  # Not a pong, we won't acknowledge it anyway.
     time.sleep(0.1)
@@ -172,11 +171,11 @@ def test_socket_wrapper_ping_pong(mocker, loopback_socket):
         read_callback,
         keepalive_interval=1,
         tcp_nodelay=False,
+        sock=loopback_socket,
     )
-    socket_wrapper.sock = loopback_socket
 
     socket_wrapper.start()
-    time.sleep(1.1)
+    assert loopback_socket.test_recv(512) == PING
     assert len(keepalive_calls) == 1
     loopback_socket.test_sendall(PONG)
     time.sleep(0.1)
@@ -207,17 +206,18 @@ def test_socket_wrapper_set_keepalive_interval(mocker, loopback_socket):
         open_callback,
         read_callback,
         tcp_nodelay=False,
+        sock=loopback_socket,
     )
-    socket_wrapper.sock = loopback_socket
 
     socket_wrapper.start()
     time.sleep(1.1)
     socket_wrapper.send(b"foo")  # Would be CONNECT
     loopback_socket.test_sendall(b"bar")  # Would be CONNACK
+    assert loopback_socket.test_recv(512) == b"foo"
     time.sleep(0.1)
     assert reads == [b"bar"]
     socket_wrapper.set_keepalive_interval(1)
-    time.sleep(1.1)
+    assert loopback_socket.test_recv(512) == PING
     assert len(keepalive_calls) == 1
     socket_wrapper.join(timeout=1.6)
     assert not socket_wrapper.is_alive()

@@ -57,6 +57,7 @@ class SocketWrapper(threading.Thread):
         open_callback: SocketOpenCallback,
         read_callback: SocketReadCallback,
         *,
+        sock: socket.socket | ssl.SSLSocket | None = None,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = True,
         use_tls: bool = False,
@@ -66,7 +67,10 @@ class SocketWrapper(threading.Thread):
         super().__init__(daemon=True)
         self.host = host
         self.port = port
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if sock is not None:
+            self.sock = sock
+        else:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if tcp_nodelay:
             self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self._close_callback = close_callback
@@ -86,6 +90,9 @@ class SocketWrapper(threading.Thread):
         self._last_recv = 0.0
         self._pong_deadline = 0.0
         self._in_read = False
+
+    def __del__(self) -> None:
+        self.sock.close()
 
     def close(self) -> None:
         """Close the socket.
