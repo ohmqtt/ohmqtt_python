@@ -33,7 +33,7 @@ _MQTTPacketTypeLookup = {t.value: t.name for t in MQTTPacketType}
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
     packet_type: MQTTPacketType
-    __slots__ = tuple()  # type: ignore
+    __slots__: Sequence[str] = tuple()
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
