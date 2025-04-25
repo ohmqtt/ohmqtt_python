@@ -40,20 +40,18 @@ class MQTTPacket(metaclass=ABCMeta):
             return NotImplemented
         return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
 
+    @abstractmethod
+    def __hash__(self) -> int:
+        ...  # pragma: no cover
+
+    @abstractmethod
     def __str__(self) -> str:
-        def truncate(s: object) -> str:
-            if isinstance(s, bytes):
-                return s[:16].hex(" ") + "..." if len(s) > 16 else s.hex(" ")
-            else:
-                return str(s)
-        # TODO: truncate property values
-        attrs = ", ".join([f"{k}={truncate(getattr(self, k))}" for k in self.__slots__])
-        return f"{self.__class__.__name__}[{attrs}]"
+        ...  # pragma: no cover
 
     @abstractmethod
     def encode(self) -> bytes:
         ...  # pragma: no cover
-    
+
     @classmethod
     @abstractmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPacket:
@@ -122,6 +120,23 @@ class MQTTConnectPacket(MQTTPacket):
             hash_properties(self.properties),
             hash_properties(self.will_props),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"client_id={self.client_id}",
+            f"keep_alive={self.keep_alive}",
+            f"protocol_version={self.protocol_version}",
+            f"clean_start={self.clean_start}",
+            f"username={self.username}",
+            f"password={str(len(self.password)) + 'B' if self.password else None}",
+            f"will_topic={self.will_topic}",
+            f"will_payload={str(len(self.will_payload)) + 'B' if self.will_payload else None}",
+            f"will_qos={self.will_qos}",
+            f"will_retain={self.will_retain}",
+            f"will_props={self.will_props}",
+            f"properties={self.properties}",
+        ]
+        return f"CONNECT[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         connect_flags = (
@@ -254,6 +269,14 @@ class MQTTConnAckPacket(MQTTPacket):
             self.reason_code,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"reason_code={self.reason_code}",
+            f"session_present={self.session_present}",
+            f"properties={self.properties}",
+        ]
+        return f"CONNACK[{', '.join(attrs)}]"
     
     def encode(self) -> bytes:
         data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + encode_properties(self.properties)
@@ -304,6 +327,18 @@ class MQTTPublishPacket(MQTTPacket):
             self.packet_id,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"topic={self.topic}",
+            f"payload={len(self.payload)}B",
+            f"qos={self.qos}",
+            f"packet_id={self.packet_id}",
+            f"retain={self.retain}",
+            f"dup={self.dup}",
+            f"properties={self.properties}",
+        ]
+        return f"PUBLISH[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         encoded = bytearray()
@@ -424,6 +459,14 @@ class MQTTPubAckPacket(MQTTPacket):
             hash_properties(self.properties),
         ))
 
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={self.reason_code}",
+            f"properties={self.properties}",
+        ]
+        return f"PUBACK[{', '.join(attrs)}]"
+
     def encode(self) -> bytes:
         return _encode_puback_common(HEAD_PUBACK, self)
     
@@ -457,6 +500,14 @@ class MQTTPubRecPacket(MQTTPacket):
             self.reason_code,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={self.reason_code}",
+            f"properties={self.properties}",
+        ]
+        return f"PUBREC[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_puback_common(HEAD_PUBREC, self)
@@ -492,6 +543,14 @@ class MQTTPubRelPacket(MQTTPacket):
             hash_properties(self.properties),
         ))
 
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={self.reason_code}",
+            f"properties={self.properties}",
+        ]
+        return f"PUBREL[{', '.join(attrs)}]"
+
     def encode(self) -> bytes:
         return _encode_puback_common(HEAD_PUBREL, self)
     
@@ -526,6 +585,14 @@ class MQTTPubCompPacket(MQTTPacket):
             hash_properties(self.properties),
         ))
 
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={self.reason_code}",
+            f"properties={self.properties}",
+        ]
+        return f"PUBCOMP[{', '.join(attrs)}]"
+
     def encode(self) -> bytes:
         return _encode_puback_common(HEAD_PUBCOMP, self)
     
@@ -559,6 +626,14 @@ class MQTTSubscribePacket(MQTTPacket):
             self.topics,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"topics={self.topics}",
+            f"properties={self.properties}",
+        ]
+        return f"SUBSCRIBE[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
@@ -611,6 +686,14 @@ class MQTTSubAckPacket(MQTTPacket):
             hash_properties(self.properties),
         ))
 
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_codes={self.reason_codes}",
+            f"properties={self.properties}",
+        ]
+        return f"SUBACK[{', '.join(attrs)}]"
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id)
         data += encode_properties(self.properties)
@@ -649,6 +732,14 @@ class MQTTUnsubscribePacket(MQTTPacket):
             self.topics,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"topics={self.topics}",
+            f"properties={self.properties}",
+        ]
+        return f"UNSUBSCRIBE[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id) + encode_properties(self.properties)
@@ -692,6 +783,14 @@ class MQTTUnsubAckPacket(MQTTPacket):
             hash_properties(self.properties),
         ))
 
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_codes={self.reason_codes}",
+            f"properties={self.properties}",
+        ]
+        return f"UNSUBACK[{', '.join(attrs)}]"
+
     def encode(self) -> bytes:
         data = encode_uint16(self.packet_id) + encode_properties(self.properties)
         for reason_code in self.reason_codes:
@@ -722,6 +821,9 @@ class MQTTPingReqPacket(MQTTPacket):
             self.packet_type,
         ))
 
+    def __str__(self) -> str:
+        return "PINGREQ[]"
+
     def encode(self) -> bytes:
         return encode_packet(self.packet_type, 0, b"")
     
@@ -742,6 +844,9 @@ class MQTTPingRespPacket(MQTTPacket):
         return hash((
             self.packet_type,
         ))
+
+    def __str__(self) -> str:
+        return "PINGRESP[]"
 
     def encode(self) -> bytes:
         return encode_packet(self.packet_type, 0, b"")
@@ -769,6 +874,13 @@ class MQTTDisconnectPacket(MQTTPacket):
             self.reason_code,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"reason_code={self.reason_code}",
+            f"properties={self.properties}",
+        ]
+        return f"DISCONNECT[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
@@ -804,6 +916,13 @@ class MQTTAuthPacket(MQTTPacket):
             self.reason_code,
             hash_properties(self.properties),
         ))
+
+    def __str__(self) -> str:
+        attrs = [
+            f"reason_code={self.reason_code}",
+            f"properties={self.properties}",
+        ]
+        return f"AUTH[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
