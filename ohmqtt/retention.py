@@ -29,7 +29,7 @@ class RetainedMessage:
         if self.received:
             packet = MQTTPubRelPacket(
                 packet_id=self.packet_id,
-                reason_code=MQTTReasonCode.Success,
+                reason_code=MQTTReasonCode["Success"],
             )
         else:
             packet = MQTTPublishPacket(

@@ -85,7 +85,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
 
         # Server sends an AUTH packet to the Session.
         auth_packet = MQTTAuthPacket(
-            reason_code=MQTTReasonCode.ContinueAuthentication,
+            reason_code=MQTTReasonCode["ContinueAuthentication"],
             properties={"AuthenticationMethod": "test_auth"},
         )
         send_to_session(MockConnection, mock_connection, auth_packet)
@@ -94,12 +94,12 @@ def test_session_happy_path(client_id, callbacks, mocker):
 
         # User sends an AUTH packet to the server through the Session.
         session.auth(
-            reason_code=MQTTReasonCode.Success,
+            reason_code=MQTTReasonCode["Success"],
             authentication_method="test_auth",
             authentication_data=b"test_auth_data",
         )
         auth_packet = expect_from_session(MockConnection, mock_connection, MQTTAuthPacket)
-        assert auth_packet.reason_code == MQTTReasonCode.Success
+        assert auth_packet.reason_code == MQTTReasonCode["Success"]
         assert auth_packet.properties["AuthenticationMethod"] == "test_auth"
         assert auth_packet.properties["AuthenticationData"] == b"test_auth_data"
 
@@ -112,7 +112,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         # SUBACK the subscription.
         suback_packet = MQTTSubAckPacket(
             packet_id=subscribe_packet.packet_id,
-            reason_codes=[MQTTReasonCode.Success],
+            reason_codes=[MQTTReasonCode["Success"]],
         )
         send_to_session(MockConnection, mock_connection, suback_packet)
 
@@ -139,7 +139,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         # PUBACK the PUBLISH.
         puback_packet = MQTTPubAckPacket(
             packet_id=publish_packet.packet_id,
-            reason_code=MQTTReasonCode.Success,
+            reason_code=MQTTReasonCode["Success"],
         )
         send_to_session(MockConnection, mock_connection, puback_packet)
 
@@ -150,7 +150,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         # Session should send a PUBACK packet.
         puback_packet = expect_from_session(MockConnection, mock_connection, MQTTPubAckPacket)
         assert puback_packet.packet_id == publish_packet.packet_id
-        assert puback_packet.reason_code == MQTTReasonCode.Success
+        assert puback_packet.reason_code == MQTTReasonCode["Success"]
 
         # PUBLISH a message with qos 2.
         session.publish("topic", b"message 2", qos=2)
@@ -163,19 +163,19 @@ def test_session_happy_path(client_id, callbacks, mocker):
         # PUBREC the PUBLISH.
         pubrec_packet = MQTTPubRecPacket(
             packet_id=publish_packet.packet_id,
-            reason_code=MQTTReasonCode.Success,
+            reason_code=MQTTReasonCode["Success"],
         )
         send_to_session(MockConnection, mock_connection, pubrec_packet)
 
         # Session should send a PUBREL packet.
         pubrel_packet = expect_from_session(MockConnection, mock_connection, MQTTPubRelPacket)
         assert pubrel_packet.packet_id == publish_packet.packet_id
-        assert pubrel_packet.reason_code == MQTTReasonCode.Success
+        assert pubrel_packet.reason_code == MQTTReasonCode["Success"]
 
         # PUBCOMP the PUBREL.
         pubcomp_packet = MQTTPubCompPacket(
             packet_id=publish_packet.packet_id,
-            reason_code=MQTTReasonCode.Success,
+            reason_code=MQTTReasonCode["Success"],
         )
         send_to_session(MockConnection, mock_connection, pubcomp_packet)
 
@@ -186,19 +186,19 @@ def test_session_happy_path(client_id, callbacks, mocker):
         # Session should send a PUBREC packet.
         pubrec_packet = expect_from_session(MockConnection, mock_connection, MQTTPubRecPacket)
         assert pubrec_packet.packet_id == publish_packet.packet_id
-        assert pubrec_packet.reason_code == MQTTReasonCode.Success
+        assert pubrec_packet.reason_code == MQTTReasonCode["Success"]
 
         # PUBREL the PUBREC.
         pubrel_packet = MQTTPubRelPacket(
             packet_id=publish_packet.packet_id,
-            reason_code=MQTTReasonCode.Success,
+            reason_code=MQTTReasonCode["Success"],
         )
         send_to_session(MockConnection, mock_connection, pubrel_packet)
 
         # Session should send a PUBCOMP packet.
         pubcomp_packet = expect_from_session(MockConnection, mock_connection, MQTTPubCompPacket)
         assert pubcomp_packet.packet_id == publish_packet.packet_id
-        assert pubcomp_packet.reason_code == MQTTReasonCode.Success
+        assert pubcomp_packet.reason_code == MQTTReasonCode["Success"]
 
         # UNSUBSCRIBE from a topic.
         session.unsubscribe("topic")
@@ -209,7 +209,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         # UNSUBACK the unsubscription.
         unsuback_packet = MQTTUnsubAckPacket(
             packet_id=unsubscribe_packet.packet_id,
-            reason_codes=[MQTTReasonCode.Success],
+            reason_codes=[MQTTReasonCode["Success"]],
         )
         send_to_session(MockConnection, mock_connection, unsuback_packet)
 

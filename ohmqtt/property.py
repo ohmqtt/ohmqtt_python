@@ -1,7 +1,7 @@
 from typing import Callable, Mapping, Sequence, TypedDict
 
 from .error import MQTTError
-from .mqtt_spec import MQTTPacketType, MQTTPropertyId, MQTTReasonCode
+from .mqtt_spec import MQTTPacketType, MQTTPropertyId, MQTTPropertyIdReverse, MQTTReasonCode
 from .serialization import (
     encode_bool,
     decode_bool,
@@ -50,10 +50,6 @@ class MQTTPropertyDict(TypedDict, total=False):
     WildcardSubscriptionAvailable: bool
     SubscriptionIdentifierAvailable: bool
     SharedSubscriptionAvailable: bool
-
-
-_MQTTPropertyNameLookup: Mapping[int, str] = {prop.value: prop.name for prop in MQTTPropertyId}
-_MQTTPropertyIdLookup: Mapping[str, int] = {prop.name: prop.value for prop in MQTTPropertyId}
 
 
 # Possible property serializer function signatures.
@@ -137,8 +133,8 @@ _MQTTPropertyDeserializers: Mapping[str, _DeserializerTypes] = {
 
 
 # Allowed MQTT property types for each packet type.
-_MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[str]] = {
-    MQTTPacketType.CONNECT: frozenset({  # [MQ5 3.1.2.11]
+_MQTTPropertyPacketTypes: Mapping[int, frozenset[str]] = {
+    MQTTPacketType["CONNECT"]: frozenset({  # [MQ5 3.1.2.11]
         "SessionExpiryInterval",
         "ReceiveMaximum",
         "MaximumPacketSize",
@@ -149,7 +145,7 @@ _MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[str]] = {
         "AuthenticationMethod",
         "AuthenticationData",
     }),
-    MQTTPacketType.CONNACK: frozenset({  # [MQ5 3.2.2.3]
+    MQTTPacketType["CONNACK"]: frozenset({  # [MQ5 3.2.2.3]
         "SessionExpiryInterval",
         "ReceiveMaximum",
         "MaximumQoS",
@@ -168,7 +164,7 @@ _MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[str]] = {
         "AuthenticationMethod",
         "AuthenticationData",
     }),
-    MQTTPacketType.PUBLISH: frozenset({  # [MQ5 3.3.2.3]
+    MQTTPacketType["PUBLISH"]: frozenset({  # [MQ5 3.3.2.3]
         "PayloadFormatIndicator",
         "MessageExpiryInterval",
         "TopicAlias",
@@ -178,44 +174,44 @@ _MQTTPropertyPacketTypes: Mapping[MQTTPacketType, frozenset[str]] = {
         "SubscriptionIdentifier",
         "ContentType",
     }),
-    MQTTPacketType.PUBACK: frozenset({  # [MQ5 3.4.2.2]
+    MQTTPacketType["PUBACK"]: frozenset({  # [MQ5 3.4.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType.PUBREC: frozenset({  # [MQ5 3.5.2.2]
+    MQTTPacketType["PUBREC"]: frozenset({  # [MQ5 3.5.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType.PUBREL: frozenset({  # [MQ5 3.6.2.2]
+    MQTTPacketType["PUBREL"]: frozenset({  # [MQ5 3.6.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType.PUBCOMP: frozenset({  # [MQ5 3.7.2.2]
+    MQTTPacketType["PUBCOMP"]: frozenset({  # [MQ5 3.7.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType.SUBSCRIBE: frozenset({  # [MQ5 3.8.2.1]
+    MQTTPacketType["SUBSCRIBE"]: frozenset({  # [MQ5 3.8.2.1]
         "SubscriptionIdentifier",
         "UserProperty",
     }),
-    MQTTPacketType.SUBACK: frozenset({  # [MQ5 3.9.2.1]
+    MQTTPacketType["SUBACK"]: frozenset({  # [MQ5 3.9.2.1]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType.UNSUBSCRIBE: frozenset({  # [MQ5 3.10.2.1]
+    MQTTPacketType["UNSUBSCRIBE"]: frozenset({  # [MQ5 3.10.2.1]
         "UserProperty",
     }),
-    MQTTPacketType.UNSUBACK: frozenset({  # [MQ5 3.11.2.1]
+    MQTTPacketType["UNSUBACK"]: frozenset({  # [MQ5 3.11.2.1]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType.DISCONNECT: frozenset({  # [MQ5 3.14.2.2]
+    MQTTPacketType["DISCONNECT"]: frozenset({  # [MQ5 3.14.2.2]
         "SessionExpiryInterval",
         "ReasonString",
         "UserProperty",
         "ServerReference",
     }),
-    MQTTPacketType.AUTH: frozenset({  # [MQ5 3.15.2.2]
+    MQTTPacketType["AUTH"]: frozenset({  # [MQ5 3.15.2.2]
         "AuthenticationMethod",
         "AuthenticationData",
         "ReasonString",
@@ -243,7 +239,7 @@ def encode_properties(properties: MQTTPropertyDict) -> bytes:
         return b"\x00"
     data = bytearray()
     for key, prop_value in properties.items():
-        prop_id = _MQTTPropertyIdLookup[key]
+        prop_id = MQTTPropertyId[key]
         serializer = _MQTTPropertySerializers[key]
 
         # MQTT specification calls for a variable integer for the property ID,
@@ -282,7 +278,7 @@ def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
         key = data[0]
         data  = data[1:]
         remaining -= 1
-        prop_name = _MQTTPropertyNameLookup[key]
+        prop_name = MQTTPropertyIdReverse[key]
         deserializer: _DeserializerTypes = _MQTTPropertyDeserializers[prop_name]
         value, sz = deserializer(data)
         data = data[sz:]
@@ -304,19 +300,19 @@ def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
     return properties, length + length_sz
 
 
-def validate_properties(properties: MQTTPropertyDict, packet_type: MQTTPacketType | None = None, is_will: bool = False) -> None:
+def validate_properties(properties: MQTTPropertyDict, packet_type: int | None = None, is_will: bool = False) -> None:
     """Validate the properties against a packet type or as a will message."""
     allowed_properties = _MQTTPropertyPacketTypes[packet_type] if packet_type is not None else set()
     if is_will:
         allowed_properties = allowed_properties | _MQTTPropertyAllowedInWill
     #if allowed_properties and any(key not in allowed_properties for key in properties):
     if not allowed_properties and packet_type is None:
-        allowed_properties = frozenset(_MQTTPropertyIdLookup.keys())
+        allowed_properties = frozenset(MQTTPropertyId.keys())
     if not frozenset(properties.keys()).issubset(allowed_properties):
         disallowed = ", ".join([key for key in properties if key not in allowed_properties])
         raise MQTTError(
             f"Disallowed propert(ies) found in packet type {packet_type} (will: {is_will}): {disallowed}",
-            MQTTReasonCode.ProtocolError,
+            MQTTReasonCode["ProtocolError"],
         )
     # TODO: Numeric limits
     # TODO: Uniqueness

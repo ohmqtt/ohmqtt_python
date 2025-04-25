@@ -1,7 +1,7 @@
 import pytest
 
 from ohmqtt.error import MQTTError
-from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTPropertyId
 from ohmqtt.packet import (
     decode_packet,
     MQTTConnectPacket,
@@ -20,7 +20,7 @@ from ohmqtt.packet import (
     MQTTDisconnectPacket,
     MQTTAuthPacket,
 )
-from ohmqtt.property import MQTTPropertyDict, MQTTPropertyId
+from ohmqtt.property import MQTTPropertyDict
 
 
 def extract_props(data) -> MQTTPropertyDict:
@@ -29,11 +29,11 @@ def extract_props(data) -> MQTTPropertyDict:
     for prop in data:
         k = prop[0]
         prop_key = MQTTPropertyId[k]
-        if MQTTPropertyDict.__annotations__[prop_key.name] == bytes:
+        if MQTTPropertyDict.__annotations__[k] == bytes:
             prop_value = bytes.fromhex(prop[1])
-        elif prop_key == MQTTPropertyId.SubscriptionIdentifier:
+        elif prop_key == MQTTPropertyId["SubscriptionIdentifier"]:
             prop_value = set(prop[1:])
-        elif prop_key == MQTTPropertyId.UserProperty:
+        elif prop_key == MQTTPropertyId["UserProperty"]:
             prop_value = [tuple([pk, pv]) for pk, pv in prop[1:]]
         else:
             prop_value = prop[1]
@@ -80,7 +80,7 @@ def run_decode_error_cases(test_data):
         try:
             decode_packet(bytes.fromhex(case["raw"]))
         except MQTTError as e:
-            assert e.reason_code == MQTTReasonCode(case["reason_code"])
+            assert e.reason_code == case["reason_code"]
         else:
             pytest.fail(f"Expected MQTT error: {hex(case['reason_code'])}")
 
@@ -94,10 +94,7 @@ def test_packet_connect_decode_errors(test_data):
 
 
 def test_packet_connack_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTConnAckPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTConnAckPacket, test_data)
 
 
 def test_packet_connack_decode_errors(test_data):
@@ -115,10 +112,7 @@ def test_packet_publish_decode_errors(test_data):
 
 
 def test_packet_puback_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTPubAckPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTPubAckPacket, test_data)
 
 
 def test_packet_puback_decode_errors(test_data):
@@ -126,10 +120,7 @@ def test_packet_puback_decode_errors(test_data):
 
 
 def test_packet_pubrec_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTPubRecPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTPubRecPacket, test_data)
 
 
 def test_packet_pubrec_decode_errors(test_data):
@@ -137,10 +128,7 @@ def test_packet_pubrec_decode_errors(test_data):
 
 
 def test_packet_pubrel_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTPubRelPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTPubRelPacket, test_data)
 
 
 def test_packet_pubrel_decode_errors(test_data):
@@ -148,10 +136,7 @@ def test_packet_pubrel_decode_errors(test_data):
 
 
 def test_packet_pubcomp_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTPubCompPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTPubCompPacket, test_data)
 
 
 def test_packet_pubcomp_decode_errors(test_data):
@@ -170,7 +155,7 @@ def test_packet_subscribe_decode_errors(test_data):
 
 def test_packet_suback_encode(test_data):
     def transform_args(args):
-        args["reason_codes"] = tuple(MQTTReasonCode(int(rc)) for rc in args["reason_codes"])
+        args["reason_codes"] = tuple(rc for rc in args["reason_codes"])
     run_encode_cases(MQTTSubAckPacket, test_data, transform_args=transform_args)
         
 
@@ -191,7 +176,7 @@ def test_packet_unsubscribe_decode_errors(test_data):
 def test_packet_unsuback_encode(test_data):
     def transform_args(args):
         if "reason_codes" in args:
-            args["reason_codes"] = tuple(MQTTReasonCode(int(rc)) for rc in args["reason_codes"])
+            args["reason_codes"] = tuple(rc for rc in args["reason_codes"])
     run_encode_cases(MQTTUnsubAckPacket, test_data, transform_args=transform_args)
 
 
@@ -240,10 +225,7 @@ def test_packet_pingresp_packet():
 
 
 def test_packet_disconnect_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTDisconnectPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTDisconnectPacket, test_data)
 
 
 def test_packet_disconnect_decode_errors(test_data):
@@ -251,10 +233,7 @@ def test_packet_disconnect_decode_errors(test_data):
 
 
 def test_packet_auth_encode(test_data):
-    def transform_args(args):
-        if "reason_code" in args:
-            args["reason_code"] = MQTTReasonCode(args["reason_code"])
-    run_encode_cases(MQTTAuthPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTAuthPacket, test_data)
 
 
 def test_packet_auth_decode_errors(test_data):
@@ -278,6 +257,6 @@ def test_packet_decode_packet_errors():
         try:
             decode_packet(case)
         except MQTTError as e:
-            assert e.reason_code == MQTTReasonCode.MalformedPacket
+            assert e.reason_code == MQTTReasonCode["MalformedPacket"]
         else:
             pytest.fail("Expected MQTT error")

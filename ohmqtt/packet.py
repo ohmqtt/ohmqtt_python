@@ -21,16 +21,16 @@ from .serialization import (
     decode_varint,
 )
 
-HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
-HEAD_PUBACK: Final = MQTTPacketType.PUBACK << 4
-HEAD_PUBREC: Final = MQTTPacketType.PUBREC << 4
-HEAD_PUBREL: Final = (MQTTPacketType.PUBREL << 4) + 0x02
-HEAD_PUBCOMP: Final = MQTTPacketType.PUBCOMP << 4
+HEAD_PUBLISH: Final = MQTTPacketType["PUBLISH"] << 4
+HEAD_PUBACK: Final = MQTTPacketType["PUBACK"] << 4
+HEAD_PUBREC: Final = MQTTPacketType["PUBREC"] << 4
+HEAD_PUBREL: Final = (MQTTPacketType["PUBREL"] << 4) + 0x02
+HEAD_PUBCOMP: Final = MQTTPacketType["PUBCOMP"] << 4
 
 
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
-    packet_type: MQTTPacketType
+    packet_type: int
     __slots__: Sequence[str] = tuple()
 
     def __eq__(self, other: object) -> bool:
@@ -57,7 +57,7 @@ class MQTTPacket(metaclass=ABCMeta):
 
 
 class MQTTConnectPacket(MQTTPacket):
-    packet_type = MQTTPacketType.CONNECT
+    packet_type = MQTTPacketType["CONNECT"]
     __slots__ = (
         "properties",
         "client_id",
@@ -167,20 +167,20 @@ class MQTTConnectPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTConnectPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
 
         offset = 0
         protocol_name, sz = decode_binary(data)
         offset += sz
 
         if protocol_name != b"MQTT":
-            raise MQTTError("Invalid protocol name", MQTTReasonCode.ProtocolError)
+            raise MQTTError("Invalid protocol name", MQTTReasonCode["ProtocolError"])
         
         protocol_version, sz = decode_uint8(data[offset:])
         offset += sz
 
         if protocol_version != 5:
-            raise MQTTError(f"Invalid protocol version, expected 5 but got {protocol_version}", MQTTReasonCode.UnsupportedProtocolVersion)
+            raise MQTTError(f"Invalid protocol version, expected 5 but got {protocol_version}", MQTTReasonCode["UnsupportedProtocolVersion"])
 
         connect_flags, sz = decode_uint8(data[offset:])
         offset += sz
@@ -198,7 +198,7 @@ class MQTTConnectPacket(MQTTPacket):
         props, sz = decode_properties(data[offset:])
         offset += sz
         if props:
-            validate_properties(props, MQTTPacketType.CONNECT)
+            validate_properties(props, MQTTPacketType["CONNECT"])
 
         client_id, sz = decode_string(data[offset:])
         offset += sz
@@ -246,12 +246,12 @@ class MQTTConnectPacket(MQTTPacket):
 
 
 class MQTTConnAckPacket(MQTTPacket):
-    packet_type = MQTTPacketType.CONNACK
+    packet_type = MQTTPacketType["CONNACK"]
     __slots__ = ("properties", "reason_code", "session_present")
 
     def __init__(
         self,
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        reason_code: int = MQTTReasonCode["Success"],
         session_present: bool = False,
         *,
         properties: MQTTPropertyDict | None = None,
@@ -277,22 +277,22 @@ class MQTTConnAckPacket(MQTTPacket):
         return f"CONNACK[{', '.join(attrs)}]"
     
     def encode(self) -> bytes:
-        data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + encode_properties(self.properties)
+        data = encode_bool(self.session_present) + encode_uint8(self.reason_code) + encode_properties(self.properties)
         return encode_packet(self.packet_type, 0, data)
 
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTConnAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
 
         session_present, _ = decode_bool(data[0:])
         reason_code, _ = decode_uint8(data[1:])
         props, props_sz = decode_properties(data[2:])
-        return MQTTConnAckPacket(MQTTReasonCode(reason_code), session_present, properties=props)
+        return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
 
 class MQTTPublishPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PUBLISH
+    packet_type = MQTTPacketType["PUBLISH"]
     __slots__ = ("properties", "packet_id", "topic", "payload", "qos", "retain", "dup")
 
     def __init__(
@@ -362,7 +362,7 @@ class MQTTPublishPacket(MQTTPacket):
     def decode(cls, flags: int, data: bytes) -> MQTTPublishPacket:
         qos = (flags >> 1) & 0x03
         if qos > 2:
-            raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode["MalformedPacket"])
         retain = (flags % 2) == 1
         dup = (flags & 0x08) == 8
 
@@ -375,7 +375,7 @@ class MQTTPublishPacket(MQTTPacket):
             packet_id = 0
         props, props_length = decode_properties(data[offset:])
         if props:
-            validate_properties(props, MQTTPacketType.PUBLISH)
+            validate_properties(props, MQTTPacketType["PUBLISH"])
         offset += props_length
         payload = bytes(data[offset:])
         return MQTTPublishPacket(
@@ -396,7 +396,7 @@ def _encode_puback_common(
     """Common encoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets."""
     encoded = bytearray()
     length = 2
-    has_reason_code = packet.reason_code != MQTTReasonCode.Success
+    has_reason_code = packet.reason_code != MQTTReasonCode["Success"]
     has_properties = bool(packet.properties)
     if has_reason_code:
         length += 1
@@ -407,13 +407,13 @@ def _encode_puback_common(
     encoded.extend(encode_varint(length))
     encoded.extend(packet.packet_id.to_bytes(2, byteorder="big"))
     if has_reason_code:
-        encoded.extend(packet.reason_code.value.to_bytes(1, byteorder="big"))
+        encoded.extend(packet.reason_code.to_bytes(1, byteorder="big"))
     if has_properties:
         encoded.extend(props)
     return bytes(encoded)
 
 
-def _decode_puback_common(packet_type: MQTTPacketType, data: bytes) -> tuple[int, MQTTReasonCode, MQTTPropertyDict]:
+def _decode_puback_common(packet_type: int, data: bytes) -> tuple[int, int, MQTTPropertyDict]:
     """Common decoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets.
 
     Validity of flags is checked in the respective classes."""
@@ -422,26 +422,26 @@ def _decode_puback_common(packet_type: MQTTPacketType, data: bytes) -> tuple[int
     offset += packet_id_length
     if offset == len(data):
         # Reason code and properties are optional.
-        return packet_id, MQTTReasonCode.Success, {}
+        return packet_id, MQTTReasonCode["Success"], {}
     reason_code, reason_code_length = decode_uint8(data[offset:])
     offset += reason_code_length
     if offset == len(data):
         # Properties alone may be omitted.
-        return packet_id, MQTTReasonCode(reason_code), {}
+        return packet_id, reason_code, {}
     props, props_length = decode_properties(data[offset:])
     if props:
         validate_properties(props, packet_type)
-    return packet_id, MQTTReasonCode(reason_code), props
+    return packet_id, reason_code, props
 
 
 class MQTTPubAckPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PUBACK
+    packet_type = MQTTPacketType["PUBACK"]
     __slots__ = ("properties", "packet_id", "reason_code",)
 
     def __init__(
         self,
         packet_id: int,
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        reason_code: int = MQTTReasonCode["Success"],
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -471,19 +471,19 @@ class MQTTPubAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPubAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBACK, data)
-        return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBACK"], data)
+        return MQTTPubAckPacket(packet_id, reason_code, properties=props)
 
 
 class MQTTPubRecPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PUBREC
+    packet_type = MQTTPacketType["PUBREC"]
     __slots__ = ("properties", "packet_id", "reason_code",)
 
     def __init__(
         self,
         packet_id: int,
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        reason_code: int = MQTTReasonCode["Success"],
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -513,19 +513,19 @@ class MQTTPubRecPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPubRecPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBREC, data)
-        return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBREC"], data)
+        return MQTTPubRecPacket(packet_id, reason_code, properties=props)
 
 
 class MQTTPubRelPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PUBREL
+    packet_type = MQTTPacketType["PUBREL"]
     __slots__ = ("properties", "packet_id", "reason_code",)
 
     def __init__(
         self,
         packet_id: int,
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        reason_code: int = MQTTReasonCode["Success"],
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -555,19 +555,19 @@ class MQTTPubRelPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPubRelPacket:
         if flags != 2:
-            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode.MalformedPacket)
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBREL, data)
-        return MQTTPubRelPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
+            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBREL"], data)
+        return MQTTPubRelPacket(packet_id, reason_code, properties=props)
 
 
 class MQTTPubCompPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PUBCOMP
+    packet_type = MQTTPacketType["PUBCOMP"]
     __slots__ = ("properties", "packet_id", "reason_code",)
 
     def __init__(
         self,
         packet_id: int,
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        reason_code: int = MQTTReasonCode["Success"],
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -597,13 +597,13 @@ class MQTTPubCompPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPubCompPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType.PUBCOMP, data)
-        return MQTTPubCompPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBCOMP"], data)
+        return MQTTPubCompPacket(packet_id, reason_code, properties=props)
 
 
 class MQTTSubscribePacket(MQTTPacket):
-    packet_type = MQTTPacketType.SUBSCRIBE
+    packet_type = MQTTPacketType["SUBSCRIBE"]
     __slots__ = ("properties", "packet_id", "topics",)
 
     def __init__(
@@ -643,13 +643,13 @@ class MQTTSubscribePacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTSubscribePacket:
         if flags != 0x02:
-            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
         if props:
-            validate_properties(props, MQTTPacketType.SUBSCRIBE)
+            validate_properties(props, MQTTPacketType["SUBSCRIBE"])
         offset += props_length
         topics = []
         while offset < len(data):
@@ -662,13 +662,13 @@ class MQTTSubscribePacket(MQTTPacket):
 
 
 class MQTTSubAckPacket(MQTTPacket):
-    packet_type = MQTTPacketType.SUBACK
+    packet_type = MQTTPacketType["SUBACK"]
     __slots__ = ("properties", "packet_id", "reason_codes",)
 
     def __init__(
         self,
         packet_id: int,
-        reason_codes: Sequence[MQTTReasonCode],
+        reason_codes: Sequence[int],
         *,
         properties: MQTTPropertyDict | None = None,
     ):
@@ -702,20 +702,20 @@ class MQTTSubAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTSubAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
         if props:
-            validate_properties(props, MQTTPacketType.SUBACK)
+            validate_properties(props, MQTTPacketType["SUBACK"])
         offset += props_length
-        reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
+        reason_codes = [b for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
 class MQTTUnsubscribePacket(MQTTPacket):
-    packet_type = MQTTPacketType.UNSUBSCRIBE
+    packet_type = MQTTPacketType["UNSUBSCRIBE"]
     __slots__ = ("packet_id", "topics", "properties")
 
     def __init__(self, topics: Sequence[str], packet_id: int, *, properties: MQTTPropertyDict | None = None):
@@ -748,13 +748,13 @@ class MQTTUnsubscribePacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTUnsubscribePacket:
         if flags != 0x02:
-            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
         if props:
-            validate_properties(props, MQTTPacketType.UNSUBSCRIBE)
+            validate_properties(props, MQTTPacketType["UNSUBSCRIBE"])
         offset += props_length
         topics = []
         while offset < len(data):
@@ -765,10 +765,10 @@ class MQTTUnsubscribePacket(MQTTPacket):
 
 
 class MQTTUnsubAckPacket(MQTTPacket):
-    packet_type = MQTTPacketType.UNSUBACK
+    packet_type = MQTTPacketType["UNSUBACK"]
     __slots__ = ("packet_id", "reason_codes", "properties")
 
-    def __init__(self, packet_id: int, reason_codes: Sequence[MQTTReasonCode], *, properties: MQTTPropertyDict | None = None):
+    def __init__(self, packet_id: int, reason_codes: Sequence[int], *, properties: MQTTPropertyDict | None = None):
         self.packet_id = packet_id
         self.reason_codes = tuple(reason_codes)
         self.properties = properties if properties is not None else {}
@@ -798,20 +798,20 @@ class MQTTUnsubAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTUnsubAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         props, props_length = decode_properties(data[offset:])
         if props:
-            validate_properties(props, MQTTPacketType.UNSUBACK)
+            validate_properties(props, MQTTPacketType["UNSUBACK"])
         offset += props_length
-        reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
+        reason_codes = [b for b in data[offset:]]
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)
 
 
 class MQTTPingReqPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PINGREQ
+    packet_type = MQTTPacketType["PINGREQ"]
     __slots__ = tuple()
 
     def __hash__(self) -> int:
@@ -828,14 +828,14 @@ class MQTTPingReqPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPingReqPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         if len(data) != 0:
-            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode["MalformedPacket"])
         return MQTTPingReqPacket()
     
 
 class MQTTPingRespPacket(MQTTPacket):
-    packet_type = MQTTPacketType.PINGRESP
+    packet_type = MQTTPacketType["PINGRESP"]
     __slots__ = tuple()
 
     def __hash__(self) -> int:
@@ -852,17 +852,17 @@ class MQTTPingRespPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPingRespPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         if len(data) != 0:
-            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode["MalformedPacket"])
         return MQTTPingRespPacket()
 
 
 class MQTTDisconnectPacket(MQTTPacket):
-    packet_type = MQTTPacketType.DISCONNECT
+    packet_type = MQTTPacketType["DISCONNECT"]
     __slots__ = ("properties", "reason_code",)
 
-    def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTPropertyDict | None = None):
+    def __init__(self, reason_code: int = MQTTReasonCode["Success"], *, properties: MQTTPropertyDict | None = None):
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
 
@@ -882,29 +882,31 @@ class MQTTDisconnectPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
-        if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
+        if self.reason_code == MQTTReasonCode["Success"] and len(self.properties) == 0:
             return encode_packet(self.packet_type, 0, b"")
-        var_header = encode_uint8(self.reason_code.value)
+        var_header = encode_uint8(self.reason_code)
         var_header += encode_properties(self.properties)
         return encode_packet(self.packet_type, 0, var_header)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTDisconnectPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
         reason_code, sz = decode_uint8(data)
         props, props_sz = decode_properties(data[sz:])
-        return MQTTDisconnectPacket(MQTTReasonCode(reason_code), properties=props)
+        if props:
+            validate_properties(props, MQTTPacketType["DISCONNECT"])
+        return MQTTDisconnectPacket(reason_code, properties=props)
 
 
 class MQTTAuthPacket(MQTTPacket):
-    packet_type = MQTTPacketType.AUTH
+    packet_type = MQTTPacketType["AUTH"]
     __slots__ = ("properties", "reason_code")
 
-    def __init__(self, reason_code: MQTTReasonCode = MQTTReasonCode.Success, *, properties: MQTTPropertyDict | None = None):
+    def __init__(self, reason_code: int = MQTTReasonCode["Success"], *, properties: MQTTPropertyDict | None = None):
         self.reason_code = reason_code
         self.properties = properties if properties is not None else {}
 
@@ -924,42 +926,42 @@ class MQTTAuthPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
-        if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
+        if self.reason_code == MQTTReasonCode["Success"] and len(self.properties) == 0:
             return encode_packet(self.packet_type, 0, b"")
-        data = encode_uint8(self.reason_code.value) + encode_properties(self.properties)
+        data = encode_uint8(self.reason_code) + encode_properties(self.properties)
         return encode_packet(self.packet_type, 0, data)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> "MQTTAuthPacket":
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
         props, props_sz = decode_properties(data[sz:])
         if props:
-            validate_properties(props, MQTTPacketType.AUTH)
-        return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)
+            validate_properties(props, MQTTPacketType["AUTH"])
+        return MQTTAuthPacket(reason_code, properties=props)
 
 
 # Map of packet types to their respective classes.
 _ControlPacketClasses: Mapping[int, type[MQTTPacket]] = {
-    MQTTPacketType.CONNECT.value: MQTTConnectPacket,
-    MQTTPacketType.CONNACK.value: MQTTConnAckPacket,
-    MQTTPacketType.PUBLISH.value: MQTTPublishPacket,
-    MQTTPacketType.PUBACK.value: MQTTPubAckPacket,
-    MQTTPacketType.PUBREC.value: MQTTPubRecPacket,
-    MQTTPacketType.PUBREL.value: MQTTPubRelPacket,
-    MQTTPacketType.PUBCOMP.value: MQTTPubCompPacket,
-    MQTTPacketType.SUBSCRIBE.value: MQTTSubscribePacket,
-    MQTTPacketType.SUBACK.value: MQTTSubAckPacket,
-    MQTTPacketType.UNSUBSCRIBE.value: MQTTUnsubscribePacket,
-    MQTTPacketType.UNSUBACK.value: MQTTUnsubAckPacket,
-    MQTTPacketType.PINGREQ.value: MQTTPingReqPacket,
-    MQTTPacketType.PINGRESP.value: MQTTPingRespPacket,
-    MQTTPacketType.DISCONNECT.value: MQTTDisconnectPacket,
-    MQTTPacketType.AUTH.value: MQTTAuthPacket,
+    MQTTPacketType["CONNECT"]: MQTTConnectPacket,
+    MQTTPacketType["CONNACK"]: MQTTConnAckPacket,
+    MQTTPacketType["PUBLISH"]: MQTTPublishPacket,
+    MQTTPacketType["PUBACK"]: MQTTPubAckPacket,
+    MQTTPacketType["PUBREC"]: MQTTPubRecPacket,
+    MQTTPacketType["PUBREL"]: MQTTPubRelPacket,
+    MQTTPacketType["PUBCOMP"]: MQTTPubCompPacket,
+    MQTTPacketType["SUBSCRIBE"]: MQTTSubscribePacket,
+    MQTTPacketType["SUBACK"]: MQTTSubAckPacket,
+    MQTTPacketType["UNSUBSCRIBE"]: MQTTUnsubscribePacket,
+    MQTTPacketType["UNSUBACK"]: MQTTUnsubAckPacket,
+    MQTTPacketType["PINGREQ"]: MQTTPingReqPacket,
+    MQTTPacketType["PINGRESP"]: MQTTPingRespPacket,
+    MQTTPacketType["DISCONNECT"]: MQTTDisconnectPacket,
+    MQTTPacketType["AUTH"]: MQTTAuthPacket,
 }
 
 
@@ -971,14 +973,14 @@ def decode_packet(data: bytes) -> MQTTPacket:
         cls_id = data[0] // 0x10
         decoder = _ControlPacketClasses[cls_id]
     except KeyError:
-        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode.MalformedPacket)
+        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode["MalformedPacket"])
     flags = data[0] % 0x10
 
     length, sz = decode_varint(data[1:])
     offset = sz + 1
     remainder = data[offset:]
     if len(remainder) != length:
-        raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode.MalformedPacket)
+        raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode["MalformedPacket"])
     return decoder.decode(flags, remainder)
 
 
@@ -988,15 +990,15 @@ def decode_packet_from_parts(head: int, data: bytes) -> MQTTPacket:
         cls_id = head // 0x10
         decoder = _ControlPacketClasses[cls_id]
     except KeyError:
-        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode.MalformedPacket)
+        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode["MalformedPacket"])
     flags = head % 0x10
 
     return decoder.decode(flags, data)
 
 
-def encode_packet(packet_type: MQTTPacketType, flags: int, data: bytes) -> bytes:
+def encode_packet(packet_type: int, flags: int, data: bytes) -> bytes:
     """Helper for finalizing encoded packets"""
-    head = (packet_type.value * 16) + flags
+    head = (packet_type * 16) + flags
     length = encode_varint(len(data))
     return head.to_bytes(1, byteorder="big") + length + data
 

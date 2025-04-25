@@ -34,7 +34,7 @@ MAX_SESSION_EXPIRY_INTERVAL: Final = 0xFFFFFFFF
 SessionAuthCallback = Callable[
     [
         "Session",
-        MQTTReasonCode,
+        int,
         str | None,
         bytes | None,
         str | None,
@@ -84,24 +84,24 @@ class Session:
         self.message_callback = message_callback
         self.server_receive_maximum = 0
         self.server_topic_alias_maximum = 0
-        self._read_handlers: Mapping[MQTTPacketType, Callable[[Any], None]] = {
-            MQTTPacketType.CONNACK: self._handle_connack,
-            MQTTPacketType.PUBACK: self._handle_puback,
-            MQTTPacketType.PUBREC: self._handle_pubrec,
-            MQTTPacketType.PUBREL: self._handle_pubrel,
-            MQTTPacketType.PUBCOMP: self._handle_pubcomp,
-            MQTTPacketType.PUBLISH: self._handle_publish,
-            MQTTPacketType.SUBACK: self._handle_suback,
-            MQTTPacketType.UNSUBACK: self._handle_unsuback,
-            MQTTPacketType.AUTH: self._handle_auth,
+        self._read_handlers: Mapping[int, Callable[[Any], None]] = {
+            MQTTPacketType["CONNACK"]: self._handle_connack,
+            MQTTPacketType["PUBACK"]: self._handle_puback,
+            MQTTPacketType["PUBREC"]: self._handle_pubrec,
+            MQTTPacketType["PUBREL"]: self._handle_pubrel,
+            MQTTPacketType["PUBCOMP"]: self._handle_pubcomp,
+            MQTTPacketType["PUBLISH"]: self._handle_publish,
+            MQTTPacketType["SUBACK"]: self._handle_suback,
+            MQTTPacketType["UNSUBACK"]: self._handle_unsuback,
+            MQTTPacketType["AUTH"]: self._handle_auth,
         }
         # This lock protects _retention, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
         self._retention = MessageRetention()
         self._inflight: int = 0
         self._next_packet_ids = {
-            MQTTPacketType.SUBSCRIBE: 1,
-            MQTTPacketType.UNSUBSCRIBE: 1,
+            MQTTPacketType["SUBSCRIBE"]: 1,
+            MQTTPacketType["UNSUBSCRIBE"]: 1,
         }
         self.connection = None
 
@@ -153,7 +153,7 @@ class Session:
 
     def _handle_connack(self, packet: MQTTConnAckPacket) -> None:
         """Handle a CONNACK packet from the server."""
-        if packet.reason_code.value >= 0x80:
+        if packet.reason_code >= 0x80:
             logger.error(f"Connection failed: {packet.reason_code}")
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
         with self._lock:
@@ -176,7 +176,7 @@ class Session:
 
     def _handle_puback(self, packet: MQTTPubAckPacket) -> None:
         """Handle a PUBACK packet from the server."""
-        if packet.reason_code.value >= 0x80:
+        if packet.reason_code >= 0x80:
             logger.error(f"Received PUBACK with error code: {packet.reason_code}")
         with self._lock:
             try:
@@ -188,7 +188,7 @@ class Session:
 
     def _handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
-        if packet.reason_code.value >= 0x80:
+        if packet.reason_code >= 0x80:
             logger.error(f"Received PUBREC with error code: {packet.reason_code}")
         with self._lock:
             self._retention.ack(packet.packet_id)
@@ -197,7 +197,7 @@ class Session:
 
     def _handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
         """Handle a PUBREL packet from the server."""
-        if packet.reason_code.value >= 0x80:
+        if packet.reason_code >= 0x80:
             logger.error(f"Received PUBREL with error code: {packet.reason_code}")
         with self._lock:
             comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
@@ -205,7 +205,7 @@ class Session:
 
     def _handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
         """Handle a PUBCOMP packet from the server."""
-        if packet.reason_code.value >= 0x80:
+        if packet.reason_code >= 0x80:
             logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
         with self._lock:
             self._retention.ack(packet.packet_id)
@@ -214,13 +214,13 @@ class Session:
 
     def _handle_suback(self, packet: MQTTSubAckPacket) -> None:
         """Handle a SUBACK packet from the server."""
-        error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
+        error_codes = [r for r in packet.reason_codes if r >= 0x80]
         if error_codes:
             logger.error(f"Received SUBACK with error codes: {packet.reason_codes}")
 
     def _handle_unsuback(self, packet: MQTTUnsubAckPacket) -> None:
         """Handle an UNSUBACK packet from the server."""
-        error_codes = [r.value for r in packet.reason_codes if r.value >= 0x80]
+        error_codes = [r for r in packet.reason_codes if r >= 0x80]
         if error_codes:
             logger.error(f"Received UNSUBACK with error codes: {packet.reason_codes}")
 
@@ -241,7 +241,7 @@ class Session:
 
     def _handle_auth(self, packet: MQTTAuthPacket) -> None:
         """Handle an AUTH packet from the server."""
-        if packet.reason_code.value >= 0x80:
+        if packet.reason_code >= 0x80:
             logger.error(f"Received AUTH with error code: {packet.reason_code}")
         if self.auth_callback is not None:
             try:
@@ -323,7 +323,7 @@ class Session:
             )
             self._send_packet(packet)
 
-    def _next_packet_id(self, packet_type: MQTTPacketType) -> int:
+    def _next_packet_id(self, packet_type: int) -> int:
         """Get the next packet ID for a given packet type.
         
         Should only be used for SUBSCRIBE and UNSUBSCRIBE packets. Get PUBLISH IDs from the persistence store."""
@@ -339,7 +339,7 @@ class Session:
         if not self.client_id:
             raise RuntimeError("Cannot subscribe without a client ID, wait for connection first")
         topics = ((topic, qos),)
-        packet_id = self._next_packet_id(MQTTPacketType.SUBSCRIBE)
+        packet_id = self._next_packet_id(MQTTPacketType["SUBSCRIBE"])
         packet = MQTTSubscribePacket(
             packet_id=packet_id,
             topics=topics,
@@ -352,7 +352,7 @@ class Session:
         if not self.client_id:
             raise RuntimeError("Cannot unsubscribe without a client ID, wait for connection first")
         topics = [topic]
-        packet_id = self._next_packet_id(MQTTPacketType.UNSUBSCRIBE)
+        packet_id = self._next_packet_id(MQTTPacketType["UNSUBSCRIBE"])
         packet = MQTTUnsubscribePacket(
             packet_id=packet_id,
             topics=topics,
@@ -367,7 +367,7 @@ class Session:
         authentication_data: bytes | None = None,
         reason_string: str | None = None,
         user_properties: Sequence[tuple[str, str]] | None = None,
-        reason_code: MQTTReasonCode = MQTTReasonCode.Success,
+        reason_code: int = MQTTReasonCode["Success"],
     ) -> None:
         """Send an AUTH packet to the server."""
         properties: MQTTPropertyDict = {}

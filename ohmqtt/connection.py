@@ -115,14 +115,14 @@ class Connection:
         self._partial_length_complete = False
         self._partial_data.clear()
 
-        if packet.packet_type == MQTTPacketType.PINGRESP:
+        if packet.packet_type == MQTTPacketType["PINGRESP"]:
             self.sock.pong_received()
-        elif packet.packet_type == MQTTPacketType.PINGREQ:
+        elif packet.packet_type == MQTTPacketType["PINGREQ"]:
             self.sock.send(PONG)
         else:
             # All non-ping packets are passed to the read callback.
             self._read_callback(packet)
-        if packet.packet_type == MQTTPacketType.CONNACK:
+        if packet.packet_type == MQTTPacketType["CONNACK"]:
             packet = cast(MQTTConnAckPacket, packet)
             if "ServerKeepAlive" in packet.properties:
                 # Override the keepalive interval with the server's value.

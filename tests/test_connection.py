@@ -84,7 +84,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket):
     # Receiving a CONNACK
     packet = MQTTConnAckPacket(
         session_present=False,
-        reason_code=MQTTReasonCode.Success,
+        reason_code=MQTTReasonCode["Success"],
         properties={"ServerKeepAlive": 60},
     )
     loopback_socket.test_sendall(packet.encode())
