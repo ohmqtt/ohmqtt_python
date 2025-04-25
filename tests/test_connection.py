@@ -1,7 +1,5 @@
-import logging
 import pytest
 import time
-import weakref
 
 from ohmqtt.connection import (
     Connection,

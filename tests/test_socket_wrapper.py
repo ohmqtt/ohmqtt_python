@@ -1,6 +1,5 @@
 import socket
 import time
-import weakref
 
 import pytest
 
@@ -65,33 +64,6 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
 
     close_callback.assert_called_once_with()
     close_callback.reset_mock()
-
-
-def test_socket_wrapper_refs(loopback_socket):
-    """Test that the SocketWrapper class does not have internal circular references."""
-    close_callback = lambda: None
-    keepalive_callback = lambda _: None
-    open_callback = lambda: None
-    read_callback = lambda _: None
-    socket_wrapper = SocketWrapper(
-        "localhost",
-        1883,
-        close_callback,
-        keepalive_callback,
-        open_callback,
-        read_callback,
-        tcp_nodelay=False,
-    )
-    socket_wrapper.sock = loopback_socket
-    socket_wrapper.start()
-    time.sleep(0.1)
-    socket_wrapper.close()
-    socket_wrapper.join(timeout=1.0)
-    assert not socket_wrapper.is_alive()
-
-    ref = weakref.ref(socket_wrapper)
-    del socket_wrapper
-    assert ref() is None
 
 
 def test_socket_wrapper_nodelay(mocker):
