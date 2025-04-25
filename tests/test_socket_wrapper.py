@@ -74,7 +74,7 @@ def test_socket_wrapper_nodelay(mocker):
     keepalive_callback = mocker.Mock(spec=SocketKeepaliveCallback)
     open_callback = mocker.Mock(spec=SocketOpenCallback)
     read_callback = mocker.Mock(spec=SocketReadCallback)
-    socket_wrapper = SocketWrapper(
+    SocketWrapper(
         "localhost",
         1883,
         close_callback,

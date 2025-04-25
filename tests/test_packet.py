@@ -29,7 +29,7 @@ def extract_props(data) -> MQTTPropertyDict:
     for prop in data:
         k = prop[0]
         prop_key = MQTTPropertyId[k]
-        if MQTTPropertyDict.__annotations__[k] == bytes:
+        if MQTTPropertyDict.__annotations__[k] is bytes:
             prop_value = bytes.fromhex(prop[1])
         elif prop_key == MQTTPropertyId["SubscriptionIdentifier"]:
             prop_value = set(prop[1:])
@@ -64,7 +64,7 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
         assert encoded == bytes.fromhex(case["raw"]), encoded.hex()
 
         decoded = decode_packet(bytes.fromhex(case["raw"]))
-        assert type(decoded) == cls
+        assert type(decoded) is cls
         for attr, value in args.items():
             assert getattr(decoded, attr) == value, f"{attr}: {getattr(decoded, attr)} != {value}"
 
@@ -191,7 +191,7 @@ def test_packet_pingreq_packet():
     assert encoded == raw
 
     decoded = decode_packet(raw)
-    assert type(decoded) == MQTTPingReqPacket
+    assert type(decoded) is MQTTPingReqPacket
     assert packet == decoded
     assert str(packet) == str(decoded)
     assert hash(packet) == hash(decoded)
@@ -211,7 +211,7 @@ def test_packet_pingresp_packet():
     assert encoded == raw
 
     decoded = decode_packet(raw)
-    assert type(decoded) == MQTTPingRespPacket
+    assert type(decoded) is MQTTPingRespPacket
     assert packet == decoded
     assert str(packet) == str(decoded)
     assert hash(packet) == hash(decoded)
@@ -248,7 +248,7 @@ def test_packet_comparison():
     assert packet1 != packet3
     assert packet1 != "foo"
     assert packet1 != 1
-    assert packet1 != None
+    assert packet1 is not None
     assert packet1 != object()
 
 
