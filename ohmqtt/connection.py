@@ -28,7 +28,6 @@ class Connection:
         "_partial_data",
         "sock",
     )
-    sock: SocketWrapper
 
     def __init__(self,
         host: str,
@@ -80,9 +79,10 @@ class Connection:
         sock.ping_sent()
 
     def _read_packet(self, sock: socket.socket | ssl.SSLSocket) -> None:
-        """Called by the client when a new packet is received.
+        """Called by the underlying SocketWrapper when the socket is ready to read.
         
-        Here we deal with picking out MQTT packets from the stream."""
+        Incrementally reads and decodes a packet from the socket.
+        Complete packets are passed up to the read callback."""
         try:
             if self._partial_head == -1:
                 partial_head = sock.recv(1)
