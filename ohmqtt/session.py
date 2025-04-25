@@ -397,4 +397,5 @@ class Session:
                     self._send_packet(packet)
                 except Exception:
                     logger.exception("Unhandled exception while flushing pending packets")
-                    message.dup = True
+                    if self.connection is not None:
+                        self.connection.close()

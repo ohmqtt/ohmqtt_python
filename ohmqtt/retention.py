@@ -113,4 +113,6 @@ class MessageRetention:
     def reset(self) -> None:
         """Reset inflight state for all retained messages."""
         for message in self.messages.values():
+            if message.inflight:
+                message.dup = True
             message.inflight = False
