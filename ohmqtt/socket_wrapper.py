@@ -39,6 +39,9 @@ class SocketWrapper(threading.Thread):
         "_last_recv",
         "_pong_deadline",
         "_in_read",
+        "host",
+        "port",
+        "sock",
     )
     host: str
     port: int
