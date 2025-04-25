@@ -76,7 +76,7 @@ class MQTTConnectPacket(MQTTPacket):
     def __init__(
         self,
         client_id: str = "",
-        keep_alive: int = 30,
+        keep_alive: int = 0,
         protocol_version: int = 5,
         *,
         clean_start: bool = False,

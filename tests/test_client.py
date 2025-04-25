@@ -19,7 +19,7 @@ def MockSession(mocker, mock_session):
 def test_client_happy_path(MockSession, mock_session):
     received = []
 
-    client = Client(client_id="test_client")
+    client = Client(client_id="test_client", keepalive_interval=123)
     MockSession.assert_called_once_with(
         "test_client",
         message_callback=client.on_message,
@@ -33,7 +33,7 @@ def test_client_happy_path(MockSession, mock_session):
     MockSession.reset_mock()
 
     client.connect("localhost", 1883)
-    mock_session.connect.assert_called_once_with("localhost", 1883)
+    mock_session.connect.assert_called_once_with("localhost", 1883, keepalive_interval=123)
     mock_session.connect.reset_mock()
 
     client.subscribe("test/+", lambda t, p, pr: received.append((t, p, pr)))

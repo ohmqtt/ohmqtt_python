@@ -11,21 +11,28 @@ logger: Final = get_logger("client")
 
 class Client:
     """High level interface for the MQTT client."""
-    __slots__ = ("client_id", "session", "subscriptions")
+    __slots__ = ("client_id", "keepalive_interval", "session", "subscriptions")
     client_id: str
+    keepalive_interval: int
     session: Session
     subscriptions: Subscriptions
 
     def __init__(
         self,
         client_id: str = "",
+        *,
+        keepalive_interval: int = 30,
     ) -> None:
         self.client_id = client_id
+        self.keepalive_interval = keepalive_interval
         self.subscriptions = Subscriptions()
-        self.session = Session(client_id, message_callback=self.on_message)
+        self.session = Session(
+            client_id,
+            message_callback=self.on_message,
+        )
 
     def connect(self, host: str, port: int) -> None:
-        self.session.connect(host, port)
+        self.session.connect(host, port, keepalive_interval=self.keepalive_interval)
 
     def publish(
         self,

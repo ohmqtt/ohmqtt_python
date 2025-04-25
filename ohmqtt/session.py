@@ -52,6 +52,7 @@ class Session:
         "client_id",
         "protocol_version",
         "clean_start",
+        "keepalive_interval",
         "connect_properties",
         "server_receive_maximum",
         "server_topic_alias_maximum",
@@ -125,6 +126,7 @@ class Session:
             client_id=self.client_id,
             protocol_version=self.protocol_version,
             clean_start=self.clean_start,
+            keep_alive=self.keepalive_interval,
             properties=self.connect_properties,
         )
         self._send_packet(packet)
@@ -274,6 +276,7 @@ class Session:
         with self._lock:
             self.protocol_version = protocol_version
             self.clean_start = clean_start
+            self.keepalive_interval = keepalive_interval
             self.connect_properties = connect_properties if connect_properties is not None else {}
             self.connection = Connection(
                 host=host,
