@@ -60,11 +60,6 @@ class MQTTPacket(metaclass=ABCMeta):
         ...  # pragma: no cover
 
 
-class MQTTPacketWithId(MQTTPacket, metaclass=ABCMeta):
-    packet_id: int
-    __slots__ = ("packet_id",)
-
-
 class MQTTConnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNECT
     __slots__ = (
@@ -275,7 +270,7 @@ class MQTTConnAckPacket(MQTTPacket):
         return MQTTConnAckPacket(MQTTReasonCode(reason_code), session_present, properties=props)
 
 
-class MQTTPublishPacket(MQTTPacketWithId):
+class MQTTPublishPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBLISH
     __slots__ = ("properties", "packet_id", "topic", "payload", "qos", "retain", "dup")
 
@@ -406,7 +401,7 @@ def _decode_puback_common(packet_type: MQTTPacketType, data: bytes) -> tuple[int
     return packet_id, MQTTReasonCode(reason_code), props
 
 
-class MQTTPubAckPacket(MQTTPacketWithId):
+class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBACK
     __slots__ = ("properties", "packet_id", "reason_code",)
 
@@ -440,7 +435,7 @@ class MQTTPubAckPacket(MQTTPacketWithId):
         return MQTTPubAckPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
-class MQTTPubRecPacket(MQTTPacketWithId):
+class MQTTPubRecPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBREC
     __slots__ = ("properties", "packet_id", "reason_code",)
 
@@ -474,7 +469,7 @@ class MQTTPubRecPacket(MQTTPacketWithId):
         return MQTTPubRecPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
-class MQTTPubRelPacket(MQTTPacketWithId):
+class MQTTPubRelPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBREL
     __slots__ = ("properties", "packet_id", "reason_code",)
 
@@ -508,7 +503,7 @@ class MQTTPubRelPacket(MQTTPacketWithId):
         return MQTTPubRelPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
-class MQTTPubCompPacket(MQTTPacketWithId):
+class MQTTPubCompPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBCOMP
     __slots__ = ("properties", "packet_id", "reason_code",)
 
@@ -542,7 +537,7 @@ class MQTTPubCompPacket(MQTTPacketWithId):
         return MQTTPubCompPacket(packet_id, MQTTReasonCode(reason_code), properties=props)
 
 
-class MQTTSubscribePacket(MQTTPacketWithId):
+class MQTTSubscribePacket(MQTTPacket):
     packet_type = MQTTPacketType.SUBSCRIBE
     __slots__ = ("properties", "packet_id", "topics",)
 
@@ -593,7 +588,7 @@ class MQTTSubscribePacket(MQTTPacketWithId):
         return MQTTSubscribePacket(topics, packet_id, properties=props)
 
 
-class MQTTSubAckPacket(MQTTPacketWithId):
+class MQTTSubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.SUBACK
     __slots__ = ("properties", "packet_id", "reason_codes",)
 
@@ -638,7 +633,7 @@ class MQTTSubAckPacket(MQTTPacketWithId):
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
-class MQTTUnsubscribePacket(MQTTPacketWithId):
+class MQTTUnsubscribePacket(MQTTPacket):
     packet_type = MQTTPacketType.UNSUBSCRIBE
     __slots__ = ("packet_id", "topics", "properties")
 
@@ -680,7 +675,7 @@ class MQTTUnsubscribePacket(MQTTPacketWithId):
         return MQTTUnsubscribePacket(topics, packet_id, properties=props)
 
 
-class MQTTUnsubAckPacket(MQTTPacketWithId):
+class MQTTUnsubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.UNSUBACK
     __slots__ = ("packet_id", "reason_codes", "properties")
 
