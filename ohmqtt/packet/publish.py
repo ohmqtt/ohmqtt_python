@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Final
+from typing import Final, Mapping
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
+from ..mqtt_spec import MQTTPacketType, MQTTPacketTypeReverse, MQTTReasonCode
 from ..property import (
     MQTTPropertyDict,
     decode_properties,
@@ -26,10 +26,18 @@ from ..serialization import (
 
 
 HEAD_PUBLISH: Final = MQTTPacketType["PUBLISH"] << 4
-HEAD_PUBACK: Final = MQTTPacketType["PUBACK"] << 4
-HEAD_PUBREC: Final = MQTTPacketType["PUBREC"] << 4
-HEAD_PUBREL: Final = (MQTTPacketType["PUBREL"] << 4) + 0x02
-HEAD_PUBCOMP: Final = MQTTPacketType["PUBCOMP"] << 4
+HEAD_PUBACKS: Final[Mapping[int, int]] = {
+    MQTTPacketType["PUBACK"]: MQTTPacketType["PUBACK"] << 4,
+    MQTTPacketType["PUBREC"]: MQTTPacketType["PUBREC"] << 4,
+    MQTTPacketType["PUBREL"]: (MQTTPacketType["PUBREL"] << 4) + 0x02,
+    MQTTPacketType["PUBCOMP"]: MQTTPacketType["PUBCOMP"] << 4,
+}
+FLAGS_PUBACKS: Final[Mapping[int, int]] = {
+    MQTTPacketType["PUBACK"]: 0,
+    MQTTPacketType["PUBREC"]: 0,
+    MQTTPacketType["PUBREL"]: 2,
+    MQTTPacketType["PUBCOMP"]: 0,
+}
 
 
 @dataclass(match_args=True, slots=True)
@@ -111,42 +119,6 @@ class MQTTPublishPacket(MQTTPacket):
         )
 
 
-def _encode_puback_common(
-    head: int,
-    packet: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubRelPacket | MQTTPubCompPacket,
-) -> bytes:
-    """Common encoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets."""
-    encoded = bytearray(packet.packet_id.to_bytes(2, byteorder="big"))
-    if packet.reason_code != MQTTReasonCode["Success"]:
-        encoded.append(packet.reason_code)
-    if packet.properties:
-        encoded.extend(encode_properties(packet.properties))
-    encoded[0:0] = encode_varint(len(encoded))
-    encoded.insert(0, head)
-    return bytes(encoded)
-
-
-def _decode_puback_common(packet_type: int, data: bytes) -> tuple[int, int, MQTTPropertyDict]:
-    """Common decoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets.
-
-    Validity of flags is checked in the respective classes."""
-    offset = 0
-    packet_id, packet_id_length = decode_uint16(data[offset:])
-    offset += packet_id_length
-    if offset == len(data):
-        # Reason code and properties are optional.
-        return packet_id, MQTTReasonCode["Success"], {}
-    reason_code, reason_code_length = decode_uint8(data[offset:])
-    offset += reason_code_length
-    if offset == len(data):
-        # Properties alone may be omitted.
-        return packet_id, reason_code, {}
-    props, props_length = decode_properties(data[offset:])
-    if props:
-        validate_properties(props, packet_type)
-    return packet_id, reason_code, props
-
-
 @dataclass(match_args=True, slots=True)
 class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType["PUBACK"]
@@ -168,116 +140,48 @@ class MQTTPubAckPacket(MQTTPacket):
             f"reason_code={self.reason_code}",
             f"properties={self.properties}",
         ]
-        return f"PUBACK[{', '.join(attrs)}]"
+        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
-        return _encode_puback_common(HEAD_PUBACK, self)
+        head = HEAD_PUBACKS[self.packet_type]
+        encoded = bytearray(self.packet_id.to_bytes(2, byteorder="big"))
+        if self.reason_code != MQTTReasonCode["Success"]:
+            encoded.append(self.reason_code)
+        if self.properties:
+            encoded.extend(encode_properties(self.properties))
+        encoded[0:0] = encode_varint(len(encoded))
+        encoded.insert(0, head)
+        return bytes(encoded)
     
     @classmethod
     def decode(cls, flags: int, data: bytes) -> MQTTPubAckPacket:
-        if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBACK"], data)
-        return MQTTPubAckPacket(packet_id, reason_code, properties=props)
+        if flags != FLAGS_PUBACKS[cls.packet_type]:
+            raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode["MalformedPacket"])
+
+        offset = 0
+        packet_id, packet_id_length = decode_uint16(data[offset:])
+        offset += packet_id_length
+        if offset == len(data):
+            # Reason code and properties are optional.
+            return cls(packet_id, MQTTReasonCode["Success"], {})
+        reason_code, reason_code_length = decode_uint8(data[offset:])
+        offset += reason_code_length
+        if offset == len(data):
+            # Properties alone may be omitted.
+            return cls(packet_id, reason_code, {})
+        props, _ = decode_properties(data[offset:])
+        if props:
+            validate_properties(props, cls.packet_type)
+        return cls(packet_id, reason_code, props)
 
 
-@dataclass(match_args=True, slots=True)
-class MQTTPubRecPacket(MQTTPacket):
+class MQTTPubRecPacket(MQTTPubAckPacket):
     packet_type = MQTTPacketType["PUBREC"]
-    packet_id: int = 0
-    reason_code: int = MQTTReasonCode["Success"]
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
-
-    def __str__(self) -> str:
-        attrs = [
-            f"packet_id={self.packet_id}",
-            f"reason_code={self.reason_code}",
-            f"properties={self.properties}",
-        ]
-        return f"PUBREC[{', '.join(attrs)}]"
-
-    def encode(self) -> bytes:
-        return _encode_puback_common(HEAD_PUBREC, self)
-    
-    @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTPubRecPacket:
-        if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBREC"], data)
-        return MQTTPubRecPacket(packet_id, reason_code, properties=props)
 
 
-@dataclass(match_args=True, slots=True)
-class MQTTPubRelPacket(MQTTPacket):
+class MQTTPubRelPacket(MQTTPubAckPacket):
     packet_type = MQTTPacketType["PUBREL"]
-    packet_id: int = 0
-    reason_code: int = MQTTReasonCode["Success"]
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
-
-    def __str__(self) -> str:
-        attrs = [
-            f"packet_id={self.packet_id}",
-            f"reason_code={self.reason_code}",
-            f"properties={self.properties}",
-        ]
-        return f"PUBREL[{', '.join(attrs)}]"
-
-    def encode(self) -> bytes:
-        return _encode_puback_common(HEAD_PUBREL, self)
-    
-    @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTPubRelPacket:
-        if flags != 2:
-            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBREL"], data)
-        return MQTTPubRelPacket(packet_id, reason_code, properties=props)
 
 
-@dataclass(match_args=True, slots=True)
-class MQTTPubCompPacket(MQTTPacket):
+class MQTTPubCompPacket(MQTTPubAckPacket):
     packet_type = MQTTPacketType["PUBCOMP"]
-    packet_id: int = 0
-    reason_code: int = MQTTReasonCode["Success"]
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
-
-    def __str__(self) -> str:
-        attrs = [
-            f"packet_id={self.packet_id}",
-            f"reason_code={self.reason_code}",
-            f"properties={self.properties}",
-        ]
-        return f"PUBCOMP[{', '.join(attrs)}]"
-
-    def encode(self) -> bytes:
-        return _encode_puback_common(HEAD_PUBCOMP, self)
-    
-    @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTPubCompPacket:
-        if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
-        packet_id, reason_code, props = _decode_puback_common(MQTTPacketType["PUBCOMP"], data)
-        return MQTTPubCompPacket(packet_id, reason_code, properties=props)
