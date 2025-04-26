@@ -80,22 +80,16 @@ class MQTTPublishPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         encoded = bytearray()
-        head = HEAD_PUBLISH + self.retain + (self.qos << 1) + (self.dup << 3)
-        length = len(self.topic) + len(self.payload) + 2
-        if self.qos > 0:
-            length += 2
-        if self.properties:
-            props = encode_properties(self.properties)
-        else:
-            props = b"\x00"
-        length += len(props)
-        encoded.append(head)
-        encoded.extend(encode_varint(length))
         encoded.extend(encode_string(self.topic))
         if self.qos > 0:
             encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
-        encoded.extend(props)
+        if self.properties:
+            encoded.extend(encode_properties(self.properties))
+        else:
+            encoded.append(0)
         encoded.extend(self.payload)
+        encoded[0:0] = encode_varint(len(encoded))
+        encoded.insert(0, HEAD_PUBLISH + self.retain + (self.qos << 1) + (self.dup << 3))
         return bytes(encoded)
 
     @classmethod
