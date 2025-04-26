@@ -309,14 +309,15 @@ class Session:
         if qos > 0:
             if not self.client_id:
                 raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
-            self._retention.add(
-                topic=topic,
-                payload=payload,
-                qos=qos,
-                retain=retain,
-                properties=properties,
-            )
-            self._flush()
+            with self._lock:
+                self._retention.add(
+                    topic=topic,
+                    payload=payload,
+                    qos=qos,
+                    retain=retain,
+                    properties=properties,
+                )
+                self._flush()
         else:
             packet = MQTTPublishPacket(
                 topic=topic,
