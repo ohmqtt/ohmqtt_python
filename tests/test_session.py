@@ -103,7 +103,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         session.subscribe("topic", 2)
         subscribe_packet = expect_from_session(MockConnection, mock_connection, MQTTSubscribePacket)
         assert subscribe_packet.packet_id > 0
-        assert subscribe_packet.topics == (("topic", 2),)
+        assert subscribe_packet.topics == [("topic", 2),]
 
         # SUBACK the subscription.
         suback_packet = MQTTSubAckPacket(
@@ -200,7 +200,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         session.unsubscribe("topic")
         unsubscribe_packet = expect_from_session(MockConnection, mock_connection, MQTTUnsubscribePacket)
         assert unsubscribe_packet.packet_id > 0
-        assert unsubscribe_packet.topics == ("topic",)
+        assert unsubscribe_packet.topics == ["topic"]
 
         # UNSUBACK the unsubscription.
         unsuback_packet = MQTTUnsubAckPacket(

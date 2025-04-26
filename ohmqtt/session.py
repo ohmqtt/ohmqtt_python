@@ -323,7 +323,7 @@ class Session:
                 payload=payload,
                 qos=qos,
                 retain=retain,
-                properties=properties,
+                properties=properties if properties is not None else {},
             )
             self._send_packet(packet)
 
@@ -347,7 +347,7 @@ class Session:
         packet = MQTTSubscribePacket(
             packet_id=packet_id,
             topics=topics,
-            properties=properties,
+            properties=properties if properties is not None else {},
         )
         self._send_packet(packet)
 
@@ -360,7 +360,7 @@ class Session:
         packet = MQTTUnsubscribePacket(
             packet_id=packet_id,
             topics=topics,
-            properties=properties,
+            properties=properties if properties is not None else {},
         )
         self._send_packet(packet)
 

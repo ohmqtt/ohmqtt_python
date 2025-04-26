@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Final
 
 from .base import MQTTPacket
@@ -9,9 +10,9 @@ from ..error import MQTTError
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPingReqPacket(MQTTPacket):
     packet_type = MQTTPacketType["PINGREQ"]
-    __slots__ = tuple()
 
     def __hash__(self) -> int:
         return hash((
@@ -35,7 +36,6 @@ class MQTTPingReqPacket(MQTTPacket):
 
 class MQTTPingRespPacket(MQTTPacket):
     packet_type = MQTTPacketType["PINGRESP"]
-    __slots__ = tuple()
 
     def __hash__(self) -> int:
         return hash((

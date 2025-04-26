@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from .base import MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import MQTTReasonCode, MQTTPacketType
@@ -32,51 +34,21 @@ HEAD_CONNACK = MQTTPacketType["CONNACK"] << 4
 HEAD_DISCONNECT = MQTTPacketType["DISCONNECT"] << 4
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTConnectPacket(MQTTPacket):
     packet_type = MQTTPacketType["CONNECT"]
-    __slots__ = (
-        "properties",
-        "client_id",
-        "keep_alive",
-        "protocol_version",
-        "clean_start",
-        "will_props",
-        "will_topic",
-        "will_payload",
-        "will_qos",
-        "will_retain",
-        "username",
-        "password",
-    )
-
-    def __init__(
-        self,
-        client_id: str = "",
-        keep_alive: int = 0,
-        protocol_version: int = 5,
-        *,
-        clean_start: bool = False,
-        will_props: MQTTPropertyDict | None = None,
-        will_topic: str | None = None,
-        will_payload: bytes | None = None,
-        will_qos: int = 0,
-        will_retain: bool = False,
-        username: str | None = None,
-        password: bytes | None = None,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.client_id = client_id
-        self.keep_alive = keep_alive
-        self.protocol_version = protocol_version
-        self.clean_start = clean_start
-        self.will_props = will_props if will_props else {}
-        self.will_topic = will_topic
-        self.will_payload = will_payload
-        self.will_qos = will_qos
-        self.will_retain = will_retain
-        self.username = username
-        self.password = password
-        self.properties = properties if properties is not None else {}
+    client_id: str = ""
+    keep_alive: int = 0
+    protocol_version: int = 5
+    clean_start: bool = False
+    will_props: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    will_topic: str | None = None
+    will_payload: bytes | None = None
+    will_qos: int = 0
+    will_retain: bool = False
+    username: str | None = None
+    password: bytes | None = None
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
@@ -121,7 +93,7 @@ class MQTTConnectPacket(MQTTPacket):
 
         payload = bytearray()
         payload.extend(encode_string(self.client_id))
-        if self.will_props is not None and self.will_topic is not None and self.will_payload is not None:
+        if self.will_topic is not None and self.will_payload is not None:
             payload.extend(encode_properties(self.will_props) + encode_string(self.will_topic) + encode_binary(self.will_payload))
             connect_flags += 0x04
         if self.username is not None:
@@ -196,7 +168,7 @@ class MQTTConnectPacket(MQTTPacket):
             will_payload, sz = decode_binary(data[offset:])
             offset += sz
         else:
-            will_props = None
+            will_props = {}
             will_topic = None
             will_payload = None
         
@@ -228,20 +200,12 @@ class MQTTConnectPacket(MQTTPacket):
         )
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTConnAckPacket(MQTTPacket):
     packet_type = MQTTPacketType["CONNACK"]
-    __slots__ = ("properties", "reason_code", "session_present")
-
-    def __init__(
-        self,
-        reason_code: int = MQTTReasonCode["Success"],
-        session_present: bool = False,
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.reason_code = reason_code
-        self.session_present = session_present
-        self.properties = properties if properties is not None else {}
+    reason_code: int = MQTTReasonCode["Success"]
+    session_present: bool = False
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
@@ -276,13 +240,11 @@ class MQTTConnAckPacket(MQTTPacket):
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType["DISCONNECT"]
-    __slots__ = ("properties", "reason_code",)
-
-    def __init__(self, reason_code: int = MQTTReasonCode["Success"], *, properties: MQTTPropertyDict | None = None):
-        self.reason_code = reason_code
-        self.properties = properties if properties is not None else {}
+    reason_code: int = MQTTReasonCode["Success"]
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((

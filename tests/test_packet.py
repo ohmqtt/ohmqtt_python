@@ -145,7 +145,7 @@ def test_packet_pubcomp_decode_errors(test_data):
 
 def test_packet_subscribe_encode(test_data):
     def transform_args(args):
-        args["topics"] = tuple((t, int(q)) for t, q in args["topics"])
+        args["topics"] = [(t, int(q)) for t, q in args["topics"]]
     run_encode_cases(MQTTSubscribePacket, test_data, transform_args=transform_args)
 
 
@@ -154,9 +154,7 @@ def test_packet_subscribe_decode_errors(test_data):
 
 
 def test_packet_suback_encode(test_data):
-    def transform_args(args):
-        args["reason_codes"] = tuple(rc for rc in args["reason_codes"])
-    run_encode_cases(MQTTSubAckPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTSubAckPacket, test_data)
         
 
 def test_packet_suback_decode_errors(test_data):    
@@ -164,9 +162,7 @@ def test_packet_suback_decode_errors(test_data):
 
 
 def test_packet_unsubscribe_encode(test_data):
-    def transform_args(args):
-        args["topics"] = tuple(args["topics"])
-    run_encode_cases(MQTTUnsubscribePacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTUnsubscribePacket, test_data)
 
 
 def test_packet_unsubscribe_decode_errors(test_data):
@@ -174,10 +170,7 @@ def test_packet_unsubscribe_decode_errors(test_data):
 
 
 def test_packet_unsuback_encode(test_data):
-    def transform_args(args):
-        if "reason_codes" in args:
-            args["reason_codes"] = tuple(rc for rc in args["reason_codes"])
-    run_encode_cases(MQTTUnsubAckPacket, test_data, transform_args=transform_args)
+    run_encode_cases(MQTTUnsubAckPacket, test_data)
 
 
 def test_packet_unsuback_decode_errors(test_data):

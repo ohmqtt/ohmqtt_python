@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from .base import MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
@@ -20,13 +22,11 @@ from ..serialization import (
 HEAD_AUTH = MQTTPacketType["AUTH"] << 4
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTAuthPacket(MQTTPacket):
     packet_type = MQTTPacketType["AUTH"]
-    __slots__ = ("properties", "reason_code")
-
-    def __init__(self, reason_code: int = MQTTReasonCode["Success"], *, properties: MQTTPropertyDict | None = None):
-        self.reason_code = reason_code
-        self.properties = properties if properties is not None else {}
+    reason_code: int = MQTTReasonCode["Success"]
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((

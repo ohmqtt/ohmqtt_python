@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Sequence
 
 from .base import MQTTPacket
@@ -30,26 +31,18 @@ HEAD_UNSUBSCRIBE = (MQTTPacketType["UNSUBSCRIBE"] << 4) + 0x02
 HEAD_UNSUBACK = MQTTPacketType["UNSUBACK"] << 4
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTSubscribePacket(MQTTPacket):
     packet_type = MQTTPacketType["SUBSCRIBE"]
-    __slots__ = ("properties", "packet_id", "topics",)
-
-    def __init__(
-        self,
-        topics: Sequence[tuple[str, int]],
-        packet_id: int,
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.topics = tuple(topics)
-        self.packet_id = packet_id
-        self.properties = properties if properties is not None else {}
+    topics: Sequence[tuple[str, int]] = field(default_factory=tuple)
+    packet_id: int = 0
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
             self.packet_type,
             self.packet_id,
-            self.topics,
+            tuple(self.topics),
             hash_properties(self.properties),
         ))
 
@@ -93,26 +86,18 @@ class MQTTSubscribePacket(MQTTPacket):
         return MQTTSubscribePacket(topics, packet_id, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTSubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType["SUBACK"]
-    __slots__ = ("properties", "packet_id", "reason_codes",)
-
-    def __init__(
-        self,
-        packet_id: int,
-        reason_codes: Sequence[int],
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.packet_id = packet_id
-        self.reason_codes = tuple(reason_codes)
-        self.properties = properties if properties is not None else {}
+    packet_id: int
+    reason_codes: Sequence[int] = field(default_factory=tuple)
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
             self.packet_type,
             self.packet_id,
-            self.reason_codes,
+            tuple(self.reason_codes),
             hash_properties(self.properties),
         ))
 
@@ -152,20 +137,18 @@ class MQTTSubAckPacket(MQTTPacket):
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTUnsubscribePacket(MQTTPacket):
     packet_type = MQTTPacketType["UNSUBSCRIBE"]
-    __slots__ = ("packet_id", "topics", "properties")
-
-    def __init__(self, topics: Sequence[str], packet_id: int, *, properties: MQTTPropertyDict | None = None):
-        self.topics = tuple(topics)
-        self.packet_id = packet_id
-        self.properties = properties if properties is not None else {}
+    topics: Sequence[str] = field(default_factory=tuple)
+    packet_id: int = 0
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
             self.packet_type,
             self.packet_id,
-            self.topics,
+            tuple(self.topics),
             hash_properties(self.properties),
         ))
 
@@ -206,20 +189,18 @@ class MQTTUnsubscribePacket(MQTTPacket):
         return MQTTUnsubscribePacket(topics, packet_id, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTUnsubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType["UNSUBACK"]
-    __slots__ = ("packet_id", "reason_codes", "properties")
-
-    def __init__(self, packet_id: int, reason_codes: Sequence[int], *, properties: MQTTPropertyDict | None = None):
-        self.packet_id = packet_id
-        self.reason_codes = tuple(reason_codes)
-        self.properties = properties if properties is not None else {}
+    packet_id: int
+    reason_codes: Sequence[int] = field(default_factory=tuple)
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
             self.packet_type,
             self.packet_id,
-            self.reason_codes,
+            tuple(self.reason_codes),
             hash_properties(self.properties),
         ))
 

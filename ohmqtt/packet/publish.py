@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Final
 
 from .base import MQTTPacket
@@ -31,28 +32,16 @@ HEAD_PUBREL: Final = (MQTTPacketType["PUBREL"] << 4) + 0x02
 HEAD_PUBCOMP: Final = MQTTPacketType["PUBCOMP"] << 4
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPublishPacket(MQTTPacket):
     packet_type = MQTTPacketType["PUBLISH"]
-    __slots__ = ("properties", "packet_id", "topic", "payload", "qos", "retain", "dup")
-
-    def __init__(
-        self,
-        topic: str,
-        payload: bytes,
-        *,
-        qos: int = 0,
-        retain: bool = False,
-        dup: bool = False,
-        packet_id: int = 0,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.topic = topic
-        self.payload = payload
-        self.qos = qos
-        self.retain = retain
-        self.dup = dup
-        self.packet_id = packet_id
-        self.properties = properties if properties is not None else {}
+    topic: str = ""
+    payload: bytes = b""
+    qos: int = 0
+    retain: bool = False
+    packet_id: int = 0
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    dup: bool = False
 
     def __hash__(self) -> int:
         return hash((
@@ -158,20 +147,12 @@ def _decode_puback_common(packet_type: int, data: bytes) -> tuple[int, int, MQTT
     return packet_id, reason_code, props
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType["PUBACK"]
-    __slots__ = ("properties", "packet_id", "reason_code",)
-
-    def __init__(
-        self,
-        packet_id: int,
-        reason_code: int = MQTTReasonCode["Success"],
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.packet_id = packet_id
-        self.reason_code = reason_code
-        self.properties = properties if properties is not None else {}
+    packet_id: int
+    reason_code: int = MQTTReasonCode["Success"]
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
@@ -200,20 +181,12 @@ class MQTTPubAckPacket(MQTTPacket):
         return MQTTPubAckPacket(packet_id, reason_code, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubRecPacket(MQTTPacket):
     packet_type = MQTTPacketType["PUBREC"]
-    __slots__ = ("properties", "packet_id", "reason_code",)
-
-    def __init__(
-        self,
-        packet_id: int,
-        reason_code: int = MQTTReasonCode["Success"],
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.packet_id = packet_id
-        self.reason_code = reason_code
-        self.properties = properties if properties is not None else {}
+    packet_id: int = 0
+    reason_code: int = MQTTReasonCode["Success"]
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
@@ -242,20 +215,12 @@ class MQTTPubRecPacket(MQTTPacket):
         return MQTTPubRecPacket(packet_id, reason_code, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubRelPacket(MQTTPacket):
     packet_type = MQTTPacketType["PUBREL"]
-    __slots__ = ("properties", "packet_id", "reason_code",)
-
-    def __init__(
-        self,
-        packet_id: int,
-        reason_code: int = MQTTReasonCode["Success"],
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.packet_id = packet_id
-        self.reason_code = reason_code
-        self.properties = properties if properties is not None else {}
+    packet_id: int = 0
+    reason_code: int = MQTTReasonCode["Success"]
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((
@@ -284,20 +249,12 @@ class MQTTPubRelPacket(MQTTPacket):
         return MQTTPubRelPacket(packet_id, reason_code, properties=props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubCompPacket(MQTTPacket):
     packet_type = MQTTPacketType["PUBCOMP"]
-    __slots__ = ("properties", "packet_id", "reason_code",)
-
-    def __init__(
-        self,
-        packet_id: int,
-        reason_code: int = MQTTReasonCode["Success"],
-        *,
-        properties: MQTTPropertyDict | None = None,
-    ):
-        self.packet_id = packet_id
-        self.reason_code = reason_code
-        self.properties = properties if properties is not None else {}
+    packet_id: int = 0
+    reason_code: int = MQTTReasonCode["Success"]
+    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __hash__(self) -> int:
         return hash((

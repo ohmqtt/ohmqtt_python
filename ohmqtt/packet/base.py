@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from typing import Sequence
+from typing import ClassVar, Sequence
 
 
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
-    packet_type: int
+    packet_type: ClassVar[int]
     __slots__: Sequence[str] = tuple()
 
     def __eq__(self, other: object) -> bool:
