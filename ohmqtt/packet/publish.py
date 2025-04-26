@@ -79,8 +79,7 @@ class MQTTPublishPacket(MQTTPacket):
         return f"PUBLISH[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
-        encoded = bytearray()
-        encoded.extend(encode_string(self.topic))
+        encoded = bytearray(encode_string(self.topic))
         if self.qos > 0:
             encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
         if self.properties:
