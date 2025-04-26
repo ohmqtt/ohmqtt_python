@@ -140,10 +140,13 @@ class Connection:
             return
 
         # We have a complete packet, decode it and clear the read buffer.
-        packet = decode_packet_from_parts(self._partial_head, bytes(self._partial_data))
+        # Reset the partial state first, in case of decoding errors.
+        packet_data = bytes(self._partial_data)
+        packet_head = self._partial_head
         self._partial_head = -1
         self._partial_length = InitVarintDecodeState
         self._partial_data.clear()
+        packet = decode_packet_from_parts(packet_head, packet_data)
 
         # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType["PINGRESP"]:
