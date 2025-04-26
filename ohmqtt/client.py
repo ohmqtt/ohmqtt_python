@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Final
 
 from .logger import get_logger
@@ -9,6 +12,17 @@ from .subscriptions import Subscriptions, SubscribeCallback
 
 logger: Final = get_logger("client")
 
+
+@dataclass(match_args=True, slots=True, frozen=True)
+class SubscriptionHandle:
+    """Represents a subscription to a topic filter with a callback."""
+    topic_filter: str
+    callback: SubscribeCallback
+    _client: Client
+
+    def unsubscribe(self) -> None:
+        """Unsubscribe from the topic filter."""
+        self._client.unsubscribe(self.topic_filter, self.callback)
 
 
 class Client:
@@ -53,10 +67,15 @@ class Client:
         callback: SubscribeCallback,
         qos: int = 2,
         properties: MQTTPropertyDict | None = None,
-    ) -> None:
+    ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
         self.subscriptions.add(topic_filter, callback)
         self.session.subscribe(topic_filter, qos=qos, properties=properties)
+        return SubscriptionHandle(
+            topic_filter=topic_filter,
+            callback=callback,
+            _client=self,
+        )
 
     def unsubscribe(self, topic_filter: str, callback: SubscribeCallback | None = None) -> None:
         """Unsubscribe from a topic filter.

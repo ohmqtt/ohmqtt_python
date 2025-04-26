@@ -37,7 +37,7 @@ def test_client_happy_path(MockSession, mock_session):
     mock_session.connect.assert_called_once_with("localhost", 1883, keepalive_interval=123)
     mock_session.connect.reset_mock()
 
-    client.subscribe("test/+", lambda m: received.append(m))
+    sub_handle = client.subscribe("test/+", lambda m: received.append(m))
     mock_session.subscribe.assert_called_once_with("test/+", qos=2, properties=None)
     mock_session.subscribe.reset_mock()
 
@@ -55,7 +55,7 @@ def test_client_happy_path(MockSession, mock_session):
     client.on_message(packet)
     assert len(received) == 0
 
-    client.unsubscribe("test/+")
+    sub_handle.unsubscribe()
     mock_session.unsubscribe.assert_called_once_with("test/+")
     mock_session.unsubscribe.reset_mock()
 
