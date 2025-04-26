@@ -128,22 +128,13 @@ def _encode_puback_common(
     packet: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubRelPacket | MQTTPubCompPacket,
 ) -> bytes:
     """Common encoding logic for PUBACK, PUBREC, PUBREL, and PUBCOMP packets."""
-    encoded = bytearray()
-    length = 2
-    has_reason_code = packet.reason_code != MQTTReasonCode["Success"]
-    has_properties = bool(packet.properties)
-    if has_reason_code:
-        length += 1
-    if has_properties:
-        props = encode_properties(packet.properties)
-        length += len(props)
-    encoded.append(head)
-    encoded.extend(encode_varint(length))
-    encoded.extend(packet.packet_id.to_bytes(2, byteorder="big"))
-    if has_reason_code:
-        encoded.extend(packet.reason_code.to_bytes(1, byteorder="big"))
-    if has_properties:
-        encoded.extend(props)
+    encoded = bytearray(packet.packet_id.to_bytes(2, byteorder="big"))
+    if packet.reason_code != MQTTReasonCode["Success"]:
+        encoded.append(packet.reason_code)
+    if packet.properties:
+        encoded.extend(encode_properties(packet.properties))
+    encoded[0:0] = encode_varint(len(encoded))
+    encoded.insert(0, head)
     return bytes(encoded)
 
 
