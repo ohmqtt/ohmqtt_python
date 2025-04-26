@@ -136,7 +136,6 @@ class SocketWrapper(threading.Thread):
         """Run the TLS handshake in a loop until it is complete."""
         assert self._tls_context is not None
         self.sock = self._tls_context.wrap_socket(self.sock, server_hostname=self._tls_hostname, do_handshake_on_connect=False)
-        self.sock.setblocking(False)
         while not self._closing:
             try:
                 self.sock.do_handshake()
@@ -193,15 +192,15 @@ class SocketWrapper(threading.Thread):
     def run(self) -> None:
         try:
             self.sock.connect((self.host, self.port))
+            self.sock.setblocking(False)
 
             if self._use_tls:
                 self._handshake_loop()
-            else:
-                self.sock.setblocking(False)
             if not self._closing:
                 self._open_callback()
-            self._last_recv = time.monotonic()
-            self._last_send = self._last_recv
+
+            self._last_send = time.monotonic()
+            self._last_recv = self._last_send
 
             while not self._closing:
                 next_timeout = self._get_next_timeout()
