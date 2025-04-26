@@ -1,6 +1,8 @@
 from typing import Final
 
 from .logger import get_logger
+from .message import MQTTMessage
+from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback
@@ -68,11 +70,23 @@ class Client:
         if remaining == 0:
             self.session.unsubscribe(topic_filter)
 
-    def on_message(self, session: Session, topic: str, payload: bytes, properties: MQTTPropertyDict) -> None:
+    def on_message(self, packet: MQTTPublishPacket) -> None:
         """Callback for when a message is received."""
-        callbacks = self.subscriptions.get_callbacks(topic)
+        callbacks = self.subscriptions.get_callbacks(packet.topic)
+        if not callbacks:
+            logger.debug(f"No callbacks for topic: {packet.topic}")
+            return
+        message = MQTTMessage(
+            topic=packet.topic,
+            payload=packet.payload,
+            qos=packet.qos,
+            packet_id=packet.packet_id,
+            retain=packet.retain,
+            dup=packet.dup,
+            properties=packet.properties,
+        )
         for callback in callbacks:
             try:
-                callback(topic, payload, properties)
+                callback(message)
             except Exception:
-                logger.exception(f"Unhandled error in subscribe callback for topic: {topic}")
+                logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {message.topic}")

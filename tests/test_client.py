@@ -1,6 +1,7 @@
 import pytest
 
 from ohmqtt.client import Client
+from ohmqtt.packet import MQTTPublishPacket
 from ohmqtt.session import Session
 
 
@@ -36,25 +37,30 @@ def test_client_happy_path(MockSession, mock_session):
     mock_session.connect.assert_called_once_with("localhost", 1883, keepalive_interval=123)
     mock_session.connect.reset_mock()
 
-    client.subscribe("test/+", lambda t, p, pr: received.append((t, p, pr)))
+    client.subscribe("test/+", lambda m: received.append(m))
     mock_session.subscribe.assert_called_once_with("test/+", qos=2, properties=None)
     mock_session.subscribe.reset_mock()
 
-    client.on_message(client.session, "test/topic", b"test_payload", None)
+    packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test_payload",
+    )
+    client.on_message(packet)
     assert len(received) == 1
-    assert received[0][0] == "test/topic"
-    assert received[0][1] == b"test_payload"
-    assert received[0][2] is None
+    assert received[0].topic == packet.topic
+    assert received[0].payload == packet.payload
     received.clear()
 
-    client.on_message(client.session, "foo/bar", b"test_payload", None)
+    packet.topic = "foo/bar"
+    client.on_message(packet)
     assert len(received) == 0
 
     client.unsubscribe("test/+")
     mock_session.unsubscribe.assert_called_once_with("test/+")
     mock_session.unsubscribe.reset_mock()
 
-    client.on_message(client.session, "test/topic", b"test_payload", None)
+    packet.topic = "test/topic"
+    client.on_message(packet)
     assert len(received) == 0
 
     client.publish("test/topic", b"test_payload")
@@ -79,38 +85,47 @@ def test_client_unsubscribe_untracked(MockSession, mock_session):
 
 def test_client_subscribe_callback_error(MockSession, mock_session):
     """Test that an error in the subscribe callback is not raised."""
-    def error_callback(topic, payload, properties):
+    def error_callback(_):
         raise ValueError("Test error")
 
     client = Client(client_id="test_client")
     client.connect("localhost", 1883)
     client.subscribe("test/+", error_callback)
 
+    packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test_payload",
+    )
+
     # Must not raise an Exception.
-    client.on_message(client.session, "test/topic", b"test_payload", None)
+    client.on_message(packet)
 
 
 def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
     """Test that unsubscribing a callback works as expected."""
     received = []
 
-    callback1 = lambda t, p, pr: received.append((t, p, pr))
-    callback2 = lambda t, p, pr: received.append((t, p, pr))
+    callback1 = lambda m: received.append(m)
+    callback2 = lambda m: received.append(m)
 
     client = Client(client_id="test_client")
     client.connect("localhost", 1883)
     client.subscribe("test/+", callback1)
     client.subscribe("test/+", callback2)
 
-    client.on_message(client.session, "test/topic", b"test_payload", None)
+    packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test_payload",
+    )
+    client.on_message(packet)
     assert len(received) == 2
     received.clear()
 
     client.unsubscribe("test/+", callback1)
-    client.on_message(client.session, "test/topic", b"test_payload", None)
+    client.on_message(packet)
     assert len(received) == 1
     received.clear()
 
     client.unsubscribe("test/+", callback2)
-    client.on_message(client.session, "test/topic", b"test_payload", None)
+    client.on_message(packet)
     assert len(received) == 0

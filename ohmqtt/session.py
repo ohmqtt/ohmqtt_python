@@ -44,7 +44,7 @@ SessionAuthCallback = Callable[
 ]
 SessionCloseCallback = Callable[["Session"], None]
 SessionOpenCallback = Callable[["Session"], None]
-SessionMessageCallback = Callable[["Session", str, bytes, MQTTPropertyDict], None]
+SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 
 
 class Session:
@@ -234,10 +234,11 @@ class Session:
         elif packet.qos == 2:
             rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
             self._send_packet(rec_packet)
-        # Calling the message callback must be the last thing we do with the packet.
+        # Calling the message callback MUST be the last thing we do with the packet.
+        # Otherwise users might mutate the properties before we process them.
         if self.message_callback is not None:
             try:
-                self.message_callback(self, packet.topic, packet.payload, packet.properties)
+                self.message_callback(packet)
             except Exception:
                 logger.exception("Unhandled exception in message callback")
 

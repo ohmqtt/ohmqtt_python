@@ -38,12 +38,8 @@ def expect_from_session(MockConnection, mock_connection, packet_type) -> MQTTPac
     return packet
 
 
-def expect_message_from_session(callbacks, session, publish_packet) -> None:
-    callbacks["message"].assert_called_once()
-    assert callbacks["message"].call_args[0][0] == session
-    assert callbacks["message"].call_args[0][1] == publish_packet.topic
-    assert callbacks["message"].call_args[0][2] == publish_packet.payload
-    assert callbacks["message"].call_args[0][3] == publish_packet.properties
+def expect_message_from_session(callbacks, publish_packet) -> None:
+    callbacks["message"].assert_called_once_with(publish_packet)
     callbacks["message"].reset_mock()
 
 
@@ -126,7 +122,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
 
         # We should receive a message.
         send_to_session(MockConnection, mock_connection, publish_packet)
-        expect_message_from_session(callbacks, session, publish_packet)
+        expect_message_from_session(callbacks, publish_packet)
 
         # PUBLISH a message with qos 1.
         session.publish("topic", b"message 1", qos=1)
@@ -145,7 +141,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
 
         # We should receive a message.
         send_to_session(MockConnection, mock_connection, publish_packet)
-        expect_message_from_session(callbacks, session, publish_packet)
+        expect_message_from_session(callbacks, publish_packet)
 
         # Session should send a PUBACK packet.
         puback_packet = expect_from_session(MockConnection, mock_connection, MQTTPubAckPacket)
@@ -181,7 +177,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
 
         # We should receive a message.
         send_to_session(MockConnection, mock_connection, publish_packet)
-        expect_message_from_session(callbacks, session, publish_packet)
+        expect_message_from_session(callbacks, publish_packet)
 
         # Session should send a PUBREC packet.
         pubrec_packet = expect_from_session(MockConnection, mock_connection, MQTTPubRecPacket)

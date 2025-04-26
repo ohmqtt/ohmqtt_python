@@ -1,10 +1,10 @@
 from typing import Callable
 
-from .property import MQTTPropertyDict
+from .message import MQTTMessage
 from .topic_filter import MQTTTopicFilter
 
 
-SubscribeCallback = Callable[[str, bytes, MQTTPropertyDict], None]
+SubscribeCallback = Callable[[MQTTMessage], None]
 
 
 class Subscriptions:
