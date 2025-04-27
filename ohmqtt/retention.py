@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from collections import deque
 from dataclasses import dataclass, field
-import itertools
 import threading
 from typing import ClassVar, Final, Sequence
 
@@ -78,7 +78,6 @@ class RetainedMessage:
     properties: MQTTPropertyDict
     dup: bool
     received: bool
-    inflight: bool
     handle: ReliablePublishHandle
 
 
@@ -87,6 +86,7 @@ class MessageRetention:
     """Container for retained messages in the session."""
     next_packet_id: int = field(default=1, init=False)
     messages: dict[int, RetainedMessage] = field(init=False, default_factory=dict)
+    _pending: deque[int] = field(init=False, default_factory=deque)
     _cond: threading.Condition = field(init=False, default_factory=threading.Condition)
 
     def add(
@@ -100,7 +100,6 @@ class MessageRetention:
         packet_id: int = 0,
         dup: bool = False,
         received: bool = False,
-        inflight: bool = False,
     ) -> ReliablePublishHandle:
         """Add a PUBLISH message to the retention store."""
         if packet_id == 0:
@@ -123,15 +122,16 @@ class MessageRetention:
             properties=properties,
             dup=dup,
             received=received,
-            inflight=inflight,
             handle=handle,
         )
         self.messages[packet_id] = message
+        self._pending.append(packet_id)
         return handle
 
     def get(self, count: int) -> Sequence[RetainedMessage]:
         """Get some messages from the store."""
-        return [x for x in itertools.islice((m for m in self.messages.values() if not m.inflight), count)]
+        pending_slice = [self._pending[i] for i in range(min(count, len(self._pending)))]
+        return [self.messages[i] for i in pending_slice]
 
     def ack(self, packet_id: int) -> None:
         """Ack a PUBLISH message in the retention store."""
@@ -147,7 +147,8 @@ class MessageRetention:
                 message.handle.acked = True
                 self._cond.notify_all()
         else:
-            message.inflight = False
+            # Prioritize PUBREL over PUBLISH
+            self._pending.appendleft(packet_id)
             message.received = True
 
     def render(self, msg: RetainedMessage) -> MQTTPacket:
@@ -168,12 +169,13 @@ class MessageRetention:
                 properties=msg.properties,
                 dup=msg.dup,
             )
-        msg.inflight = True
+        if self._pending.popleft() != msg.packet_id:
+            raise RuntimeError(f"Packet ID {msg.packet_id} was not first in pending list")
         return packet
 
     def reset(self) -> None:
         """Reset inflight state for all retained messages."""
-        for message in self.messages.values():
-            if message.inflight:
-                message.dup = True
-            message.inflight = False
+        inflight = [i for i in self.messages.keys() if i not in self._pending]
+        for packet_id in reversed(inflight):
+            self.messages[packet_id].dup = True
+            self._pending.appendleft(packet_id)
