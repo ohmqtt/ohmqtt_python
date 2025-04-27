@@ -73,6 +73,7 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
         assert packet != b"not a packet"
         assert str(packet) == str(decoded)
         assert not hasattr(packet, "__dict__")
+        assert all(hasattr(packet, attr) for attr in packet.__slots__)
         with pytest.raises(TypeError):
             hash(packet)
 

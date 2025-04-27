@@ -147,3 +147,4 @@ def test_client_slots(MockSession, mock_session):
     """Test that the client slots are set correctly."""
     client = Client(client_id="test_client")
     assert not hasattr(client, "__dict__")
+    assert all(hasattr(client, attr) for attr in client.__slots__)

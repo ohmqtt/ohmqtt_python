@@ -199,3 +199,4 @@ def test_connection_slots(callbacks, mocker):
         read_callback=callbacks.read_callback,
     )
     assert not hasattr(connection, "__dict__")
+    assert all(hasattr(connection, attr) for attr in connection.__slots__)

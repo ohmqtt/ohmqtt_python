@@ -6,6 +6,7 @@ from ohmqtt.topic_filter import MQTTTopicFilter
 def test_topic_filter_slots():
     filter = MQTTTopicFilter("sport/tennis/player1")
     assert not hasattr(filter, "__dict__")
+    assert all(hasattr(filter, attr) for attr in filter.__slots__)
 
 def test_topic_filter_empty_filter():
     with pytest.raises(ValueError):

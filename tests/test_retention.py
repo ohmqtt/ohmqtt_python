@@ -12,6 +12,7 @@ def test_retention_unreliable_publish_handle():
     assert handle.wait_for_ack(timeout=1) is False
 
     assert not hasattr(handle, "__dict__")
+    assert all(hasattr(handle, attr) for attr in handle.__slots__)
 
 
 def test_retention_reliable_publish_handle():
@@ -34,3 +35,4 @@ def test_retention_reliable_publish_handle():
     thread.join()
 
     assert not hasattr(handle, "__dict__")
+    assert all(hasattr(handle, attr) for attr in handle.__slots__)

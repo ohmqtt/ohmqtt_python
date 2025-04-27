@@ -36,3 +36,4 @@ def test_subscriptions():
     assert subscriptions.get_callbacks("test/topic") == frozenset()
 
     assert not hasattr(subscriptions, "__dict__")
+    assert all(hasattr(subscriptions, attr) for attr in subscriptions.__slots__)

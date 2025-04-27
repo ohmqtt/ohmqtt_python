@@ -210,6 +210,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
     send_to_session(MockConnection, mock_connection, unsuback_packet)
 
     assert not hasattr(session, "__dict__")
+    assert all(hasattr(session, attr) for attr in session.__slots__)
 
     session.disconnect()
     mock_connection.disconnect.assert_called_once()
