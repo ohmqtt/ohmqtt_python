@@ -64,7 +64,6 @@ class SocketWrapper(threading.Thread):
         "_reconnect_delay",
         "_state",
     )
-    sock: socket.socket | ssl.SSLSocket
 
     def __init__(
         self,
