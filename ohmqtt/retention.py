@@ -152,7 +152,7 @@ class MessageRetention:
 
     def get(self, count: int) -> Sequence[RetainedMessage]:
         """Get some messages from the store."""
-        return tuple(itertools.islice((m for m in self.messages.values() if not m.inflight), count))
+        return [x for x in itertools.islice((m for m in self.messages.values() if not m.inflight), count)]
 
     def ack(self, packet_id: int) -> None:
         """Ack a PUBLISH message in the retention store."""
