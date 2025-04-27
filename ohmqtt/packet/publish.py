@@ -12,7 +12,6 @@ from ..property import (
     MQTTPropertyDict,
     decode_properties,
     encode_properties,
-    hash_properties,
     validate_properties,
 )
 from ..serialization import (
@@ -50,18 +49,6 @@ class MQTTPublishPacket(MQTTPacket):
     packet_id: int = 0
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
     dup: bool = False
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.topic,
-            self.payload,
-            self.qos,
-            self.retain,
-            self.dup,
-            self.packet_id,
-            hash_properties(self.properties),
-        ))
 
     def __str__(self) -> str:
         attrs = [
@@ -126,14 +113,6 @@ class MQTTPubAckPacket(MQTTPacket):
     reason_code: int = MQTTReasonCode["Success"]
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
-
     def __str__(self) -> str:
         attrs = [
             f"packet_id={self.packet_id}",
@@ -175,13 +154,16 @@ class MQTTPubAckPacket(MQTTPacket):
         return cls(packet_id, reason_code, props)
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubRecPacket(MQTTPubAckPacket):
     packet_type = MQTTPacketType["PUBREC"]
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubRelPacket(MQTTPubAckPacket):
     packet_type = MQTTPacketType["PUBREL"]
 
 
+@dataclass(match_args=True, slots=True)
 class MQTTPubCompPacket(MQTTPubAckPacket):
     packet_type = MQTTPacketType["PUBCOMP"]

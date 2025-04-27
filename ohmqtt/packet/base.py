@@ -15,10 +15,6 @@ class MQTTPacket(metaclass=ABCMeta):
         return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
 
     @abstractmethod
-    def __hash__(self) -> int:
-        ...  # pragma: no cover
-
-    @abstractmethod
     def __str__(self) -> str:
         ...  # pragma: no cover
 

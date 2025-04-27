@@ -71,8 +71,10 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
         assert packet == packet
         assert packet == decoded
         assert packet != b"not a packet"
-        assert hash(packet) == hash(decoded)
         assert str(packet) == str(decoded)
+        assert not hasattr(packet, "__dict__")
+        with pytest.raises(TypeError):
+            hash(packet)
 
 
 def run_decode_error_cases(test_data):
@@ -187,7 +189,9 @@ def test_packet_pingreq_packet():
     assert type(decoded) is MQTTPingReqPacket
     assert packet == decoded
     assert str(packet) == str(decoded)
-    assert hash(packet) == hash(decoded)
+    assert not hasattr(packet, "__dict__")
+    with pytest.raises(TypeError):
+        hash(packet)
 
     with pytest.raises(MQTTError):
         decode_packet(b"\xc0")
@@ -207,7 +211,9 @@ def test_packet_pingresp_packet():
     assert type(decoded) is MQTTPingRespPacket
     assert packet == decoded
     assert str(packet) == str(decoded)
-    assert hash(packet) == hash(decoded)
+    assert not hasattr(packet, "__dict__")
+    with pytest.raises(TypeError):
+        hash(packet)
 
     with pytest.raises(MQTTError):
         decode_packet(b"\xd0")

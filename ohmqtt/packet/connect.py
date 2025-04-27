@@ -11,7 +11,6 @@ from ..property import (
     MQTTPropertyDict,
     decode_properties,
     encode_properties,
-    hash_properties,
     validate_properties,
 )
 from ..serialization import (
@@ -49,23 +48,6 @@ class MQTTConnectPacket(MQTTPacket):
     username: str | None = None
     password: bytes | None = None
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.client_id,
-            self.keep_alive,
-            self.protocol_version,
-            self.clean_start,
-            self.will_topic,
-            self.will_payload,
-            self.will_qos,
-            self.will_retain,
-            self.username,
-            self.password,
-            hash_properties(self.properties),
-            hash_properties(self.will_props),
-        ))
 
     def __str__(self) -> str:
         attrs = [
@@ -207,14 +189,6 @@ class MQTTConnAckPacket(MQTTPacket):
     session_present: bool = False
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.session_present,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
-
     def __str__(self) -> str:
         attrs = [
             f"reason_code={self.reason_code}",
@@ -245,13 +219,6 @@ class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType["DISCONNECT"]
     reason_code: int = MQTTReasonCode["Success"]
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
 
     def __str__(self) -> str:
         attrs = [

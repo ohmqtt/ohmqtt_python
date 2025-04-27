@@ -6,6 +6,7 @@ from ohmqtt.topic_filter import MQTTTopicFilter
 def test_topic_filter_properties():
     filter = MQTTTopicFilter("sport/tennis/player1")
     assert filter.topic_filter == "sport/tennis/player1"
+    assert not hasattr(filter, "__dict__")
 
 def test_topic_filter_empty_filter():
     with pytest.raises(ValueError):

@@ -14,11 +14,6 @@ from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 class MQTTPingReqPacket(MQTTPacket):
     packet_type = MQTTPacketType["PINGREQ"]
 
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-        ))
-
     def __str__(self) -> str:
         return "PINGREQ[]"
 
@@ -34,13 +29,9 @@ class MQTTPingReqPacket(MQTTPacket):
         return MQTTPingReqPacket()
     
 
+@dataclass(match_args=True, slots=True)
 class MQTTPingRespPacket(MQTTPacket):
     packet_type = MQTTPacketType["PINGRESP"]
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-        ))
 
     def __str__(self) -> str:
         return "PINGRESP[]"

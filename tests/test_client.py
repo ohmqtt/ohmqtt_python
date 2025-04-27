@@ -129,3 +129,9 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
     client.unsubscribe("test/+", callback2)
     client.on_message(packet)
     assert len(received) == 0
+
+
+def test_client_slots(MockSession, mock_session):
+    """Test that the client slots are set correctly."""
+    client = Client(client_id="test_client")
+    assert not hasattr(client, "__dict__")

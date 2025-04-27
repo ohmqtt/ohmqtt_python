@@ -35,3 +35,4 @@ def test_subscriptions():
     subscriptions.remove_all("test/topic")
     assert subscriptions.get_callbacks("test/topic") == frozenset()
 
+    assert not hasattr(subscriptions, "__dict__")

@@ -11,6 +11,8 @@ def test_retention_unreliable_publish_handle():
     assert handle.wait_for_ack() is False
     assert handle.wait_for_ack(timeout=1) is False
 
+    assert not hasattr(handle, "__dict__")
+
 
 def test_retention_reliable_publish_handle():
     """Test the ReliablePublishHandle class."""
@@ -30,3 +32,5 @@ def test_retention_reliable_publish_handle():
     assert handle.wait_for_ack(timeout=1) is True
     assert handle.is_acked() is True
     thread.join()
+
+    assert not hasattr(handle, "__dict__")

@@ -12,7 +12,6 @@ from ..property import (
     MQTTPropertyDict,
     encode_properties,
     decode_properties,
-    hash_properties,
     validate_properties,
 )
 from ..serialization import (
@@ -37,14 +36,6 @@ class MQTTSubscribePacket(MQTTPacket):
     topics: Sequence[tuple[str, int]] = field(default_factory=tuple)
     packet_id: int = 0
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            tuple(self.topics),
-            hash_properties(self.properties),
-        ))
 
     def __str__(self) -> str:
         attrs = [
@@ -93,14 +84,6 @@ class MQTTSubAckPacket(MQTTPacket):
     reason_codes: Sequence[int] = field(default_factory=tuple)
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            tuple(self.reason_codes),
-            hash_properties(self.properties),
-        ))
-
     def __str__(self) -> str:
         attrs = [
             f"packet_id={self.packet_id}",
@@ -143,14 +126,6 @@ class MQTTUnsubscribePacket(MQTTPacket):
     topics: Sequence[str] = field(default_factory=tuple)
     packet_id: int = 0
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            tuple(self.topics),
-            hash_properties(self.properties),
-        ))
 
     def __str__(self) -> str:
         attrs = [
@@ -195,14 +170,6 @@ class MQTTUnsubAckPacket(MQTTPacket):
     packet_id: int
     reason_codes: Sequence[int] = field(default_factory=tuple)
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.packet_id,
-            tuple(self.reason_codes),
-            hash_properties(self.properties),
-        ))
 
     def __str__(self) -> str:
         attrs = [

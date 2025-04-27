@@ -179,3 +179,16 @@ def test_connection_garbage_read(callbacks, mocker, loopback_socket):
     loopback_socket.test_sendall(encoded)
     with pytest.raises(MQTTError):
         connection._read_packet(loopback_socket)
+
+
+def test_connection_slots(callbacks, mocker):
+    mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
+    mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
+    connection = Connection(
+        "localhost",
+        1883,
+        close_callback=callbacks.close_callback,
+        open_callback=callbacks.open_callback,
+        read_callback=callbacks.read_callback,
+    )
+    assert not hasattr(connection, "__dict__")

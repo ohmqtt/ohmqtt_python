@@ -11,7 +11,6 @@ from ..property import (
     MQTTPropertyDict,
     encode_properties,
     decode_properties,
-    hash_properties,
     validate_properties,
 )
 from ..serialization import (
@@ -27,13 +26,6 @@ class MQTTAuthPacket(MQTTPacket):
     packet_type = MQTTPacketType["AUTH"]
     reason_code: int = MQTTReasonCode["Success"]
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-
-    def __hash__(self) -> int:
-        return hash((
-            self.packet_type,
-            self.reason_code,
-            hash_properties(self.properties),
-        ))
 
     def __str__(self) -> str:
         attrs = [

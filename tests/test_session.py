@@ -209,5 +209,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
         )
         send_to_session(MockConnection, mock_connection, unsuback_packet)
 
+        assert not hasattr(session, "__dict__")
+
     # Leaving the context manager should call disconnect.
     mock_connection.close.assert_called_once()
