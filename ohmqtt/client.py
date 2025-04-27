@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import threading
 from typing import Final
 
 from .logger import get_logger
@@ -28,7 +29,13 @@ class SubscriptionHandle:
 
 class Client:
     """High level interface for the MQTT client."""
-    __slots__ = ("client_id", "keepalive_interval", "session", "subscriptions")
+    __slots__ = (
+        "client_id",
+        "keepalive_interval",
+        "session",
+        "subscriptions",
+        "_is_connected",
+    )
     client_id: str
     keepalive_interval: int
     session: Session
@@ -45,11 +52,37 @@ class Client:
         self.subscriptions = Subscriptions()
         self.session = Session(
             client_id,
-            message_callback=self.on_message,
+            close_callback=self._handle_close,
+            message_callback=self._handle_message,
+            open_callback=self._handle_open,
         )
+        self._is_connected = threading.Event()
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if the client is connected to the broker."""
+        return self._is_connected.is_set()
 
     def connect(self, host: str, port: int) -> None:
+        """Connect to the broker."""
         self.session.connect(host, port, keepalive_interval=self.keepalive_interval)
+
+    def disconnect(self) -> None:
+        """Disconnect from the broker."""
+        self.session.disconnect()
+
+    def wait_for_connect(self, timeout: float | None = None) -> None:
+        """Wait for the client to connect to the broker.
+
+        Raises TimeoutError if the timeout is exceeded."""
+        if not self._is_connected.wait(timeout):
+            raise TimeoutError("Connection timed out")
+
+    def wait_for_disconnect(self, timeout: float | None = None) -> None:
+        """Wait for the client to disconnect from the broker.
+
+        Raises TimeoutError if the timeout is exceeded."""
+        self.session.wait_for_disconnect(timeout)
 
     def publish(
         self,
@@ -90,7 +123,7 @@ class Client:
         if remaining == 0:
             self.session.unsubscribe(topic_filter)
 
-    def on_message(self, packet: MQTTPublishPacket) -> None:
+    def _handle_message(self, packet: MQTTPublishPacket) -> None:
         """Callback for when a message is received."""
         callbacks = self.subscriptions.get_callbacks(packet.topic)
         if not callbacks:
@@ -110,3 +143,12 @@ class Client:
                 callback(message)
             except Exception:
                 logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {message.topic}")
+
+    def _handle_open(self) -> None:
+        """Callback for when the connection is opened."""
+        self._is_connected.set()
+
+    def _handle_close(self) -> None:
+        """Callback for when the connection is closed."""
+        self._is_connected.clear()
+        self.subscriptions.clear()

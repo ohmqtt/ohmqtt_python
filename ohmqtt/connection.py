@@ -63,11 +63,19 @@ class Connection:
         """Send data to the broker."""
         self.sock.send(data)
 
+    def wait_for_disconnect(self, timeout: float | None = None) -> None:
+        """Wait for the connection to close.
+
+        Raises TimeoutError if the timeout is exceeded."""
+        self.sock.join(timeout=timeout)
+        if self.sock.is_alive():
+            raise TimeoutError("Connection timed out")
+
     def _keepalive_callback(self, sock: SocketWrapper) -> None:
         """Called by the socket wrapper when a keepalive is due."""
         sock.send(PING)
         sock.ping_sent()
-        logger.debug("---> ping")
+        logger.debug("---> PING")
 
     def _read_packet(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Called by the underlying SocketWrapper when the socket is ready to read.
@@ -82,10 +90,10 @@ class Connection:
         # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType["PINGRESP"]:
             self.sock.pong_received()
-            logger.debug("<--- pong")
+            logger.debug("<--- PONG")
         elif packet.packet_type == MQTTPacketType["PINGREQ"]:
             self.sock.send(PONG)
-            logger.debug("<--- ping pong --->")
+            logger.debug("<--- PING PONG --->")
         else:
             # All non-ping packets are passed to the read callback.
             self._read_callback(packet)

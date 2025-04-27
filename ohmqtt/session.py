@@ -12,6 +12,7 @@ from .packet import (
     MQTTPacket,
     MQTTConnectPacket,
     MQTTConnAckPacket,
+    MQTTDisconnectPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
     MQTTPubRecPacket,
@@ -42,8 +43,8 @@ SessionAuthCallback = Callable[
     ],
     None,
 ]
-SessionCloseCallback = Callable[["Session"], None]
-SessionOpenCallback = Callable[["Session"], None]
+SessionCloseCallback = Callable[[], None]
+SessionOpenCallback = Callable[[], None]
 SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 
 
@@ -140,7 +141,7 @@ class Session:
             self._retention.reset()
         if self.close_callback is not None:
             try:
-                self.close_callback(self)
+                self.close_callback()
             except MQTTError:
                 raise
             except Exception:
@@ -170,7 +171,7 @@ class Session:
             self._flush()
         try:
             if self.open_callback is not None:
-                self.open_callback(self)
+                self.open_callback()
         except MQTTError:
             raise
         except Exception:
@@ -294,7 +295,18 @@ class Session:
     def disconnect(self) -> None:
         """Disconnect from the server."""
         if self.connection is not None:
+            packet = MQTTDisconnectPacket()
+            self._send_packet(packet)
             self.connection.close()
+
+    def wait_for_disconnect(self, timeout: float | None = None) -> None:
+        """Wait for the session to disconnect from the server.
+
+        Raises TimeoutError if the timeout is exceeded."""
+        if self.connection is not None:
+            self.connection.wait_for_disconnect(timeout)
+        else:
+            return
 
     def publish(
         self,

@@ -76,7 +76,7 @@ def test_session_happy_path(client_id, callbacks, mocker):
             connack_props["AssignedClientIdentifier"] = "assigned_client_id"
         connack_packet = MQTTConnAckPacket(properties=connack_props)
         send_to_session(MockConnection, mock_connection, connack_packet)
-        callbacks["open"].assert_called_once_with(session)
+        callbacks["open"].assert_called_once_with()
         callbacks["open"].reset_mock()
 
         # Server sends an AUTH packet to the Session.

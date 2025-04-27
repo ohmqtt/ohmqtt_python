@@ -49,3 +49,7 @@ class Subscriptions:
             if filter_obj.match(topic):
                 callbacks.update(filter_callbacks)
         return frozenset(callbacks)
+
+    def clear(self) -> None:
+        """Clear all subscriptions."""
+        self._subscriptions.clear()

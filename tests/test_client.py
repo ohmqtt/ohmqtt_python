@@ -23,7 +23,9 @@ def test_client_happy_path(MockSession, mock_session):
     client = Client(client_id="test_client", keepalive_interval=123)
     MockSession.assert_called_once_with(
         "test_client",
-        message_callback=client.on_message,
+        close_callback=client._handle_close,
+        message_callback=client._handle_message,
+        open_callback=client._handle_open,
     )
     assert client.client_id == "test_client"
     assert client.session == mock_session
@@ -45,14 +47,14 @@ def test_client_happy_path(MockSession, mock_session):
         topic="test/topic",
         payload=b"test_payload",
     )
-    client.on_message(packet)
+    client._handle_message(packet)
     assert len(received) == 1
     assert received[0].topic == packet.topic
     assert received[0].payload == packet.payload
     received.clear()
 
     packet.topic = "foo/bar"
-    client.on_message(packet)
+    client._handle_message(packet)
     assert len(received) == 0
 
     sub_handle.unsubscribe()
@@ -60,7 +62,7 @@ def test_client_happy_path(MockSession, mock_session):
     mock_session.unsubscribe.reset_mock()
 
     packet.topic = "test/topic"
-    client.on_message(packet)
+    client._handle_message(packet)
     assert len(received) == 0
 
     client.publish("test/topic", b"test_payload")
@@ -98,7 +100,7 @@ def test_client_subscribe_callback_error(MockSession, mock_session):
     )
 
     # Must not raise an Exception.
-    client.on_message(packet)
+    client._handle_message(packet)
 
 
 def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
@@ -117,17 +119,17 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
         topic="test/topic",
         payload=b"test_payload",
     )
-    client.on_message(packet)
+    client._handle_message(packet)
     assert len(received) == 2
     received.clear()
 
     client.unsubscribe("test/+", callback1)
-    client.on_message(packet)
+    client._handle_message(packet)
     assert len(received) == 1
     received.clear()
 
     client.unsubscribe("test/+", callback2)
-    client.on_message(packet)
+    client._handle_message(packet)
     assert len(received) == 0
 
 

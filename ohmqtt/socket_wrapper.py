@@ -23,6 +23,9 @@ class SocketWrapperCloseCondition(Exception):
 class SocketWrapper(threading.Thread):
     """Non-blocking socket wrapper with TLS and application keepalive support."""
     __slots__ = (
+        "host",
+        "port",
+        "sock",
         "_close_callback",
         "_keepalive_callback",
         "_open_callback",
@@ -40,9 +43,6 @@ class SocketWrapper(threading.Thread):
         "_last_recv",
         "_pong_deadline",
         "_in_read",
-        "host",
-        "port",
-        "sock",
     )
     host: str
     port: int
@@ -202,7 +202,7 @@ class SocketWrapper(threading.Thread):
             self._last_send = time.monotonic()
             self._last_recv = self._last_send
 
-            while not self._closing:
+            while True:
                 next_timeout = self._get_next_timeout()
                 write_check = (self.sock,) if self._write_buffer else tuple()
                 readable, writable, _ = select.select([self.sock, self._interrupt_r], write_check, [], next_timeout)
@@ -218,6 +218,9 @@ class SocketWrapper(threading.Thread):
 
                 if self._interrupt_r in readable:
                     self._interrupt_r.recv(1024)
+
+                if self._closing:
+                    break
 
         except SocketWrapperCloseCondition as exc:
             logger.info(f"Closing socket: {exc}")

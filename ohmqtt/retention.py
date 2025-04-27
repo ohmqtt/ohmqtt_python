@@ -164,7 +164,6 @@ class MessageRetention:
             del self.messages[packet_id]
             if not self.messages:
                 self.messages.clear()
-                self.next_packet_id = 1
             with self._cond:
                 message.handle.acked = True
                 self._cond.notify_all()
