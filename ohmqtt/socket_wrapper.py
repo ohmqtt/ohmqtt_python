@@ -19,8 +19,9 @@ SocketKeepaliveCallback = Callable[["SocketWrapper"], None]
 
 
 STATE_SHUTDOWN: Final = 0
-STATE_CLOSED: Final = 1
-STATE_CONNECT: Final = 2
+STATE_CLOSING: Final = 1
+STATE_CLOSED: Final = 2
+STATE_CONNECT: Final = 3
 
 
 InitAddress: Final[tuple[str, int]] = ("", -1)
@@ -99,6 +100,15 @@ class SocketWrapper(threading.Thread):
     def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.shutdown()
 
+    def _goto_state(self, state: int) -> None:
+        """Set the state of the socket wrapper.
+
+        This will wake up any sleeping thread states."""
+        with self._connect_cond:
+            self._state = state
+            self._connect_cond.notify_all()
+            self._interrupt()
+
     def connect(
         self,
         host: str,
@@ -120,18 +130,15 @@ class SocketWrapper(threading.Thread):
         self._use_tls = use_tls
         self._tls_hostname = tls_hostname
         self._tls_context = tls_context if tls_context is not None else ssl.create_default_context()
-        with self._connect_cond:
-            self._address = host, port
-            self._state = STATE_CONNECT
-            self._connect_cond.notify_all()
+        self._address = host, port
+        self._goto_state(STATE_CONNECT)
 
     def disconnect(self) -> None:
         """Close the socket.
 
         This method does not guarantee pending reads or writes will be completed."""
-        self._state = STATE_CLOSED
         self._address = InitAddress
-        self._interrupt()
+        self._goto_state(STATE_CLOSING)
 
     def wait_for_disconnect(self, timeout: float | None = None) -> None:
         """Wait for the socket to be closed.
@@ -143,14 +150,10 @@ class SocketWrapper(threading.Thread):
                 raise TimeoutError("Socket did not close in time")
 
     def shutdown(self) -> None:
-        """Shutdown the socket wrapper.
+        """Shutdown the socket wrapper, finalizing the instance.
 
-        This method will block until the socket is closed and the thread is terminated."""
-        with self._connect_cond:
-            self._state = STATE_SHUTDOWN
-            self._address = InitAddress
-            self._connect_cond.notify_all()
-            self._interrupt()
+        This method does not guarantee pending reads or writes will be completed."""
+        self._goto_state(STATE_SHUTDOWN)
 
     def send(self, data: bytes) -> None:
         """Write data to the socket."""
