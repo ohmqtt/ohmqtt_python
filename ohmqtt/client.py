@@ -37,7 +37,6 @@ class Client:
         "_is_connected",
     )
     client_id: str
-    keepalive_interval: int
     session: Session
     subscriptions: Subscriptions
 
