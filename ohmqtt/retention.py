@@ -81,27 +81,6 @@ class RetainedMessage:
     inflight: bool
     handle: ReliablePublishHandle
 
-    def render(self) -> MQTTPacket:
-        """Render the message as a packet."""
-        packet: MQTTPacket
-        if self.received:
-            packet = MQTTPubRelPacket(
-                packet_id=self.packet_id,
-                reason_code=MQTTReasonCode["Success"],
-            )
-        else:
-            packet = MQTTPublishPacket(
-                topic=self.topic,
-                payload=self.payload,
-                packet_id=self.packet_id,
-                qos=self.qos,
-                retain=self.retain,
-                properties=self.properties,
-                dup=self.dup,
-            )
-        self.inflight = True
-        return packet
-
 
 @dataclass(match_args=True, slots=True)
 class MessageRetention:
@@ -170,6 +149,27 @@ class MessageRetention:
         else:
             message.inflight = False
             message.received = True
+
+    def render(self, msg: RetainedMessage) -> MQTTPacket:
+        """Render the message as a packet."""
+        packet: MQTTPacket
+        if msg.received:
+            packet = MQTTPubRelPacket(
+                packet_id=msg.packet_id,
+                reason_code=MQTTReasonCode["Success"],
+            )
+        else:
+            packet = MQTTPublishPacket(
+                topic=msg.topic,
+                payload=msg.payload,
+                packet_id=msg.packet_id,
+                qos=msg.qos,
+                retain=msg.retain,
+                properties=msg.properties,
+                dup=msg.dup,
+            )
+        msg.inflight = True
+        return packet
 
     def reset(self) -> None:
         """Reset inflight state for all retained messages."""

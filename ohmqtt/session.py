@@ -356,7 +356,7 @@ class Session:
             allowed_count = self.server_receive_maximum - self._inflight
             pending_messages = self._retention.get(allowed_count)
             for message in pending_messages:
-                packet = message.render()
+                packet = self._retention.render(message)
                 self._inflight += 1
                 try:
                     self._send_packet(packet)
