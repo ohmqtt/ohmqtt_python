@@ -3,10 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 import ssl
 import threading
-from typing import Final
+from typing import Final, Sequence
 
 from .logger import get_logger
 from .message import MQTTMessage
+from .mqtt_spec import MQTTReasonCode
 from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
 from .retention import PublishHandle
@@ -45,6 +46,7 @@ class Client:
         self.subscriptions = Subscriptions()
         self.session = Session(
             client_id,
+            auth_callback=self._handle_auth,
             close_callback=self._handle_close,
             message_callback=self._handle_message,
             open_callback=self._handle_open,
@@ -142,6 +144,24 @@ class Client:
         if remaining == 0:
             self.session.unsubscribe(topic_filter)
 
+    def auth(
+        self,
+        *,
+        authentication_method: str | None = None,
+        authentication_data: bytes | None = None,
+        reason_string: str | None = None,
+        user_properties: Sequence[tuple[str, str]] | None = None,
+        reason_code: int = MQTTReasonCode["Success"],
+    ) -> None:
+        """Send an AUTH packet to the broker."""
+        self.session.auth(
+            reason_code=reason_code,
+            authentication_method=authentication_method,
+            authentication_data=authentication_data,
+            reason_string=reason_string,
+            user_properties=user_properties,
+        )
+
     def _handle_message(self, packet: MQTTPublishPacket) -> None:
         """Callback for when a message is received."""
         callbacks = self.subscriptions.get_callbacks(packet.topic)
@@ -171,3 +191,15 @@ class Client:
         """Callback for when the connection is closed."""
         self._is_connected.clear()
         self.subscriptions.clear()
+
+    def _handle_auth(
+        self,
+        reason_code: int,
+        authentication_method: str | None,
+        authentication_data: bytes | None,
+        reason_string: str | None,
+        user_properties: Sequence[tuple[str, str]] | None,
+    ) -> None:
+        """Callback for an AUTH packet from the broker."""
+        logger.debug(
+            f"Received AUTH packet: {reason_code=}, {authentication_method=}, {authentication_data=}, {reason_string=}, {user_properties=}")

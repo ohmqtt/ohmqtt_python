@@ -23,6 +23,7 @@ def test_client_happy_path(MockSession, mock_session):
     client = Client(client_id="test_client")
     MockSession.assert_called_once_with(
         "test_client",
+        auth_callback=client._handle_auth,
         close_callback=client._handle_close,
         message_callback=client._handle_message,
         open_callback=client._handle_open,
@@ -35,16 +36,36 @@ def test_client_happy_path(MockSession, mock_session):
     assert client.session.unsubscribe.call_count == 0
     MockSession.reset_mock()
 
+    # Connect to the broker.
     client.connect("localhost", 1883)
     mock_session.connect.assert_called_once()
     assert mock_session.connect.call_args[0][0].host == "localhost"
     assert mock_session.connect.call_args[0][0].port == 1883
     mock_session.connect.reset_mock()
 
+    # AUTH
+    client.auth(
+        reason_code=0x23,
+        authentication_method="test_method",
+        authentication_data=b"test_data",
+        reason_string="test_reason",
+        user_properties=[("key", "value")],
+    )
+    mock_session.auth.assert_called_once_with(
+        reason_code=0x23,
+        authentication_method="test_method",
+        authentication_data=b"test_data",
+        reason_string="test_reason",
+        user_properties=[("key", "value")],
+    )
+    mock_session.auth.reset_mock()
+
+    # SUBSCRIBE
     sub_handle = client.subscribe("test/+", lambda m: received.append(m))
     mock_session.subscribe.assert_called_once_with("test/+", qos=2, properties=None)
     mock_session.subscribe.reset_mock()
 
+    # Incoming subscribed PUBLISH
     packet = MQTTPublishPacket(
         topic="test/topic",
         payload=b"test_payload",
@@ -55,18 +76,22 @@ def test_client_happy_path(MockSession, mock_session):
     assert received[0].payload == packet.payload
     received.clear()
 
+    # Incoming unsubscribed PUBLISH, discarded
     packet.topic = "foo/bar"
     client._handle_message(packet)
     assert len(received) == 0
 
+    # UNSUBSCRIBE
     sub_handle.unsubscribe()
     mock_session.unsubscribe.assert_called_once_with("test/+")
     mock_session.unsubscribe.reset_mock()
 
+    # Incoming unsubscribed PUBLISH, discarded
     packet.topic = "test/topic"
     client._handle_message(packet)
     assert len(received) == 0
 
+    # PUBLISH
     client.publish("test/topic", b"test_payload")
     mock_session.publish.assert_called_once_with(
         "test/topic",
