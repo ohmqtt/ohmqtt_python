@@ -16,6 +16,8 @@ logger: Final = get_logger("retention")
 
 class PublishHandle(metaclass=ABCMeta):
     """Represents a publish operation."""
+    __slots__: ClassVar[Sequence[str]] = tuple()
+
     @abstractmethod
     def is_acked(self) -> bool:
         """Check if the message has been acknowledged.
@@ -38,7 +40,7 @@ class PublishHandle(metaclass=ABCMeta):
 
 class UnreliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos=0."""
-    __slots__: ClassVar[Sequence[str]] = tuple()
+    __slots__ = tuple()
 
     def is_acked(self) -> bool:
         return False
@@ -47,18 +49,21 @@ class UnreliablePublishHandle(PublishHandle):
         return False
 
 
-@dataclass(match_args=True, slots=True)
 class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
-    cond: threading.Condition
-    acked: bool = field(default=False, init=False)
+    __slots__ = ("acked", "_cond")
+    acked: bool
+
+    def __init__(self, cond: threading.Condition) -> None:
+        self.acked = False
+        self._cond = cond
 
     def is_acked(self) -> bool:
         return self.acked
 
     def wait_for_ack(self, timeout: float | None = None) -> bool:
-        with self.cond:
-            self.cond.wait_for(self.is_acked, timeout)
+        with self._cond:
+            self._cond.wait_for(self.is_acked, timeout)
         return self.acked
 
 
