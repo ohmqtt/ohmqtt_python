@@ -34,7 +34,6 @@ MAX_SESSION_EXPIRY_INTERVAL: Final = 0xFFFFFFFF
 
 SessionAuthCallback = Callable[
     [
-        "Session",
         int,
         str | None,
         bytes | None,
@@ -107,12 +106,6 @@ class Session:
         }
         self.connection = None
 
-    def __enter__(self) -> "Session":
-        return self
-    
-    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
-        self.disconnect()
-
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
         if self.connection is None:
@@ -140,12 +133,7 @@ class Session:
             self._inflight = 0
             self._retention.reset()
         if self.close_callback is not None:
-            try:
-                self.close_callback()
-            except MQTTError:
-                raise
-            except Exception:
-                logger.exception("Unhandled exception in close callback")
+            self.close_callback()
 
     def _connection_read_callback(self, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
@@ -169,23 +157,15 @@ class Session:
             if "TopicAliasMaximum" in packet.properties:
                 self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
             self._flush()
-        try:
-            if self.open_callback is not None:
-                self.open_callback()
-        except MQTTError:
-            raise
-        except Exception:
-            logger.exception("Unhandled exception in open callback")
+        if self.open_callback is not None:
+            self.open_callback()
 
     def _handle_puback(self, packet: MQTTPubAckPacket) -> None:
         """Handle a PUBACK packet from the server."""
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBACK with error code: {packet.reason_code}")
         with self._lock:
-            try:
-                self._retention.ack(packet.packet_id)
-            except KeyError:
-                logger.exception(f"Received PUBACK for unknown packet ID: {packet.packet_id}")
+            self._retention.ack(packet.packet_id)
             self._inflight -= 1
             self._flush()
 
@@ -202,9 +182,8 @@ class Session:
         """Handle a PUBREL packet from the server."""
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBREL with error code: {packet.reason_code}")
-        with self._lock:
-            comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
-            self._send_packet(comp_packet)
+        comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
+        self._send_packet(comp_packet)
 
     def _handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
         """Handle a PUBCOMP packet from the server."""
@@ -217,48 +196,37 @@ class Session:
 
     def _handle_suback(self, packet: MQTTSubAckPacket) -> None:
         """Handle a SUBACK packet from the server."""
-        error_codes = [r for r in packet.reason_codes if r >= 0x80]
-        if error_codes:
+        if any(r >= 0x80 for r in packet.reason_codes):
             logger.error(f"Received SUBACK with error codes: {packet.reason_codes}")
 
     def _handle_unsuback(self, packet: MQTTUnsubAckPacket) -> None:
         """Handle an UNSUBACK packet from the server."""
-        error_codes = [r for r in packet.reason_codes if r >= 0x80]
-        if error_codes:
+        if any(r >= 0x80 for r in packet.reason_codes):
             logger.error(f"Received UNSUBACK with error codes: {packet.reason_codes}")
 
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
+        if self.message_callback is not None:
+            self.message_callback(packet)
         if packet.qos == 1:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
             self._send_packet(ack_packet)
         elif packet.qos == 2:
             rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
             self._send_packet(rec_packet)
-        # Calling the message callback MUST be the last thing we do with the packet.
-        # Otherwise users might mutate the properties before we process them.
-        if self.message_callback is not None:
-            try:
-                self.message_callback(packet)
-            except Exception:
-                logger.exception("Unhandled exception in message callback")
 
     def _handle_auth(self, packet: MQTTAuthPacket) -> None:
         """Handle an AUTH packet from the server."""
         if packet.reason_code >= 0x80:
             logger.error(f"Received AUTH with error code: {packet.reason_code}")
         if self.auth_callback is not None:
-            try:
-                self.auth_callback(
-                    self,
-                    packet.reason_code,
-                    packet.properties.get("AuthenticationMethod"),
-                    packet.properties.get("AuthenticationData"),
-                    packet.properties.get("ReasonString"),
-                    packet.properties.get("UserProperty"),
-                )
-            except Exception:
-                logger.exception("Unhandled exception in auth callback")
+            self.auth_callback(
+                packet.reason_code,
+                packet.properties.get("AuthenticationMethod"),
+                packet.properties.get("AuthenticationData"),
+                packet.properties.get("ReasonString"),
+                packet.properties.get("UserProperty"),
+            )
 
     def connect(
         self,
@@ -305,8 +273,6 @@ class Session:
         Raises TimeoutError if the timeout is exceeded."""
         if self.connection is not None:
             self.connection.wait_for_disconnect(timeout)
-        else:
-            return
 
     def publish(
         self,
@@ -319,8 +285,6 @@ class Session:
     ) -> PublishHandle:
         """Publish a message to a topic."""
         if qos > 0:
-            if not self.client_id:
-                raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
             with self._lock:
                 handle: ReliablePublishHandle = self._retention.add(
                     topic=topic,
@@ -351,7 +315,7 @@ class Session:
             self._next_packet_ids[packet_type] += 1
             if self._next_packet_ids[packet_type] > MAX_PACKET_ID:
                 self._next_packet_ids[packet_type] = 1
-        return packet_id
+            return packet_id
 
     def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
         """Subscribe to a single topic."""
