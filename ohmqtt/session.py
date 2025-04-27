@@ -1,9 +1,9 @@
+from dataclasses import dataclass, field
 import logging
-import ssl
 import threading
 from typing import Any, Callable, Final, Mapping, Sequence
 
-from .connection import Connection
+from .connection import Connection, ConnectionConnectParams
 from .error import MQTTError
 from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
@@ -28,9 +28,6 @@ from .retention import MessageRetention, PublishHandle, ReliablePublishHandle, U
 
 logger: Final = get_logger("session")
 
-# If session expiry interval is set to 0xFFFFFFFF, the session will never expire.
-MAX_SESSION_EXPIRY_INTERVAL: Final = 0xFFFFFFFF
-
 SessionAuthCallback = Callable[
     [
         int,
@@ -44,6 +41,13 @@ SessionAuthCallback = Callable[
 SessionCloseCallback = Callable[[], None]
 SessionOpenCallback = Callable[[], None]
 SessionMessageCallback = Callable[[MQTTPublishPacket], None]
+
+
+@dataclass(slots=True, match_args=True, frozen=True)
+class SessionConnectParams(ConnectionConnectParams):
+    protocol_version: int = 5
+    clean_start: bool = False
+    connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
 
 class Session:
@@ -229,38 +233,13 @@ class Session:
                 packet.properties.get("UserProperty"),
             )
 
-    def connect(
-        self,
-        host: str,
-        port: int,
-        *,
-        # will stuff
-        protocol_version: int = 5,
-        clean_start: bool = False,
-        reconnect_delay: float = 0.0,
-        keepalive_interval: int = 0,
-        tcp_nodelay: bool = True,
-        use_tls: bool = False,
-        tls_context: ssl.SSLContext | None = None,
-        tls_hostname: str = "",
-        connect_properties: MQTTPropertyDict | None = None,
-    ) -> None:
-        """Connect to a server."""
-        with self._lock:
-            self.protocol_version = protocol_version
-            self.clean_start = clean_start
-            self.keepalive_interval = keepalive_interval
-            self.connect_properties = connect_properties if connect_properties is not None else {}
-            self.connection.connect(
-                host=host,
-                port=port,
-                reconnect_delay=reconnect_delay,
-                keepalive_interval=keepalive_interval,
-                tcp_nodelay=tcp_nodelay,
-                use_tls=use_tls,
-                tls_context=tls_context,
-                tls_hostname=tls_hostname,
-            )
+    def connect(self, params: SessionConnectParams) -> None:
+        """Connect to the broker."""
+        self.protocol_version = params.protocol_version
+        self.clean_start = params.clean_start
+        self.keepalive_interval = params.keepalive_interval
+        self.connect_properties = params.connect_properties
+        self.connection.connect(params)
 
     def disconnect(self) -> None:
         """Disconnect from the server."""

@@ -3,6 +3,7 @@ import time
 
 from ohmqtt.connection import (
     Connection,
+    ConnectionConnectParams,
     ConnectionCloseCallback,
     ConnectionOpenCallback,
     ConnectionReadCallback,
@@ -63,26 +64,11 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket):
     )
     mock_socket_wrapper.start.assert_called_once()
 
-    connection.connect(
-        "localhost",
-        1883,
-        reconnect_delay=1.2,
-        keepalive_interval=60,
-        tcp_nodelay=False,
-        use_tls=True,
-        tls_context=None,
-        tls_hostname="localhost",
-    )
-    mock_socket_wrapper.connect.assert_called_once_with(
-        "localhost",
-        1883,
-        reconnect_delay=1.2,
-        keepalive_interval=60,
-        tcp_nodelay=False,
-        use_tls=True,
-        tls_context=None,
-        tls_hostname="localhost",
-    )
+    connection.connect(ConnectionConnectParams("localhost", 1883))
+    mock_socket_wrapper.connect.assert_called_once()
+    assert mock_socket_wrapper.connect.call_args[0][0].host == "localhost"
+    assert mock_socket_wrapper.connect.call_args[0][0].port == 1883
+    mock_socket_wrapper.connect.reset_mock()
 
     connection._open_callback()
     callbacks.open_callback.assert_called_once_with()

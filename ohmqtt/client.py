@@ -10,7 +10,7 @@ from .message import MQTTMessage
 from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
 from .retention import PublishHandle
-from .session import Session
+from .session import Session, SessionConnectParams
 from .subscriptions import Subscriptions, SubscribeCallback
 
 logger: Final = get_logger("client")
@@ -71,17 +71,17 @@ class Client:
         connect_properties: MQTTPropertyDict | None = None,
     ) -> None:
         """Connect to the broker."""
-        self.session.connect(
+        self.session.connect(SessionConnectParams(
             host,
             port,
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
             tcp_nodelay=tcp_nodelay,
             use_tls=use_tls,
-            tls_context=tls_context,
+            tls_context=tls_context if tls_context is not None else ssl.create_default_context(),
             tls_hostname=tls_hostname,
-            connect_properties=connect_properties,
-        )
+            connect_properties=connect_properties if connect_properties is not None else MQTTPropertyDict(),
+        ))
 
     def disconnect(self) -> None:
         """Disconnect from the broker."""

@@ -1,4 +1,5 @@
 import socket
+import ssl
 import time
 
 import pytest
@@ -10,6 +11,7 @@ from ohmqtt.socket_wrapper import (
     SocketOpenCallback,
     SocketReadCallback,
     SocketWrapper,
+    SocketWrapperConnectParams,
 )
 
 
@@ -23,7 +25,7 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
         loopback_tls_socket.test_do_handshake()
         loop = loopback_tls_socket
     else:
-        tls_context = None
+        tls_context = ssl.create_default_context()
         loop = loopback_socket
     mocker.patch("ohmqtt.socket_wrapper._get_socket", return_value=loop)
     close_callback = mocker.Mock(spec=SocketCloseCallback)
@@ -37,14 +39,14 @@ def test_socket_wrapper_happy_path(mocker, loopback_socket, loopback_tls_socket,
         open_callback,
         read_callback,
     ) as socket_wrapper:
-        socket_wrapper.connect(
+        socket_wrapper.connect(SocketWrapperConnectParams(
             "localhost",
             1883,
             use_tls=use_tls,
             tls_hostname=tls_hostname,
             tls_context=tls_context,
             tcp_nodelay=False,
-        )
+        ))
         time.sleep(0.1)
         assert loop.connect_calls == [("localhost", 1883)]
         open_callback.assert_called_once_with()
@@ -85,7 +87,7 @@ def test_socket_wrapper_nodelay(mocker):
         open_callback,
         read_callback,
     ) as socket_wrapper:
-        socket_wrapper.connect("localhost", 1883, tcp_nodelay=True)
+        socket_wrapper.connect(SocketWrapperConnectParams("localhost", 1883, tcp_nodelay=True))
         time.sleep(0.1)
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
@@ -107,7 +109,7 @@ def test_socket_wrapper_ping_no_response(mocker, loopback_socket):
         open_callback,
         read_callback,
     ) as socket_wrapper:
-        socket_wrapper.connect("localhost", 1883, keepalive_interval=1, tcp_nodelay=False)
+        socket_wrapper.connect(SocketWrapperConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
         assert loopback_socket.test_recv(512) == PING
         assert len(keepalive_calls) == 1
         time.sleep(1.6)
@@ -133,7 +135,7 @@ def test_socket_wrapper_ping_no_pong(mocker, loopback_socket):
         open_callback,
         read_callback,
     ) as socket_wrapper:
-        socket_wrapper.connect("localhost", 1883, keepalive_interval=1, tcp_nodelay=False)
+        socket_wrapper.connect(SocketWrapperConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
         assert loopback_socket.test_recv(512) == PING
         assert len(keepalive_calls) == 1
         loopback_socket.test_sendall(b"\x00\x00")  # Not a pong, we won't acknowledge it anyway.
@@ -162,7 +164,7 @@ def test_socket_wrapper_ping_pong(mocker, loopback_socket):
         open_callback,
         read_callback,
     ) as socket_wrapper:
-        socket_wrapper.connect("localhost", 1883, keepalive_interval=1, tcp_nodelay=False)
+        socket_wrapper.connect(SocketWrapperConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
         assert loopback_socket.test_recv(512) == PING
         assert len(keepalive_calls) == 1
         loopback_socket.test_sendall(PONG)
@@ -192,7 +194,7 @@ def test_socket_wrapper_set_keepalive_interval(mocker, loopback_socket):
         open_callback,
         read_callback,
     ) as socket_wrapper:
-        socket_wrapper.connect("localhost", 1883, tcp_nodelay=False)
+        socket_wrapper.connect(SocketWrapperConnectParams("localhost", 1883, tcp_nodelay=False))
         socket_wrapper.send(b"foo")  # Would be CONNECT
         assert loopback_socket.test_recv(512) == b"foo"
         loopback_socket.test_sendall(b"bar")  # Would be CONNACK

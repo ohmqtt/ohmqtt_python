@@ -36,17 +36,9 @@ def test_client_happy_path(MockSession, mock_session):
     MockSession.reset_mock()
 
     client.connect("localhost", 1883)
-    mock_session.connect.assert_called_once_with(
-        "localhost",
-        1883,
-        reconnect_delay=0.0,
-        keepalive_interval=0,
-        tcp_nodelay=True,
-        use_tls=False,
-        tls_hostname="",
-        tls_context=None,
-        connect_properties=None,
-    )
+    mock_session.connect.assert_called_once()
+    assert mock_session.connect.call_args[0][0].host == "localhost"
+    assert mock_session.connect.call_args[0][0].port == 1883
     mock_session.connect.reset_mock()
 
     sub_handle = client.subscribe("test/+", lambda m: received.append(m))

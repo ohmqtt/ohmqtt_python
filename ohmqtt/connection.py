@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import socket
 import ssl
 from typing import Callable, cast, Final
@@ -6,13 +7,18 @@ from .decoder import IncrementalDecoder
 from .logger import get_logger
 from .mqtt_spec import MQTTPacketType
 from .packet import MQTTPacket, MQTTConnAckPacket, PING, PONG
-from .socket_wrapper import SocketWrapper
+from .socket_wrapper import SocketWrapper, SocketWrapperConnectParams
 
 logger: Final = get_logger("connection")
 
 ConnectionCloseCallback = Callable[[], None]
 ConnectionOpenCallback = Callable[[], None]
 ConnectionReadCallback = Callable[[MQTTPacket], None]
+
+
+@dataclass(slots=True, match_args=True, frozen=True)
+class ConnectionConnectParams(SocketWrapperConnectParams):
+    pass
 
 
 class Connection:
@@ -47,28 +53,9 @@ class Connection:
         )
         self.sock.start()
 
-    def connect(
-        self,
-        host: str,
-        port: int,
-        *,
-        reconnect_delay: float = 0.0,
-        keepalive_interval: int = 0,
-        tcp_nodelay: bool = True,
-        use_tls: bool = False,
-        tls_context: ssl.SSLContext | None = None,
-        tls_hostname: str = "",
-    ) -> None:
-        self.sock.connect(
-            host,
-            port,
-            reconnect_delay=reconnect_delay,
-            keepalive_interval=keepalive_interval,
-            tcp_nodelay=tcp_nodelay,
-            use_tls=use_tls,
-            tls_context=tls_context,
-            tls_hostname=tls_hostname,
-        )
+    def connect(self, params: ConnectionConnectParams) -> None:
+        """Connect to the broker."""
+        self.sock.connect(params)
 
     def disconnect(self) -> None:
         """Signal the connection to close."""

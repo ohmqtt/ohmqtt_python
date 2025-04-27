@@ -18,7 +18,7 @@ from ohmqtt.packet import (
     MQTTPubCompPacket,
     MQTTAuthPacket,
 )
-from ohmqtt.session import Session
+from ohmqtt.session import Session, SessionConnectParams
 
 
 @pytest.fixture
@@ -59,7 +59,10 @@ def test_session_happy_path(client_id, callbacks, mocker):
         open_callback=callbacks["open"],
         message_callback=callbacks["message"],
     )
-    session.connect("localhost", 1883)
+    session.connect(SessionConnectParams("localhost", 1883))
+    mock_connection.connect.assert_called_once()
+    assert mock_connection.connect.call_args[0][0].host == "localhost"
+    assert mock_connection.connect.call_args[0][0].port == 1883
 
     # Assert that the Connection was created.
     assert MockConnection.call_count == 1

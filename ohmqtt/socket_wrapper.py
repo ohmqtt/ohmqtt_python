@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import select
 import socket
 import ssl
@@ -37,6 +38,18 @@ def _get_socket() -> socket.socket:
 
     This mostly helps us mock sockets in tests."""
     return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+
+@dataclass(slots=True, match_args=True, frozen=True)
+class SocketWrapperConnectParams:
+    host: str
+    port: int
+    reconnect_delay: float = 0.0
+    keepalive_interval: int = 0
+    tcp_nodelay: bool = True
+    use_tls: bool = False
+    tls_context: ssl.SSLContext = field(default_factory=ssl.create_default_context)
+    tls_hostname: str = ""
 
 
 class SocketWrapper(threading.Thread):
@@ -111,28 +124,17 @@ class SocketWrapper(threading.Thread):
             self._connect_cond.notify_all()
             self._interrupt()
 
-    def connect(
-        self,
-        host: str,
-        port: int,
-        *,
-        reconnect_delay: float = 0.0,
-        keepalive_interval: int = 0,
-        tcp_nodelay: bool = True,
-        use_tls: bool = False,
-        tls_context: ssl.SSLContext | None = None,
-        tls_hostname: str = "",
-    ) -> None:
-        """Connect to the given host and port.
+    def connect(self, params: SocketWrapperConnectParams) -> None:
+        """Connect to the broker.
 
         This method is non-blocking and will return immediately. The connection will be established in the background."""
-        self._keepalive_interval = keepalive_interval
-        self._reconnect_delay = reconnect_delay
-        self._tcp_nodelay = tcp_nodelay
-        self._use_tls = use_tls
-        self._tls_hostname = tls_hostname
-        self._tls_context = tls_context if tls_context is not None else ssl.create_default_context()
-        self._address = host, port
+        self._keepalive_interval = params.keepalive_interval
+        self._reconnect_delay = params.reconnect_delay
+        self._tcp_nodelay = params.tcp_nodelay
+        self._use_tls = params.use_tls
+        self._tls_hostname = params.tls_hostname
+        self._tls_context = params.tls_context
+        self._address = params.host, params.port
         self._goto_state(STATE_CONNECT)
 
     def disconnect(self) -> None:
