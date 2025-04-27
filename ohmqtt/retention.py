@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 import itertools
 import threading
-from typing import Final, Sequence
+from typing import ClassVar, Final, Sequence
 
 from .logger import get_logger
 from .property import MQTTPropertyDict
@@ -38,6 +38,8 @@ class PublishHandle(metaclass=ABCMeta):
 
 class UnreliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos=0."""
+    __slots__: ClassVar[Sequence[str]] = tuple()
+
     def is_acked(self) -> bool:
         return False
 
@@ -45,19 +47,18 @@ class UnreliablePublishHandle(PublishHandle):
         return False
 
 
+@dataclass(match_args=True, slots=True)
 class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
-    __slots__ = ("acked", "_cond")
-    def __init__(self, cond: threading.Condition) -> None:
-        self.acked = False
-        self._cond = cond
+    cond: threading.Condition
+    acked: bool = field(default=False, init=False)
 
     def is_acked(self) -> bool:
         return self.acked
 
     def wait_for_ack(self, timeout: float | None = None) -> bool:
-        with self._cond:
-            self._cond.wait_for(self.is_acked, timeout)
+        with self.cond:
+            self.cond.wait_for(self.is_acked, timeout)
         return self.acked
 
 
