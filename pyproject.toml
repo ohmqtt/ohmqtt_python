@@ -20,7 +20,10 @@ dev = [
 ]
 
 [tool.mypy]
-files = ["ohmqtt"]
+files = [
+    "examples",
+    "ohmqtt",
+]
 strict = true
 strict_bytes = true
 strict_equality = true
@@ -28,6 +31,7 @@ strict_equality = true
 [tool.ruff]
 include = [
     "pyproject.toml",
+    "examples/**/*.py",
     "ohmqtt/**/*.py",
     "tests/**/*.py",
 ]
