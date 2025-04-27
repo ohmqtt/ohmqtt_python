@@ -33,6 +33,9 @@ class SocketWrapperCloseCondition(Exception):
 
 
 def _get_socket() -> socket.socket:
+    """Helper function to get a socket.
+
+    This mostly helps us mock sockets in tests."""
     return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
