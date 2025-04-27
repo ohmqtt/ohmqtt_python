@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import select
 import socket
 import ssl
 import threading
 import time
 from typing import Callable, Final
+from types import TracebackType
 
 from .logger import get_logger
 
@@ -15,17 +18,27 @@ SocketReadCallback = Callable[[socket.socket | ssl.SSLSocket], None]
 SocketKeepaliveCallback = Callable[["SocketWrapper"], None]
 
 
+STATE_SHUTDOWN: Final = 0
+STATE_CLOSED: Final = 1
+STATE_CONNECT: Final = 2
+
+
+InitAddress: Final[tuple[str, int]] = ("", -1)
+
+
 class SocketWrapperCloseCondition(Exception):
     """Any exception which should cause the socket to close."""
     pass
 
 
+def _get_socket() -> socket.socket:
+    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+
 class SocketWrapper(threading.Thread):
     """Non-blocking socket wrapper with TLS and application keepalive support."""
     __slots__ = (
-        "host",
-        "port",
-        "sock",
+        "_address",
         "_close_callback",
         "_keepalive_callback",
         "_open_callback",
@@ -37,73 +50,111 @@ class SocketWrapper(threading.Thread):
         "_write_buffer_lock",
         "_interrupt_r",
         "_interrupt_w",
-        "_closing",
         "_keepalive_interval",
         "_last_send",
         "_last_recv",
         "_pong_deadline",
         "_in_read",
+        "_connect_lock",
+        "_tcp_nodelay",
+        "_reconnect_delay",
+        "_state",
     )
-    host: str
-    port: int
     sock: socket.socket | ssl.SSLSocket
 
     def __init__(
         self,
-        host: str,
-        port: int,
         close_callback: SocketCloseCallback,
         keepalive_callback: SocketKeepaliveCallback,
         open_callback: SocketOpenCallback,
         read_callback: SocketReadCallback,
+    ) -> None:
+        super().__init__(daemon=True)
+        self._address = InitAddress
+        self._close_callback = close_callback
+        self._keepalive_callback = keepalive_callback
+        self._open_callback = open_callback
+        self._read_callback = read_callback
+        self._use_tls = False
+        self._tls_context = ssl.create_default_context()
+        self._tls_hostname = ""
+        self._tcp_nodelay = True
+        self._reconnect_delay = 1.0
+        self._keepalive_interval = 0
+
+        self._state = STATE_CLOSED
+        self._write_buffer = bytearray()
+        self._write_buffer_lock = threading.Lock()
+        self._interrupt_r, self._interrupt_w = socket.socketpair()
+        self._last_send = 0.0
+        self._last_recv = 0.0
+        self._pong_deadline = 0.0
+        self._in_read = False
+        self._connect_cond = threading.Condition()
+
+    def __enter__(self) -> SocketWrapper:
+        self.start()
+        return self
+
+    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+        self.shutdown()
+
+    def connect(
+        self,
+        host: str,
+        port: int,
         *,
-        sock: socket.socket | ssl.SSLSocket | None = None,
+        reconnect_delay: float = 0.0,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = True,
         use_tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
     ) -> None:
-        super().__init__(daemon=True)
-        self.host = host
-        self.port = port
-        if sock is not None:
-            self.sock = sock
-        else:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if tcp_nodelay:
-            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self._close_callback = close_callback
-        self._keepalive_callback = keepalive_callback
-        self._open_callback = open_callback
-        self._read_callback = read_callback
-        self._use_tls = use_tls
-        self._tls_context = ssl.create_default_context() if use_tls and tls_context is None else tls_context
-        self._tls_hostname = tls_hostname
+        """Connect to the given host and port.
 
-        self._write_buffer = bytearray()
-        self._write_buffer_lock = threading.Lock()
-        self._interrupt_r, self._interrupt_w = socket.socketpair()
-        self._closing = False
+        This method is non-blocking and will return immediately. The connection will be established in the background."""
         self._keepalive_interval = keepalive_interval
-        self._last_send = 0.0
-        self._last_recv = 0.0
-        self._pong_deadline = 0.0
-        self._in_read = False
+        self._reconnect_delay = reconnect_delay
+        self._tcp_nodelay = tcp_nodelay
+        self._use_tls = use_tls
+        self._tls_hostname = tls_hostname
+        self._tls_context = tls_context if tls_context is not None else ssl.create_default_context()
+        with self._connect_cond:
+            self._address = host, port
+            self._state = STATE_CONNECT
+            self._connect_cond.notify_all()
 
-    def __del__(self) -> None:
-        self.sock.close()
-
-    def close(self) -> None:
+    def disconnect(self) -> None:
         """Close the socket.
 
         This method does not guarantee pending reads or writes will be completed."""
-        self._closing = True
+        self._state = STATE_CLOSED
+        self._address = InitAddress
         self._interrupt()
+
+    def wait_for_disconnect(self, timeout: float | None = None) -> None:
+        """Wait for the socket to be closed.
+
+        This method will block until the socket is closed or the timeout is reached."""
+        with self._connect_cond:
+            self._connect_cond.wait_for(lambda: self._state <= STATE_CLOSED, timeout=timeout)
+            if self._state > STATE_CLOSED:
+                raise TimeoutError("Socket did not close in time")
+
+    def shutdown(self) -> None:
+        """Shutdown the socket wrapper.
+
+        This method will block until the socket is closed and the thread is terminated."""
+        with self._connect_cond:
+            self._state = STATE_SHUTDOWN
+            self._address = InitAddress
+            self._connect_cond.notify_all()
+            self._interrupt()
 
     def send(self, data: bytes) -> None:
         """Write data to the socket."""
-        if self._closing:
+        if self._state < STATE_CONNECT:
             return
         with self._write_buffer_lock:
             do_interrupt = not self._in_read and not self._write_buffer
@@ -132,35 +183,36 @@ class SocketWrapper(threading.Thread):
         """Interrupt select to wake up the thread."""
         self._interrupt_w.send(b"\x00")
 
-    def _handshake_loop(self) -> None:
+    def _handshake_loop(self, sock: socket.socket) -> ssl.SSLSocket:
         """Run the TLS handshake in a loop until it is complete."""
         assert self._tls_context is not None
-        self.sock = self._tls_context.wrap_socket(self.sock, server_hostname=self._tls_hostname, do_handshake_on_connect=False)
-        while not self._closing:
+        sock = self._tls_context.wrap_socket(sock, server_hostname=self._tls_hostname, do_handshake_on_connect=False)
+        while self._state == STATE_CONNECT:
             try:
-                self.sock.do_handshake()
-                break
+                sock.do_handshake()
+                return sock
             except ssl.SSLWantReadError:
-                select.select([self.sock, self._interrupt_r], [], [])
+                select.select([sock, self._interrupt_r], [], [])
             except ssl.SSLWantWriteError:
-                select.select([self._interrupt_r], [self.sock], [])
+                select.select([self._interrupt_r], [sock], [])
+        raise SocketWrapperCloseCondition("Handshake loop did not complete")
 
-    def _try_write(self) -> None:
+    def _try_write(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Try to flush the write buffer to the socket."""
         try:
             with self._write_buffer_lock:
-                sent = self.sock.send(self._write_buffer)
+                sent = sock.send(self._write_buffer)
                 self._last_send = time.monotonic()
                 del self._write_buffer[:sent]
         except ssl.SSLWantWriteError:
             pass
 
-    def _try_read(self) -> None:
+    def _try_read(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Try to read data from the socket."""
         self._in_read = True
         try:
             self._last_recv = time.monotonic()
-            self._read_callback(self.sock)
+            self._read_callback(sock)
         except ssl.SSLWantReadError:
             pass
         finally:
@@ -189,48 +241,76 @@ class SocketWrapper(threading.Thread):
         elif self._pong_deadline > 0.0 and now > self._pong_deadline:
             raise SocketWrapperCloseCondition("No pong received in time")
 
+    def _check_connect(self) -> bool:
+        """Check if we should connect to the server.
+
+        Raises SocketWrapperCloseCondition if the thread should be shutdown instead."""
+        if self._state == STATE_SHUTDOWN:
+            raise SocketWrapperCloseCondition("Shutting down")
+        return bool(self._state == STATE_CONNECT and self._address != InitAddress)
+
     def run(self) -> None:
-        try:
-            self.sock.connect((self.host, self.port))
-            self.sock.setblocking(False)
-
-            if self._use_tls:
-                self._handshake_loop()
-            if not self._closing:
-                self._open_callback()
-
-            self._last_send = time.monotonic()
-            self._last_recv = self._last_send
-
-            while True:
-                next_timeout = self._get_next_timeout()
-                write_check = (self.sock,) if self._write_buffer else tuple()
-                readable, writable, _ = select.select([self.sock, self._interrupt_r], write_check, [], next_timeout)
-
-                if self.sock in writable:
-                    self._try_write()
-
-                if self.sock in readable:
-                    self._try_read()
-
-                if self._keepalive_interval > 0 and not self._closing:
-                    self._check_keepalive()
-
-                if self._interrupt_r in readable:
-                    self._interrupt_r.recv(1024)
-
-                if self._closing:
-                    break
-
-        except SocketWrapperCloseCondition as exc:
-            logger.info(f"Closing socket: {exc}")
-        except Exception:
-            logger.exception("Unhandled error in socket read thread")
-        finally:
-            self._closing = True
+        while self._state > STATE_SHUTDOWN:
+            was_open = False
+            sock: socket.socket | ssl.SSLSocket = _get_socket()
             try:
-                self._close_callback()
+                with self._connect_cond:
+                    self._connect_cond.wait_for(self._check_connect)
+                    was_open = True
+                    address = self._address
+
+                if self._tcp_nodelay:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                sock.connect(address)
+                sock.setblocking(False)
+
+                if self._use_tls:
+                    sock = self._handshake_loop(sock)
+                if self._state == STATE_CONNECT:
+                    self._open_callback()
+
+                self._last_send = time.monotonic()
+                self._last_recv = self._last_send
+                self._pong_deadline = 0.0
+
+                while self._state == STATE_CONNECT:
+                    next_timeout = self._get_next_timeout()
+                    write_check = (sock,) if self._write_buffer else tuple()
+                    readable, writable, _ = select.select([sock, self._interrupt_r], write_check, [], next_timeout)
+
+                    if sock in writable:
+                        self._try_write(sock)
+
+                    if sock in readable:
+                        self._try_read(sock)
+
+                    if self._keepalive_interval > 0 and self._state == STATE_CONNECT:
+                        self._check_keepalive()
+
+                    if self._interrupt_r in readable:
+                        self._interrupt_r.recv(1024)
+
+            except SocketWrapperCloseCondition as exc:
+                logger.debug(f"Closing socket: {exc}")
             except Exception:
-                logger.exception("Error while calling close callback")
-            self._write_buffer.clear()
-            self.sock.close()
+                logger.exception("Unhandled error in socket read thread, shutting down")
+                self._state = STATE_SHUTDOWN
+            finally:
+                self._state = min(self._state, STATE_CLOSED)
+                with self._connect_cond:
+                    # Wake up wait_for_disconnect.
+                    self._connect_cond.notify_all()
+                if was_open:
+                    try:
+                        self._close_callback()
+                    except Exception:
+                        logger.exception("Error while calling close callback")
+                self._write_buffer.clear()
+                sock.close()
+                if self._state > STATE_SHUTDOWN and self._reconnect_delay > 0:
+                    with self._connect_cond:
+                        self._connect_cond.wait(timeout=self._reconnect_delay)
+                        if self._address == InitAddress:
+                            logger.debug("Reconnect cancelled")
+                            break
+        logger.debug("Shutdown complete")

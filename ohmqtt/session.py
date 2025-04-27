@@ -1,7 +1,6 @@
 import logging
 import ssl
 import threading
-from types import TracebackType
 from typing import Any, Callable, Final, Mapping, Sequence
 
 from .connection import Connection
@@ -67,7 +66,7 @@ class Session:
         "message_callback",
         "connection",
     )
-    connection: Connection | None
+    connection: Connection
 
     def __init__(
         self,
@@ -85,6 +84,11 @@ class Session:
         self.message_callback = message_callback
         self.server_receive_maximum = 0
         self.server_topic_alias_maximum = 0
+        self.connection = Connection(
+            close_callback=self._connection_close_callback,
+            open_callback=self._connection_open_callback,
+            read_callback=self._connection_read_callback,
+        )
         self._read_handlers: Mapping[int, Callable[[Any], None]] = {
             MQTTPacketType["CONNACK"]: self._handle_connack,
             MQTTPacketType["PUBACK"]: self._handle_puback,
@@ -104,12 +108,9 @@ class Session:
             MQTTPacketType["SUBSCRIBE"]: 1,
             MQTTPacketType["UNSUBSCRIBE"]: 1,
         }
-        self.connection = None
 
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
-        if self.connection is None:
-            raise RuntimeError("No connection")
         self.connection.send(packet.encode())
         if logging.DEBUG >= logging.root.level:
             logger.debug(f"---> {packet}")
@@ -236,7 +237,9 @@ class Session:
         # will stuff
         protocol_version: int = 5,
         clean_start: bool = False,
+        reconnect_delay: float = 0.0,
         keepalive_interval: int = 0,
+        tcp_nodelay: bool = True,
         use_tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
@@ -248,13 +251,12 @@ class Session:
             self.clean_start = clean_start
             self.keepalive_interval = keepalive_interval
             self.connect_properties = connect_properties if connect_properties is not None else {}
-            self.connection = Connection(
+            self.connection.connect(
                 host=host,
                 port=port,
+                reconnect_delay=reconnect_delay,
                 keepalive_interval=keepalive_interval,
-                close_callback=self._connection_close_callback,
-                open_callback=self._connection_open_callback,
-                read_callback=self._connection_read_callback,
+                tcp_nodelay=tcp_nodelay,
                 use_tls=use_tls,
                 tls_context=tls_context,
                 tls_hostname=tls_hostname,
@@ -262,17 +264,18 @@ class Session:
 
     def disconnect(self) -> None:
         """Disconnect from the server."""
-        if self.connection is not None:
-            packet = MQTTDisconnectPacket()
-            self._send_packet(packet)
-            self.connection.close()
+        packet = MQTTDisconnectPacket()
+        self._send_packet(packet)
+        self.connection.disconnect()
+
+    def shutdown(self) -> None:
+        self.connection.shutdown()
 
     def wait_for_disconnect(self, timeout: float | None = None) -> None:
         """Wait for the session to disconnect from the server.
 
         Raises TimeoutError if the timeout is exceeded."""
-        if self.connection is not None:
-            self.connection.wait_for_disconnect(timeout)
+        self.connection.wait_for_disconnect(timeout)
 
     def publish(
         self,
@@ -380,5 +383,4 @@ class Session:
                     self._send_packet(packet)
                 except Exception:
                     logger.exception("Unhandled exception while flushing pending packets")
-                    if self.connection is not None:
-                        self.connection.close()
+                    self.disconnect()

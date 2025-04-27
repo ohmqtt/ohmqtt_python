@@ -46,8 +46,6 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket):
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     MockSocketWrapper = mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
-        "localhost",
-        1883,
         close_callback=callbacks.close_callback,
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
@@ -58,18 +56,33 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket):
     )
 
     MockSocketWrapper.assert_called_once_with(
-        "localhost",
-        1883,
         close_callback=callbacks.close_callback,
         keepalive_callback=connection._keepalive_callback,
         open_callback=callbacks.open_callback,
         read_callback=connection._read_packet,
-        keepalive_interval=3,
+    )
+    mock_socket_wrapper.start.assert_called_once()
+
+    connection.connect(
+        "localhost",
+        1883,
+        reconnect_delay=1.2,
+        keepalive_interval=60,
+        tcp_nodelay=False,
         use_tls=True,
         tls_context=None,
         tls_hostname="localhost",
     )
-    mock_socket_wrapper.start.assert_called_once()
+    mock_socket_wrapper.connect.assert_called_once_with(
+        "localhost",
+        1883,
+        reconnect_delay=1.2,
+        keepalive_interval=60,
+        tcp_nodelay=False,
+        use_tls=True,
+        tls_context=None,
+        tls_hostname="localhost",
+    )
 
     connection._open_callback()
     callbacks.open_callback.assert_called_once_with()
@@ -122,9 +135,9 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket):
     mock_socket_wrapper.send.reset_mock()
     mock_socket_wrapper.ping_sent.reset_mock()
 
-    connection.close()
-    mock_socket_wrapper.close.assert_called_once_with()
-    mock_socket_wrapper.close.reset_mock()
+    connection.disconnect()
+    mock_socket_wrapper.disconnect.assert_called_once_with()
+    mock_socket_wrapper.disconnect.reset_mock()
     connection._close_callback()
     callbacks.close_callback.assert_called_once_with()
     callbacks.close_callback.reset_mock()
@@ -135,8 +148,6 @@ def test_connection_partial_read(callbacks, mocker, loopback_socket):
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
-        "localhost",
-        1883,
         close_callback=callbacks.close_callback,
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
@@ -169,8 +180,6 @@ def test_connection_garbage_read(callbacks, mocker, loopback_socket):
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
-        "localhost",
-        1883,
         close_callback=callbacks.close_callback,
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
@@ -185,8 +194,6 @@ def test_connection_slots(callbacks, mocker):
     mock_socket_wrapper = mocker.Mock(spec=SocketWrapper)
     mocker.patch("ohmqtt.connection.SocketWrapper", return_value=mock_socket_wrapper)
     connection = Connection(
-        "localhost",
-        1883,
         close_callback=callbacks.close_callback,
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,

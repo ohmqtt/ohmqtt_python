@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ssl
 import threading
 from typing import Final
 
@@ -31,7 +32,6 @@ class Client:
     """High level interface for the MQTT client."""
     __slots__ = (
         "client_id",
-        "keepalive_interval",
         "session",
         "subscriptions",
         "_is_connected",
@@ -41,14 +41,8 @@ class Client:
     session: Session
     subscriptions: Subscriptions
 
-    def __init__(
-        self,
-        client_id: str = "",
-        *,
-        keepalive_interval: int = 30,
-    ) -> None:
+    def __init__(self, client_id: str = "") -> None:
         self.client_id = client_id
-        self.keepalive_interval = keepalive_interval
         self.subscriptions = Subscriptions()
         self.session = Session(
             client_id,
@@ -63,13 +57,39 @@ class Client:
         """Check if the client is connected to the broker."""
         return self._is_connected.is_set()
 
-    def connect(self, host: str, port: int) -> None:
+    def connect(
+        self,
+        host: str,
+        port: int,
+        *,
+        reconnect_delay: float = 0.0,
+        keepalive_interval: int = 0,
+        tcp_nodelay: bool = True,
+        use_tls: bool = False,
+        tls_context: ssl.SSLContext | None = None,
+        tls_hostname: str = "",
+        connect_properties: MQTTPropertyDict | None = None,
+    ) -> None:
         """Connect to the broker."""
-        self.session.connect(host, port, keepalive_interval=self.keepalive_interval)
+        self.session.connect(
+            host,
+            port,
+            reconnect_delay=reconnect_delay,
+            keepalive_interval=keepalive_interval,
+            tcp_nodelay=tcp_nodelay,
+            use_tls=use_tls,
+            tls_context=tls_context,
+            tls_hostname=tls_hostname,
+            connect_properties=connect_properties,
+        )
 
     def disconnect(self) -> None:
         """Disconnect from the broker."""
         self.session.disconnect()
+
+    def shutdown(self) -> None:
+        """Shutdown the client and close the connection."""
+        self.session.shutdown()
 
     def wait_for_connect(self, timeout: float | None = None) -> None:
         """Wait for the client to connect to the broker.

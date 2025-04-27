@@ -26,8 +26,6 @@ class Connection:
     )
 
     def __init__(self,
-        host: str,
-        port: int,
         close_callback: ConnectionCloseCallback,
         open_callback: ConnectionOpenCallback,
         read_callback: ConnectionReadCallback,
@@ -42,22 +40,43 @@ class Connection:
         self._read_callback = read_callback
         self._decoder = IncrementalDecoder()
         self.sock = SocketWrapper(
-            host,
-            port,
             close_callback=self._close_callback,
             keepalive_callback=self._keepalive_callback,
             open_callback=self._open_callback,
             read_callback=self._read_packet,
+        )
+        self.sock.start()
+
+    def connect(
+        self,
+        host: str,
+        port: int,
+        *,
+        reconnect_delay: float = 0.0,
+        keepalive_interval: int = 0,
+        tcp_nodelay: bool = True,
+        use_tls: bool = False,
+        tls_context: ssl.SSLContext | None = None,
+        tls_hostname: str = "",
+    ) -> None:
+        self.sock.connect(
+            host,
+            port,
+            reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
+            tcp_nodelay=tcp_nodelay,
             use_tls=use_tls,
             tls_context=tls_context,
             tls_hostname=tls_hostname,
         )
-        self.sock.start()
 
-    def close(self) -> None:
+    def disconnect(self) -> None:
         """Signal the connection to close."""
-        self.sock.close()
+        self.sock.disconnect()
+
+    def shutdown(self) -> None:
+        """Shutdown the connection and close the socket."""
+        self.sock.shutdown()
 
     def send(self, data: bytes) -> None:
         """Send data to the broker."""
@@ -67,9 +86,7 @@ class Connection:
         """Wait for the connection to close.
 
         Raises TimeoutError if the timeout is exceeded."""
-        self.sock.join(timeout=timeout)
-        if self.sock.is_alive():
-            raise TimeoutError("Connection timed out")
+        self.sock.wait_for_disconnect(timeout=timeout)
 
     def _keepalive_callback(self, sock: SocketWrapper) -> None:
         """Called by the socket wrapper when a keepalive is due."""

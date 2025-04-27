@@ -212,4 +212,4 @@ def test_session_happy_path(client_id, callbacks, mocker):
     assert not hasattr(session, "__dict__")
 
     session.disconnect()
-    mock_connection.close.assert_called_once()
+    mock_connection.disconnect.assert_called_once()
