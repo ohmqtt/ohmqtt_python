@@ -7,6 +7,7 @@ from .logger import get_logger
 from .message import MQTTMessage
 from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
+from .retention import PublishHandle
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback
 
@@ -58,8 +59,8 @@ class Client:
         qos: int = 0,
         retain: bool = False,
         properties: MQTTPropertyDict | None = None,
-    ) -> None:
-        self.session.publish(topic, payload, qos=qos, retain=retain, properties=properties)
+    ) -> PublishHandle:
+        return self.session.publish(topic, payload, qos=qos, retain=retain, properties=properties)
     
     def subscribe(
         self,

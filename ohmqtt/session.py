@@ -24,7 +24,7 @@ from .packet import (
     MQTTAuthPacket,
 )
 from .property import MQTTPropertyDict
-from .retention import MessageRetention
+from .retention import MessageRetention, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
 
 logger: Final = get_logger("session")
 
@@ -304,13 +304,13 @@ class Session:
         qos: int = 0,
         retain: bool = False,
         properties: MQTTPropertyDict | None = None,
-    ) -> None:
+    ) -> PublishHandle:
         """Publish a message to a topic."""
         if qos > 0:
             if not self.client_id:
                 raise RuntimeError("Cannot publish with QoS > 0 without a client ID, set a client ID or wait for connection")
             with self._lock:
-                self._retention.add(
+                handle: ReliablePublishHandle = self._retention.add(
                     topic=topic,
                     payload=payload,
                     qos=qos,
@@ -318,6 +318,7 @@ class Session:
                     properties=properties,
                 )
                 self._flush()
+                return handle
         else:
             packet = MQTTPublishPacket(
                 topic=topic,
@@ -327,6 +328,7 @@ class Session:
                 properties=properties if properties is not None else {},
             )
             self._send_packet(packet)
+            return UnreliablePublishHandle()
 
     def _next_packet_id(self, packet_type: int) -> int:
         """Get the next packet ID for a given packet type.
