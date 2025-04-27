@@ -6,7 +6,6 @@ from .error import MQTTError
 from .mqtt_spec import MQTTReasonCode
 from .packet import decode_packet_from_parts, MQTTPacket
 from .serialization import MAX_VARINT
-from .socket_wrapper import SocketWrapperCloseCondition
 
 
 class VarintDecodeResult(NamedTuple):
@@ -21,6 +20,11 @@ class VarintDecodeResult(NamedTuple):
 InitVarintDecodeState: Final = VarintDecodeResult(0, 1, False)
 
 
+class ClosedSocketError(Exception):
+    """Exception raised when the socket is closed."""
+    pass
+
+
 def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int, mult: int) -> VarintDecodeResult:
     """Incrementally decode a variable length integer from a socket.
 
@@ -33,7 +37,7 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         except (BlockingIOError, ssl.SSLWantReadError):
             return VarintDecodeResult(result, mult, False)
         if not data:
-            raise SocketWrapperCloseCondition("Empty read")
+            raise ClosedSocketError("Empty read")
         byte = data[0]
         sz += 1
         result += byte % 0x80 * mult
@@ -69,7 +73,7 @@ class IncrementalDecoder:
             if self._partial_head == -1:
                 partial_head = sock.recv(1)
                 if not partial_head:
-                    raise SocketWrapperCloseCondition("Empty read")
+                    raise ClosedSocketError("Empty read")
                 self._partial_head = partial_head[0]
             if not self._partial_length.complete:
                 self._partial_length = decode_varint_from_socket(sock, self._partial_length.value, self._partial_length.multiplier)
@@ -81,9 +85,9 @@ class IncrementalDecoder:
                 # Read the rest of the packet.
                 data = sock.recv(self._partial_length.value - len(self._partial_data))
                 if not data:
-                    raise SocketWrapperCloseCondition("Empty read")
+                    raise ClosedSocketError("Empty read")
                 self._partial_data.extend(data)
-        except (BlockingIOError, ssl.SSLWantReadError):
+        except (ClosedSocketError, BlockingIOError, ssl.SSLWantReadError, OSError):
             # If the socket doesn't have enough data for us, we need to wait for more.
             return None
 

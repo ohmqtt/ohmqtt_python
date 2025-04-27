@@ -112,6 +112,7 @@ class Session:
             MQTTPacketType["SUBSCRIBE"]: 1,
             MQTTPacketType["UNSUBSCRIBE"]: 1,
         }
+        self.connection.start()
 
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
