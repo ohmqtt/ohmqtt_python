@@ -191,7 +191,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
     def __str__(self) -> str:
         attrs = [
-            f"reason_code={self.reason_code}",
+            f"reason_code={hex(self.reason_code)}",
             f"session_present={self.session_present}",
             f"properties={self.properties}",
         ]
@@ -222,7 +222,7 @@ class MQTTDisconnectPacket(MQTTPacket):
 
     def __str__(self) -> str:
         attrs = [
-            f"reason_code={self.reason_code}",
+            f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
         return f"DISCONNECT[{', '.join(attrs)}]"

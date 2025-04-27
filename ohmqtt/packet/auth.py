@@ -29,7 +29,7 @@ class MQTTAuthPacket(MQTTPacket):
 
     def __str__(self) -> str:
         attrs = [
-            f"reason_code={self.reason_code}",
+            f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
         return f"AUTH[{', '.join(attrs)}]"

@@ -87,7 +87,7 @@ class MQTTSubAckPacket(MQTTPacket):
     def __str__(self) -> str:
         attrs = [
             f"packet_id={self.packet_id}",
-            f"reason_codes={self.reason_codes}",
+            f"reason_codes={[hex(c) for c in self.reason_codes]}",
             f"properties={self.properties}",
         ]
         return f"SUBACK[{', '.join(attrs)}]"
@@ -174,7 +174,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
     def __str__(self) -> str:
         attrs = [
             f"packet_id={self.packet_id}",
-            f"reason_codes={self.reason_codes}",
+            f"reason_codes={[hex(c) for c in self.reason_codes]}",
             f"properties={self.properties}",
         ]
         return f"UNSUBACK[{', '.join(attrs)}]"

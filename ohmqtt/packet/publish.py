@@ -116,7 +116,7 @@ class MQTTPubAckPacket(MQTTPacket):
     def __str__(self) -> str:
         attrs = [
             f"packet_id={self.packet_id}",
-            f"reason_code={self.reason_code}",
+            f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
         return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
