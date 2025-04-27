@@ -47,7 +47,7 @@ class UnreliablePublishHandle(PublishHandle):
 
 class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
-    __slots__ = ("acked", "_retention")
+    __slots__ = ("acked", "_cond")
     def __init__(self, cond: threading.Condition) -> None:
         self.acked = False
         self._cond = cond
