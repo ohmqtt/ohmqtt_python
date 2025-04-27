@@ -24,7 +24,7 @@ STATE_CLOSED: Final = 2
 STATE_CONNECT: Final = 3
 
 
-InitAddress: Final[tuple[str, int]] = ("", -1)
+_InitAddress: Final[tuple[str, int]] = ("", -1)
 
 
 class SocketWrapperCloseCondition(Exception):
@@ -71,7 +71,7 @@ class SocketWrapper(threading.Thread):
         read_callback: SocketReadCallback,
     ) -> None:
         super().__init__(daemon=True)
-        self._address = InitAddress
+        self._address = _InitAddress
         self._close_callback = close_callback
         self._keepalive_callback = keepalive_callback
         self._open_callback = open_callback
@@ -137,7 +137,7 @@ class SocketWrapper(threading.Thread):
         """Close the socket.
 
         This method does not guarantee pending reads or writes will be completed."""
-        self._address = InitAddress
+        self._address = _InitAddress
         self._goto_state(STATE_CLOSING)
 
     def wait_for_disconnect(self, timeout: float | None = None) -> None:
@@ -250,7 +250,7 @@ class SocketWrapper(threading.Thread):
         Raises SocketWrapperCloseCondition if the thread should be shutdown instead."""
         if self._state == STATE_SHUTDOWN:
             raise SocketWrapperCloseCondition("Shutting down")
-        return bool(self._state == STATE_CONNECT and self._address != InitAddress)
+        return bool(self._state == STATE_CONNECT and self._address != _InitAddress)
 
     def run(self) -> None:
         while self._state > STATE_SHUTDOWN:
@@ -313,7 +313,7 @@ class SocketWrapper(threading.Thread):
                 if self._state > STATE_SHUTDOWN and self._reconnect_delay > 0:
                     with self._connect_cond:
                         self._connect_cond.wait(timeout=self._reconnect_delay)
-                        if self._address == InitAddress:
+                        if self._address == _InitAddress:
                             logger.debug("Reconnect cancelled")
                             break
         logger.debug("Shutdown complete")
