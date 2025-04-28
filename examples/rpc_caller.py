@@ -10,7 +10,6 @@ import uuid
 from typing import Callable
 
 from ohmqtt.client import Client
-
 from ohmqtt.message import MQTTMessage
 
 
@@ -27,10 +26,13 @@ class RPCCaller:
         # Expect the response to be sent to a unique topic.
         unique_id = str(uuid.uuid4())
         response_topic = f"ohmqtt/examples/rpc/response/{unique_id}"
+
         # Store the callback for this request.
         self.callbacks[unique_id] = callback
+
         # Subscribe to the response topic.
         self.client.subscribe(response_topic, qos=2, callback=self.handle_response)
+
         # Publish the request with the necessary properties.
         self.client.publish(
             "ohmqtt/examples/rpc/request",
@@ -38,6 +40,7 @@ class RPCCaller:
             qos=2,
             properties={"ResponseTopic": response_topic},
         ).wait_for_ack()
+
         print(f"Sent RPC request with response topic: {response_topic}")
 
     def handle_response(self, client: Client, msg: MQTTMessage) -> None:

@@ -17,18 +17,22 @@ class RPCServer:
     def handle_request(self, client: Client, msg: MQTTMessage) -> None:
         """Handle incoming RPC requests."""
         print(f"*** Received RPC request: {str(msg)}")
+
         # Find the response topic in the message properties.
         try:
             response_topic = msg.properties["ResponseTopic"]
         except KeyError:
-            print("Request was missing required property: ResponseTopic")
+            print("Request was missing required response topic property")
             return
+        
         # If the request includes correlation data, send it back in the response.
         response_props: MQTTPropertyDict = {}
         if "CorrelationData" in msg.properties:
             response_props["CorrelationData"] = msg.properties["CorrelationData"]
+
         # Simulate some processing.
         response = f"This is a good day for {msg.payload.decode()}"
+
         # Send the response back to the specified topic.
         client.publish(response_topic, response.encode(), qos=2, properties=response_props)
 
