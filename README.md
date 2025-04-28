@@ -4,10 +4,6 @@ A fast and reliable MQTT client library for Python.
 
 ## TODO for 0.1
 
-* Client pubsub interfaces
-* Client connect interfaces
-* Client auth interfaces
-* Examples
 * Instructions
 * Error handling and validation
 
