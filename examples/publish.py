@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""This exmaple demonstrates connecting to a broker, publishing messages to a topic, and then disconnecting."""
+"""This example demonstrates connecting to a broker, publishing messages to a topic, and then disconnecting."""
 
 import time
 

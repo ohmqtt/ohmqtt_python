@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""This exmaple demonstrates waiting for a published message to be fully acknowledged by the broker
+"""This example demonstrates waiting for a published message to be fully acknowledged by the broker
 before proceeding to send the next message.
   
 It also demonstrates the debug logging output of the client.  
