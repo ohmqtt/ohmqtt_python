@@ -89,6 +89,7 @@ class Connection(threading.Thread):
         "_state",
         "_decoder",
         "_keepalive",
+        "_state_cond",
     )
 
     def __init__(
