@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import socket
 import ssl
 from typing import NamedTuple, Final
@@ -48,18 +49,12 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         mult *= 0x80
 
 
+@dataclass(slots=True)
 class IncrementalDecoder:
     """Incremental decoder for MQTT messages coming in from a socket."""
-    __slots__ = (
-        "_partial_head",
-        "_partial_length",
-        "_partial_data",
-    )
-
-    def __init__(self) -> None:
-        self._partial_head = -1
-        self._partial_length: VarintDecodeResult = InitVarintDecodeState
-        self._partial_data = bytearray()
+    _partial_head: int = field(default=-1, init=False)
+    _partial_length: VarintDecodeResult = field(default=InitVarintDecodeState, init=False)
+    _partial_data: bytearray = field(init=False, default_factory=bytearray)
 
     def reset(self) -> None:
         """Reset the decoder state."""
