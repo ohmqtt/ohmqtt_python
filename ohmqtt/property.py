@@ -256,8 +256,8 @@ def encode_properties(properties: MQTTPropertyDict) -> bytes:
             data.append(prop_id)
             # Ignore typing here because mypy doesn't follow the TypedDict.
             data.extend(serializer(prop_value))  # type: ignore
-
-    return encode_varint(len(data)) + bytes(data)
+    data[0:0] = encode_varint(len(data))
+    return bytes(data)
 
 
 def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
