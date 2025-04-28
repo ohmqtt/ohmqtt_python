@@ -23,7 +23,9 @@ from .packet import (
     MQTTAuthPacket,
 )
 from .property import MQTTPropertyDict
-from .retention import MessageRetention, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
+from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
+from .persistence.in_memory import InMemoryPersistence
+from .persistence.sqlite import SQLitePersistence
 
 logger: Final = get_logger("session")
 
@@ -51,14 +53,10 @@ class SessionConnectParams(ConnectParams):
 
 class Session:
     __slots__ = (
-        "protocol_version",
-        "clean_start",
-        "keepalive_interval",
-        "connect_properties",
+        "params",
         "server_receive_maximum",
         "server_topic_alias_maximum",
         "_lock",
-        "_retention",
         "_inflight",
         "_next_packet_ids",
         "_read_handlers",
@@ -67,8 +65,10 @@ class Session:
         "open_callback",
         "message_callback",
         "connection",
+        "persistence",
     )
     connection: Connection
+    persistence: Persistence
 
     def __init__(
         self,
@@ -77,6 +77,7 @@ class Session:
         close_callback: SessionCloseCallback | None = None,
         open_callback: SessionOpenCallback | None = None,
         message_callback: SessionMessageCallback | None = None,
+        db_path: str = "",
     ) -> None:
         self.auth_callback = auth_callback
         self.close_callback = close_callback
@@ -99,14 +100,17 @@ class Session:
             MQTTPacketType.UNSUBACK: self._handle_unsuback,
             MQTTPacketType.AUTH: self._handle_auth,
         }
-        # This lock protects _retention, _inflight and _next_packet_ids.
+        # This lock protects _persistence, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
-        self._retention = MessageRetention()
         self._inflight: int = 0
         self._next_packet_ids = {
             MQTTPacketType.SUBSCRIBE: 1,
             MQTTPacketType.UNSUBSCRIBE: 1,
         }
+        if db_path:
+            self.persistence = SQLitePersistence(db_path)
+        else:
+            self.persistence = InMemoryPersistence()
 
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
@@ -120,17 +124,23 @@ class Session:
             logger.error(f"Connection failed: {packet.reason_code}")
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
         with self._lock:
-            #if "AssignedClientIdentifier" in packet.properties:
-            #    self.client_id = packet.properties["AssignedClientIdentifier"]
             if "ReceiveMaximum" in packet.properties:
                 self.server_receive_maximum = packet.properties["ReceiveMaximum"]
             else:
                 self.server_receive_maximum = MAX_PACKET_ID - 1
             if "TopicAliasMaximum" in packet.properties:
                 self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
+            if "AssignedClientIdentifier" in packet.properties:
+                client_id = packet.properties["AssignedClientIdentifier"]
+            else:
+                client_id = self.params.client_id
+            if not client_id:
+                raise MQTTError("No client ID provided", MQTTReasonCode.ProtocolError)
+            clear_persistence = self.params.clean_start or not packet.session_present
+            self.persistence.open(client_id, clear=clear_persistence)
+            if self.open_callback is not None:
+                self.open_callback()
             self._flush()
-        if self.open_callback is not None:
-            self.open_callback()
 
     def _connection_close_callback(self) -> None:
         """Handle a connection close event."""
@@ -138,7 +148,6 @@ class Session:
             self.server_receive_maximum = 0
             self.server_topic_alias_maximum = 0
             self._inflight = 0
-            self._retention.reset()
         if self.close_callback is not None:
             self.close_callback()
 
@@ -154,7 +163,7 @@ class Session:
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBACK with error code: {packet.reason_code}")
         with self._lock:
-            self._retention.ack(packet.packet_id)
+            self.persistence.ack(packet.packet_id)
             self._inflight -= 1
             self._flush()
 
@@ -163,7 +172,7 @@ class Session:
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBREC with error code: {packet.reason_code}")
         with self._lock:
-            self._retention.ack(packet.packet_id)
+            self.persistence.ack(packet.packet_id)
             self._inflight -= 1
             self._flush()
 
@@ -179,7 +188,7 @@ class Session:
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
         with self._lock:
-            self._retention.ack(packet.packet_id)
+            self.persistence.ack(packet.packet_id)
             self._inflight -= 1
             self._flush()
 
@@ -219,10 +228,7 @@ class Session:
 
     def connect(self, params: ConnectParams) -> None:
         """Connect to the broker."""
-        self.protocol_version = params.protocol_version
-        self.clean_start = params.clean_start
-        self.keepalive_interval = params.keepalive_interval
-        self.connect_properties = params.connect_properties
+        self.params = params
         self.connection.connect(params)
 
     def disconnect(self) -> None:
@@ -246,7 +252,7 @@ class Session:
         """Publish a message to a topic."""
         if qos > 0:
             with self._lock:
-                handle: ReliablePublishHandle = self._retention.add(
+                handle: ReliablePublishHandle = self.persistence.add(
                     topic=topic,
                     payload=payload,
                     qos=qos,
@@ -328,9 +334,9 @@ class Session:
         """Send queued packets up to the server's receive maximum."""
         with self._lock:
             allowed_count = self.server_receive_maximum - self._inflight
-            pending_messages = self._retention.get(allowed_count)
-            for message in pending_messages:
-                packet = self._retention.render(message)
+            pending_message_ids = self.persistence.get(allowed_count)
+            for message_id in pending_message_ids:
+                packet = self.persistence.render(message_id)
                 self._inflight += 1
                 try:
                     self._send_packet(packet)

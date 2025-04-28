@@ -1,10 +1,10 @@
 import threading
 import time
 
-from ohmqtt.retention import ReliablePublishHandle, UnreliablePublishHandle
+from ohmqtt.persistence.base import ReliablePublishHandle, UnreliablePublishHandle
 
 
-def test_retention_unreliable_publish_handle():
+def test_persistence_handles_unreliable_publish():
     """Test the UnreliablePublishHandle class."""
     handle = UnreliablePublishHandle()
     assert handle.is_acked() is False
@@ -15,7 +15,7 @@ def test_retention_unreliable_publish_handle():
     assert all(hasattr(handle, attr) for attr in handle.__slots__)
 
 
-def test_retention_reliable_publish_handle():
+def test_persistence_handles_reliable_publish():
     """Test the ReliablePublishHandle class."""
     cond = threading.Condition()
     handle = ReliablePublishHandle(cond)

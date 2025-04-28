@@ -65,7 +65,7 @@ def test_session_happy_path(callbacks, mocker):
     assert MockConnection.call_count == 1
 
     # Send back a CONNACK packet.
-    connack_packet = MQTTConnAckPacket()
+    connack_packet = MQTTConnAckPacket(properties={"AssignedClientIdentifier": "test_client"})
     MockConnection.call_args.kwargs["open_callback"](connack_packet)
     callbacks["open"].assert_called_once_with()
     callbacks["open"].reset_mock()

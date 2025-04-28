@@ -10,7 +10,7 @@ from .message import MQTTMessage
 from .mqtt_spec import MQTTReasonCode
 from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
-from .retention import PublishHandle
+from .persistence.base import PublishHandle
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback, SubscriptionHandle
 
@@ -21,13 +21,14 @@ class Client:
     """High level interface for the MQTT client."""
     __slots__ = ("session", "subscriptions")
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: str = "") -> None:
         self.subscriptions = Subscriptions()
         self.session = Session(
             auth_callback=self._handle_auth,
             close_callback=self._handle_close,
             message_callback=self._handle_message,
             open_callback=self._handle_open,
+            db_path=db_path,
         )
 
     def __enter__(self) -> Client:

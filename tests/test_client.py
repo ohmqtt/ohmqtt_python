@@ -26,6 +26,7 @@ def test_client_happy_path(MockSession, mock_session):
             close_callback=client._handle_close,
             message_callback=client._handle_message,
             open_callback=client._handle_open,
+            db_path="",
         )
         assert client.session == mock_session
         assert client.session.connect.call_count == 0
