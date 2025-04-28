@@ -47,7 +47,7 @@ class MQTTAuthPacket(MQTTPacket):
         return bytes(encoded)
     
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> "MQTTAuthPacket":
+    def decode(cls, flags: int, data: bytes) -> MQTTAuthPacket:
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         if len(data) == 0:
