@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from .message import MQTTMessage
 from .topic_filter import MQTTTopicFilter
 
+if TYPE_CHECKING:
+    from .client import Client
 
-SubscribeCallback = Callable[[MQTTMessage], None]
+
+SubscribeCallback = Callable[["Client", MQTTMessage], None]
 
 
 @dataclass(match_args=True, slots=True)

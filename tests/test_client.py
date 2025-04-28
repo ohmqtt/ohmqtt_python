@@ -59,7 +59,9 @@ def test_client_happy_path(MockSession, mock_session):
     mock_session.auth.reset_mock()
 
     # SUBSCRIBE
-    sub_handle = client.subscribe("test/+", lambda m: received.append(m))
+    def callback(client, message):
+        received.append(message)
+    sub_handle = client.subscribe("test/+", callback)
     mock_session.subscribe.assert_called_once_with("test/+", qos=2, properties=None)
     mock_session.subscribe.reset_mock()
 
@@ -132,8 +134,8 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
     """Test that unsubscribing a callback works as expected."""
     received = []
 
-    callback1 = lambda m: received.append(m)
-    callback2 = lambda m: received.append(m)
+    callback1 = lambda c, m: received.append(m)
+    callback2 = lambda c, m: received.append(m)
 
     client = Client()
     client.connect("localhost", 1883)

@@ -173,7 +173,7 @@ class Client:
         )
         for callback in callbacks:
             try:
-                callback(message)
+                callback(self, message)
             except Exception:
                 logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {message.topic}")
 
