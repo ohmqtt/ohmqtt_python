@@ -20,15 +20,13 @@ def MockSession(mocker, mock_session):
 def test_client_happy_path(MockSession, mock_session):
     received = []
 
-    client = Client(client_id="test_client")
+    client = Client()
     MockSession.assert_called_once_with(
-        "test_client",
         auth_callback=client._handle_auth,
         close_callback=client._handle_close,
         message_callback=client._handle_message,
         open_callback=client._handle_open,
     )
-    assert client.client_id == "test_client"
     assert client.session == mock_session
     assert client.session.connect.call_count == 0
     assert client.session.publish.call_count == 0
@@ -105,7 +103,7 @@ def test_client_happy_path(MockSession, mock_session):
 
 def test_client_unsubscribe_untracked(MockSession, mock_session):
     """Test that unsubscribing from an untracked topic filter does not raise an error."""
-    client = Client(client_id="test_client")
+    client = Client()
     client.connect("localhost", 1883)
     client.unsubscribe("test/topic")
     mock_session.unsubscribe.assert_called_once_with("test/topic")
@@ -117,7 +115,7 @@ def test_client_subscribe_callback_error(MockSession, mock_session):
     def error_callback(_):
         raise ValueError("Test error")
 
-    client = Client(client_id="test_client")
+    client = Client()
     client.connect("localhost", 1883)
     client.subscribe("test/+", error_callback)
 
@@ -137,7 +135,7 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
     callback1 = lambda m: received.append(m)
     callback2 = lambda m: received.append(m)
 
-    client = Client(client_id="test_client")
+    client = Client()
     client.connect("localhost", 1883)
     client.subscribe("test/+", callback1)
     client.subscribe("test/+", callback2)
@@ -162,6 +160,6 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
 
 def test_client_slots(MockSession, mock_session):
     """Test that the client slots are set correctly."""
-    client = Client(client_id="test_client")
+    client = Client()
     assert not hasattr(client, "__dict__")
     assert all(hasattr(client, attr) for attr in client.__slots__)

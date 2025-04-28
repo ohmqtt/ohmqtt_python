@@ -3,13 +3,12 @@ import logging
 import threading
 from typing import Any, Callable, Final, Mapping, Sequence
 
-from .connection import Connection, ConnectionConnectParams
+from .connection import Connection, ConnectParams
 from .error import MQTTError
 from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
 from .packet import (
     MQTTPacket,
-    MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTDisconnectPacket,
     MQTTPublishPacket,
@@ -44,7 +43,7 @@ SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 
 
 @dataclass(slots=True, match_args=True, frozen=True)
-class SessionConnectParams(ConnectionConnectParams):
+class SessionConnectParams(ConnectParams):
     protocol_version: int = 5
     clean_start: bool = False
     connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
@@ -52,7 +51,6 @@ class SessionConnectParams(ConnectionConnectParams):
 
 class Session:
     __slots__ = (
-        "client_id",
         "protocol_version",
         "clean_start",
         "keepalive_interval",
@@ -74,14 +72,12 @@ class Session:
 
     def __init__(
         self,
-        client_id: str = "",
         *,
         auth_callback: SessionAuthCallback | None = None,
         close_callback: SessionCloseCallback | None = None,
         open_callback: SessionOpenCallback | None = None,
         message_callback: SessionMessageCallback | None = None,
     ) -> None:
-        self.client_id = client_id
         self.auth_callback = auth_callback
         self.close_callback = close_callback
         self.open_callback = open_callback
@@ -122,14 +118,7 @@ class Session:
 
     def _connection_open_callback(self) -> None:
         """Handle a connection open event."""
-        packet = MQTTConnectPacket(
-            client_id=self.client_id,
-            protocol_version=self.protocol_version,
-            clean_start=self.clean_start,
-            keep_alive=self.keepalive_interval,
-            properties=self.connect_properties,
-        )
-        self._send_packet(packet)
+        pass
 
     def _connection_close_callback(self) -> None:
         """Handle a connection close event."""
@@ -154,8 +143,8 @@ class Session:
             logger.error(f"Connection failed: {packet.reason_code}")
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
         with self._lock:
-            if "AssignedClientIdentifier" in packet.properties:
-                self.client_id = packet.properties["AssignedClientIdentifier"]
+            #if "AssignedClientIdentifier" in packet.properties:
+            #    self.client_id = packet.properties["AssignedClientIdentifier"]
             if "ReceiveMaximum" in packet.properties:
                 self.server_receive_maximum = packet.properties["ReceiveMaximum"]
             else:
@@ -234,7 +223,7 @@ class Session:
                 packet.properties.get("UserProperty"),
             )
 
-    def connect(self, params: SessionConnectParams) -> None:
+    def connect(self, params: ConnectParams) -> None:
         """Connect to the broker."""
         self.protocol_version = params.protocol_version
         self.clean_start = params.clean_start
@@ -250,12 +239,6 @@ class Session:
 
     def shutdown(self) -> None:
         self.connection.shutdown()
-
-    def wait_for_disconnect(self, timeout: float | None = None) -> None:
-        """Wait for the session to disconnect from the server.
-
-        Raises TimeoutError if the timeout is exceeded."""
-        self.connection.wait_for_disconnect(timeout)
 
     def publish(
         self,
@@ -302,8 +285,6 @@ class Session:
 
     def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
         """Subscribe to a single topic."""
-        if not self.client_id:
-            raise RuntimeError("Cannot subscribe without a client ID, wait for connection first")
         topics = ((topic, qos),)
         packet_id = self._next_packet_id(MQTTPacketType["SUBSCRIBE"])
         packet = MQTTSubscribePacket(
@@ -315,8 +296,6 @@ class Session:
 
     def unsubscribe(self, topic: str, properties: MQTTPropertyDict | None = None) -> None:
         """Unsubscribe from a single topic."""
-        if not self.client_id:
-            raise RuntimeError("Cannot unsubscribe without a client ID, wait for connection first")
         topics = [topic]
         packet_id = self._next_packet_id(MQTTPacketType["UNSUBSCRIBE"])
         packet = MQTTUnsubscribePacket(

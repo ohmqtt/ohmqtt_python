@@ -15,11 +15,13 @@ from .logger import get_logger
 from .mqtt_spec import MQTTPacketType, MQTTReasonCode
 from .packet import (
     MQTTPacket,
+    MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTDisconnectPacket,
     PING,
     PONG,
 )
+from .property import MQTTPropertyDict
 
 logger: Final = get_logger("connection")
 
@@ -31,7 +33,8 @@ ConnectionReadCallback = Callable[[MQTTPacket], None]
 STATE_SHUTDOWN: Final = 0
 STATE_CLOSING: Final = 1
 STATE_CLOSED: Final = 2
-STATE_CONNECT: Final = 3
+STATE_CONNECTING: Final = 3
+STATE_CONNECT: Final = 4
 
 
 _InitAddress: Final[tuple[str, int]] = ("", -1)
@@ -55,34 +58,34 @@ def _get_socket() -> socket.socket:
 
 
 @dataclass(slots=True, match_args=True, frozen=True)
-class ConnectionConnectParams:
+class ConnectParams:
     host: str
     port: int
+    client_id: str = ""
     reconnect_delay: float = 0.0
     keepalive_interval: int = 0
     tcp_nodelay: bool = True
     use_tls: bool = False
     tls_context: ssl.SSLContext = field(default_factory=ssl.create_default_context)
     tls_hostname: str = ""
+    protocol_version: int = 5
+    clean_start: bool = False
+    connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
 
 class Connection(threading.Thread):
     """Non-blocking socket wrapper with TLS and application keepalive support."""
     __slots__ = (
+        "_params",
         "_address",
         "_close_callback",
         "_open_callback",
         "_read_callback",
-        "_tls_context",
-        "_tls_hostname",
-        "_use_tls",
         "_write_buffer",
         "_write_buffer_lock",
         "_interrupt_r",
         "_interrupt_w",
         "_in_read",
-        "_tcp_nodelay",
-        "_reconnect_delay",
         "_state",
         "_decoder",
         "_keepalive",
@@ -95,22 +98,18 @@ class Connection(threading.Thread):
         read_callback: ConnectionReadCallback,
     ) -> None:
         super().__init__(daemon=True)
-        self._address = _InitAddress
         self._close_callback = close_callback
         self._open_callback = open_callback
         self._read_callback = read_callback
-        self._use_tls = False
-        self._tls_context = ssl.create_default_context()
-        self._tls_hostname = ""
-        self._tcp_nodelay = True
-        self._reconnect_delay = 1.0
+        self._params = ConnectParams(*_InitAddress)
+        self._address = _InitAddress
 
         self._state = STATE_CLOSED
         self._write_buffer = bytearray()
         self._write_buffer_lock = threading.Lock()
         self._interrupt_r, self._interrupt_w = socket.socketpair()
         self._in_read = False
-        self._connect_cond = threading.Condition()
+        self._state_cond = threading.Condition()
         self._decoder = IncrementalDecoder()
         self._keepalive = KeepAlive()
 
@@ -121,18 +120,26 @@ class Connection(threading.Thread):
     def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.shutdown()
 
-    def connect(self, params: ConnectionConnectParams) -> None:
+    def connect(self, params: ConnectParams) -> None:
         """Connect to the broker.
 
         This method is non-blocking and will return immediately. The connection will be established in the background."""
-        self._keepalive.keepalive_interval = params.keepalive_interval
-        self._reconnect_delay = params.reconnect_delay
-        self._tcp_nodelay = params.tcp_nodelay
-        self._use_tls = params.use_tls
-        self._tls_hostname = params.tls_hostname
-        self._tls_context = params.tls_context
-        self._address = params.host, params.port
-        self._goto_state(STATE_CONNECT)
+        with self._state_cond:
+            if self._state >= STATE_CONNECTING:
+                raise RuntimeError("Already connecting or connected")
+            self._params = params
+            self._keepalive.keepalive_interval = params.keepalive_interval
+            self._address = params.host, params.port
+            self._goto_state(STATE_CONNECTING)
+
+    def wait_for_connect(self, timeout: float | None = None) -> None:
+        """Wait for the connection to be established.
+
+        This method will block until the connection is established or the timeout is reached."""
+        with self._state_cond:
+            self._state_cond.wait_for(lambda: self._state >= STATE_CONNECT, timeout=timeout)
+            if self._state < STATE_CONNECT:
+                raise TimeoutError("Socket did not connect in time")
 
     def disconnect(self) -> None:
         """Close the connection.
@@ -145,10 +152,16 @@ class Connection(threading.Thread):
         """Wait for the connection to be closed.
 
         This method will block until the connection is closed or the timeout is reached."""
-        with self._connect_cond:
-            self._connect_cond.wait_for(lambda: self._state <= STATE_CLOSED, timeout=timeout)
+        with self._state_cond:
+            self._state_cond.wait_for(lambda: self._state <= STATE_CLOSED, timeout=timeout)
             if self._state > STATE_CLOSED:
                 raise TimeoutError("Socket did not close in time")
+            
+    def is_connected(self) -> bool:
+        """Check if the connection is established.
+
+        This method will return True if the connection is established, False otherwise."""
+        return self._state >= STATE_CONNECT
 
     def shutdown(self) -> None:
         """Shutdown the connection, finalizing the instance.
@@ -171,9 +184,9 @@ class Connection(threading.Thread):
 
         This method must only be called from threads other than the Connection thread
             (the public interface of this class, other than run)."""
-        with self._connect_cond:
+        with self._state_cond:
             self._state = state
-            self._connect_cond.notify_all()
+            self._state_cond.notify_all()
             self._interrupt()
 
     def _try_to_send_disconnect(self, sock: socket.socket | ssl.SSLSocket, reason_code: int) -> None:
@@ -193,9 +206,8 @@ class Connection(threading.Thread):
 
     def _handshake_loop(self, sock: socket.socket) -> ssl.SSLSocket:
         """Run the TLS handshake in a loop until it is complete."""
-        assert self._tls_context is not None
-        sock = self._tls_context.wrap_socket(sock, server_hostname=self._tls_hostname, do_handshake_on_connect=False)
-        while self._state == STATE_CONNECT:
+        sock = self._params.tls_context.wrap_socket(sock, server_hostname=self._params.tls_hostname, do_handshake_on_connect=False)
+        while self._state == STATE_CONNECTING:
             try:
                 sock.do_handshake()
                 return sock
@@ -253,6 +265,11 @@ class Connection(threading.Thread):
                 keepalive_interval = packet.properties["ServerKeepAlive"]
                 self._keepalive.keepalive_interval = keepalive_interval
                 logger.debug(f"Keepalive interval set by server to {keepalive_interval} seconds")
+            with self._state_cond:
+                if self._state == STATE_CONNECTING:
+                    self._open_callback()
+                    self._state = STATE_CONNECT
+                    self._state_cond.notify_all()
 
     def _check_keepalive(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Check if we should send a ping or close the connection."""
@@ -269,7 +286,7 @@ class Connection(threading.Thread):
         Raises ConnectionCloseCondition if the thread should be shutdown instead."""
         if self._state == STATE_SHUTDOWN:
             raise ConnectionCloseCondition("Shutting down")
-        return bool(self._state == STATE_CONNECT and self._address != _InitAddress)
+        return bool(self._state == STATE_CONNECTING and self._address != _InitAddress)
 
     def run(self) -> None:
         while self._state > STATE_SHUTDOWN:
@@ -277,24 +294,33 @@ class Connection(threading.Thread):
             sent_disconnect = False
             sock: socket.socket | ssl.SSLSocket = _get_socket()
             try:
-                with self._connect_cond:
-                    self._connect_cond.wait_for(self._check_connect)
+                with self._state_cond:
+                    self._state_cond.wait_for(self._check_connect)
                     address = self._address
 
-                if self._tcp_nodelay:
+                if self._params.tcp_nodelay:
                     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 sock.connect(address)
                 sock.setblocking(False)
 
-                if self._use_tls:
+                if self._params.use_tls:
                     sock = self._handshake_loop(sock)
-                if self._state == STATE_CONNECT:
-                    self._open_callback()
-                    was_open = True
+
+                # Send CONNECT
+                connect_packet = MQTTConnectPacket(
+                    client_id=self._params.client_id,
+                    protocol_version=self._params.protocol_version,
+                    clean_start=self._params.clean_start,
+                    keep_alive=self._params.keepalive_interval,
+                    properties=self._params.connect_properties,
+                )
+                self._write_buffer.extend(connect_packet.encode())
+                logger.debug(f"---> {str(connect_packet)}")
 
                 self._keepalive.mark_init()
+                was_open = True
 
-                while self._state == STATE_CONNECT:
+                while self._state >= STATE_CONNECTING:
                     next_timeout = self._keepalive.get_next_timeout()
                     write_check = (sock,) if self._write_buffer else tuple()
                     readable, writable, _ = select.select([sock, self._interrupt_r], write_check, [], next_timeout)
@@ -325,9 +351,9 @@ class Connection(threading.Thread):
                 self._state = STATE_SHUTDOWN
             finally:
                 self._state = min(self._state, STATE_CLOSED)
-                with self._connect_cond:
+                with self._state_cond:
                     # Wake up wait_for_disconnect.
-                    self._connect_cond.notify_all()
+                    self._state_cond.notify_all()
                 if was_open:
                     try:
                         self._close_callback()
@@ -338,9 +364,9 @@ class Connection(threading.Thread):
                 sock.close()
                 self._decoder.reset()
                 self._write_buffer.clear()
-                if self._state > STATE_SHUTDOWN and self._reconnect_delay > 0:
-                    with self._connect_cond:
-                        self._connect_cond.wait(timeout=self._reconnect_delay)
+                if self._state > STATE_SHUTDOWN and self._params.reconnect_delay > 0:
+                    with self._state_cond:
+                        self._state_cond.wait(timeout=self._params.reconnect_delay)
                         if self._address == _InitAddress:
                             logger.debug("Reconnect cancelled")
                             break

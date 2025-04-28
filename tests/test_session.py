@@ -5,7 +5,6 @@ from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
     decode_packet,
     MQTTPacket,
-    MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTSubscribePacket,
     MQTTSubAckPacket,
@@ -48,12 +47,10 @@ def send_to_session(MockConnection, mock_connection, packet: MQTTPacket) -> None
     MockConnection.call_args.kwargs["read_callback"](packet)
 
 
-@pytest.mark.parametrize("client_id", ["", "a_client_id"])
-def test_session_happy_path(client_id, callbacks, mocker):
+def test_session_happy_path(callbacks, mocker):
     mock_connection = mocker.Mock(spec=Connection)
     MockConnection = mocker.patch("ohmqtt.session.Connection", return_value=mock_connection)
     session = Session(
-        client_id=client_id,
         auth_callback=callbacks["auth"],
         close_callback=callbacks["close"],
         open_callback=callbacks["open"],
@@ -68,16 +65,10 @@ def test_session_happy_path(client_id, callbacks, mocker):
     assert MockConnection.call_count == 1
 
     # Simulate the Connection calling back.
-    # Session should send a CONNECT packet.
     MockConnection.call_args.kwargs["open_callback"]()
-    connect_packet = expect_from_session(MockConnection, mock_connection, MQTTConnectPacket)
-    assert connect_packet.client_id == client_id
 
     # Send back a CONNACK packet.
-    connack_props = {}
-    if client_id == "":
-        connack_props["AssignedClientIdentifier"] = "assigned_client_id"
-    connack_packet = MQTTConnAckPacket(properties=connack_props)
+    connack_packet = MQTTConnAckPacket()
     send_to_session(MockConnection, mock_connection, connack_packet)
     callbacks["open"].assert_called_once_with()
     callbacks["open"].reset_mock()

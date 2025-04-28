@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import ssl
-import threading
 from typing import Final, Sequence
 
+from .connection import ConnectParams
 from .logger import get_logger
 from .message import MQTTMessage
 from .mqtt_spec import MQTTReasonCode
 from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
 from .retention import PublishHandle
-from .session import Session, SessionConnectParams
+from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback
 
 logger: Final = get_logger("client")
@@ -32,37 +32,31 @@ class SubscriptionHandle:
 class Client:
     """High level interface for the MQTT client."""
     __slots__ = (
-        "client_id",
         "session",
         "subscriptions",
-        "_is_connected",
     )
-    client_id: str
     session: Session
     subscriptions: Subscriptions
 
-    def __init__(self, client_id: str = "") -> None:
-        self.client_id = client_id
+    def __init__(self) -> None:
         self.subscriptions = Subscriptions()
         self.session = Session(
-            client_id,
             auth_callback=self._handle_auth,
             close_callback=self._handle_close,
             message_callback=self._handle_message,
             open_callback=self._handle_open,
         )
-        self._is_connected = threading.Event()
 
-    @property
     def is_connected(self) -> bool:
         """Check if the client is connected to the broker."""
-        return self._is_connected.is_set()
+        return self.session.connection.is_connected()
 
     def connect(
         self,
         host: str,
         port: int,
         *,
+        client_id: str = "",
         reconnect_delay: float = 0.0,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = True,
@@ -72,9 +66,10 @@ class Client:
         connect_properties: MQTTPropertyDict | None = None,
     ) -> None:
         """Connect to the broker."""
-        self.session.connect(SessionConnectParams(
+        self.session.connect(ConnectParams(
             host,
             port,
+            client_id=client_id,
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
             tcp_nodelay=tcp_nodelay,
@@ -96,14 +91,13 @@ class Client:
         """Wait for the client to connect to the broker.
 
         Raises TimeoutError if the timeout is exceeded."""
-        if not self._is_connected.wait(timeout):
-            raise TimeoutError("Connection timed out")
+        self.session.connection.wait_for_connect(timeout)
 
     def wait_for_disconnect(self, timeout: float | None = None) -> None:
         """Wait for the client to disconnect from the broker.
 
         Raises TimeoutError if the timeout is exceeded."""
-        self.session.wait_for_disconnect(timeout)
+        self.session.connection.wait_for_disconnect(timeout)
 
     def publish(
         self,
@@ -185,11 +179,9 @@ class Client:
 
     def _handle_open(self) -> None:
         """Callback for when the connection is opened."""
-        self._is_connected.set()
 
     def _handle_close(self) -> None:
         """Callback for when the connection is closed."""
-        self._is_connected.clear()
         self.subscriptions.clear()
 
     def _handle_auth(

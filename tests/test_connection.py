@@ -6,7 +6,7 @@ import time
 
 from ohmqtt.connection import (
     Connection,
-    ConnectionConnectParams,
+    ConnectParams,
     ConnectionCloseCallback,
     ConnectionOpenCallback,
     ConnectionReadCallback,
@@ -63,7 +63,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectionConnectParams(
+        connection.connect(ConnectParams(
             "localhost",
             1883,
             use_tls=use_tls,
@@ -71,26 +71,24 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
             tls_context=tls_context,
             tcp_nodelay=False,
         ))
-        time.sleep(0.1)
+
+        time.sleep(0.1)  # Wait for potential TLS handshake.
+        connect_packet = MQTTConnectPacket()
+        assert loop.test_recv(512) == connect_packet.encode()
         assert loop.connect_calls == [("localhost", 1883)]
+
+        connack_packet = MQTTConnAckPacket()
+        loop.test_sendall(connack_packet.encode())
+
+        connection.wait_for_connect(timeout=0.1)
         callbacks.open_callback.assert_called_once_with()
         callbacks.open_callback.reset_mock()
-
-        # CONNECT
-        connect_packet = MQTTConnectPacket(client_id="test_client", clean_start=True, keep_alive=60)
-        connection.send(connect_packet.encode())
-        assert loop.test_recv(512) == connect_packet.encode()
-
-        # CONNACK
-        connack_packet = MQTTConnAckPacket(session_present=False, reason_code=MQTTReasonCode["Success"])
-        loop.test_sendall(connack_packet.encode())
-        time.sleep(0.1)
         callbacks.read_callback.assert_called_once_with(connack_packet)
         callbacks.read_callback.reset_mock()
 
         # DISCONNECT
         connection.disconnect()
-        disconnect_packet = MQTTDisconnectPacket(reason_code=MQTTReasonCode["NormalDisconnection"])
+        disconnect_packet = MQTTDisconnectPacket()
         assert loop.test_recv(512) == disconnect_packet.encode()
 
         connection.join(timeout=0.1)
@@ -113,7 +111,16 @@ def test_connection_partial_read(callbacks, mocker, loopback_socket):
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, tcp_nodelay=False))
+        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False))
+
+        connect_packet = MQTTConnectPacket()
+        assert loopback_socket.test_recv(512) == connect_packet.encode()
+
+        connack_packet = MQTTConnAckPacket()
+        loopback_socket.test_sendall(connack_packet.encode())
+        connection.wait_for_connect(timeout=0.1)
+        callbacks.read_callback.assert_called_once_with(connack_packet)
+        callbacks.read_callback.reset_mock()
 
         packet = MQTTPublishPacket(
             topic="test/topic",
@@ -142,7 +149,15 @@ def test_connection_garbage_read(callbacks, mocker, loopback_socket):
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, tcp_nodelay=False))
+        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False))
+
+        connect_packet = MQTTConnectPacket()
+        assert loopback_socket.test_recv(512) == connect_packet.encode()
+
+        connack_packet = MQTTConnAckPacket()
+        loopback_socket.test_sendall(connack_packet.encode())
+        connection.wait_for_connect(timeout=0.1)
+
         encoded = b"\xff\xff\xff\xff\xffThis is not a valid MQTT packet."
         loopback_socket.test_sendall(encoded)
 
@@ -179,7 +194,7 @@ def test_connection_nodelay(callbacks, mocker):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, tcp_nodelay=True))
+        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=True))
         time.sleep(0.1)
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
@@ -192,7 +207,15 @@ def test_connection_ping_pong(callbacks, mocker, loopback_socket):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
+        connection.connect(ConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
+
+        connect_packet = MQTTConnectPacket(keep_alive=1)
+        assert loopback_socket.test_recv(512) == connect_packet.encode()
+
+        connack_packet = MQTTConnAckPacket()
+        loopback_socket.test_sendall(connack_packet.encode())
+        connection.wait_for_connect(timeout=0.1)
+
         assert loopback_socket.test_recv(512) == PING
         loopback_socket.test_sendall(PONG)
         assert loopback_socket.test_recv(512) == PING
@@ -213,14 +236,9 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, tcp_nodelay=False))
+        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False))
 
-        connect_packet = MQTTConnectPacket(
-            client_id="test_client",
-            clean_start=True,
-            keep_alive=60,
-        )
-        connection.send(connect_packet.encode())
+        connect_packet = MQTTConnectPacket()
         assert loopback_socket.test_recv(512) == connect_packet.encode()
 
         connack_packet = MQTTConnAckPacket(
@@ -229,7 +247,7 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
             properties={"ServerKeepAlive": 1},
         )
         loopback_socket.test_sendall(connack_packet.encode())
-        time.sleep(0.1)
+        connection.wait_for_connect(timeout=0.1)
         callbacks.read_callback.assert_called_once_with(connack_packet)
         callbacks.read_callback.reset_mock()
 
