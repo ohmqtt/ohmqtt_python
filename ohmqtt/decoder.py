@@ -38,7 +38,7 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         except (BlockingIOError, ssl.SSLWantReadError):
             return VarintDecodeResult(result, mult, False)
         if not data:
-            raise ClosedSocketError("Empty read")
+            return VarintDecodeResult(result, mult, False)
         byte = data[0]
         sz += 1
         result += byte % 0x80 * mult
@@ -68,7 +68,7 @@ class IncrementalDecoder:
             if self._partial_head == -1:
                 partial_head = sock.recv(1)
                 if not partial_head:
-                    raise ClosedSocketError("Empty read")
+                    return None
                 self._partial_head = partial_head[0]
             if not self._partial_length.complete:
                 self._partial_length = decode_varint_from_socket(sock, self._partial_length.value, self._partial_length.multiplier)
@@ -80,9 +80,9 @@ class IncrementalDecoder:
                 # Read the rest of the packet.
                 data = sock.recv(self._partial_length.value - len(self._partial_data))
                 if not data:
-                    raise ClosedSocketError("Empty read")
+                    return None
                 self._partial_data.extend(data)
-        except (ClosedSocketError, BlockingIOError, ssl.SSLWantReadError, OSError):
+        except (BlockingIOError, ssl.SSLWantReadError, OSError):
             # If the socket doesn't have enough data for us, we need to wait for more.
             return None
 
