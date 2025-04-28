@@ -16,7 +16,7 @@ def main() -> None:
     print("*** Connected to broker")
     
     for n in range(1, 9):
-        client.publish("test/topic", b"test_payload: " + str(n).encode(), qos=0)
+        client.publish("ohmqtt/examples/publish", b"test_payload: " + str(n).encode(), qos=0)
         print(f"*** Published message {n}")
         time.sleep(1.0)
 
