@@ -9,11 +9,6 @@ class MQTTPacket(metaclass=ABCMeta):
     packet_type: ClassVar[int]
     __slots__: Sequence[str] = tuple()
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
-
     @abstractmethod
     def __str__(self) -> str:
         ...  # pragma: no cover
