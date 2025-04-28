@@ -42,6 +42,11 @@ class ConnectionCloseCondition(Exception):
     pass
 
 
+class KeepAliveTimeout(Exception):
+    """This exception means a PINGRESP has not been received within the interval."""
+    pass
+
+
 def _get_socket() -> socket.socket:
     """Helper function to get a socket.
 
@@ -251,7 +256,7 @@ class Connection(threading.Thread):
     def _check_keepalive(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Check if we should send a ping or close the connection."""
         if self._keepalive.should_close():
-            raise ConnectionCloseCondition("Keepalive timeout")
+            raise KeepAliveTimeout("Keepalive timeout")
         if self._keepalive.should_send_ping():
             self.send(PING)
             logger.debug("---> PING")
@@ -310,6 +315,10 @@ class Connection(threading.Thread):
                 sent_disconnect = True
             except ConnectionCloseCondition as exc:
                 logger.debug(f"Closing socket: {exc}")
+            except KeepAliveTimeout:
+                logger.error("Keepalive timeout, closing socket")
+                # Do not try to send a DISCONNECT in this case.
+                sent_disconnect = True
             except Exception:
                 logger.exception("Unhandled error in socket read thread, shutting down")
                 self._state = STATE_SHUTDOWN
