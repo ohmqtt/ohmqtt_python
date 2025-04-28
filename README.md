@@ -1,6 +1,6 @@
 # OhmQTT
 
-A fast and reliable MQTT client library for Python.
+A lightweight MQTT client library for Python.
 
 ## TODO for 0.1
 
