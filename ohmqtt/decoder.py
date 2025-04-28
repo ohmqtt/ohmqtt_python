@@ -61,7 +61,7 @@ class IncrementalDecoder:
         self._partial_head = -1
         self._partial_length = InitVarintDecodeState
         self._partial_data.clear()
-    
+
     def decode(self, sock: socket.socket | ssl.SSLSocket) -> MQTTPacket | None:
         """Decode a packet from the socket."""
         try:
