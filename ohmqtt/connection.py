@@ -266,6 +266,7 @@ class Connection(threading.Thread):
                     self._open_callback(packet)
                     self._state = STATE_CONNECT
                     self._state_cond.notify_all()
+            logger.debug(f"<--- {str(packet)}")
         else:
             # All other packets are passed to the read callback.
             self._read_callback(packet)
