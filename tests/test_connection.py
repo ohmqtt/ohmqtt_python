@@ -158,7 +158,7 @@ def test_connection_garbage_read(callbacks, mocker, loopback_socket):
         loopback_socket.test_sendall(encoded)
 
         # Should be closed, but not shut down.
-        expected = MQTTDisconnectPacket(reason_code=MQTTReasonCode["MalformedPacket"]).encode()
+        expected = MQTTDisconnectPacket(reason_code=MQTTReasonCode.MalformedPacket).encode()
         assert loopback_socket.test_recv(512) == expected
         connection.wait_for_disconnect(timeout=0.1)
         callbacks.close_callback.assert_called_once_with()
@@ -239,7 +239,7 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
 
         connack_packet = MQTTConnAckPacket(
             session_present=False,
-            reason_code=MQTTReasonCode["Success"],
+            reason_code=MQTTReasonCode.Success,
             properties={"ServerKeepAlive": 1},
         )
         loopback_socket.test_sendall(connack_packet.encode())

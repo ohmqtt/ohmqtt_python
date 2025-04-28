@@ -24,7 +24,7 @@ HEAD_AUTH = MQTTPacketType.AUTH << 4
 @dataclass(match_args=True, slots=True)
 class MQTTAuthPacket(MQTTPacket):
     packet_type = MQTTPacketType.AUTH
-    reason_code: int = MQTTReasonCode["Success"]
+    reason_code: int = MQTTReasonCode.Success
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __str__(self) -> str:
@@ -36,7 +36,7 @@ class MQTTAuthPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
-        if self.reason_code == MQTTReasonCode["Success"] and len(self.properties) == 0:
+        if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
             return HEAD_AUTH.to_bytes(1, "big") + b"\x00"
         encoded = bytearray()
         encoded.append(HEAD_AUTH)
@@ -49,7 +49,7 @@ class MQTTAuthPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTAuthPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTAuthPacket()

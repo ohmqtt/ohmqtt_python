@@ -59,7 +59,7 @@ class MQTTSubscribePacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTSubscribePacket:
         if flags != 0x02:
-            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode.MalformedPacket)
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
@@ -108,7 +108,7 @@ class MQTTSubAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTSubAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
@@ -148,7 +148,7 @@ class MQTTUnsubscribePacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTUnsubscribePacket:
         if flags != 0x02:
-            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode.MalformedPacket)
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
@@ -192,7 +192,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTUnsubAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length

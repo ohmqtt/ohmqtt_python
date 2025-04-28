@@ -23,9 +23,9 @@ class MQTTPingReqPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPingReqPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
         if len(data) != 0:
-            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode.MalformedPacket)
         return MQTTPingReqPacket()
     
 
@@ -42,9 +42,9 @@ class MQTTPingRespPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPingRespPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
         if len(data) != 0:
-            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode.MalformedPacket)
         return MQTTPingRespPacket()
 
 

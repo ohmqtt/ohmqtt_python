@@ -258,7 +258,7 @@ def test_packet_decode_packet_errors():
         try:
             decode_packet(case)
         except MQTTError as e:
-            assert e.reason_code == MQTTReasonCode["MalformedPacket"]
+            assert e.reason_code == MQTTReasonCode.MalformedPacket
         else:
             pytest.fail("Expected MQTT error")
 
@@ -267,6 +267,6 @@ def test_packet_decode_packet_from_parts_errors():
     try:
         decode_packet_from_parts(0, b"\x00")
     except MQTTError as e:
-        assert e.reason_code == MQTTReasonCode["MalformedPacket"]
+        assert e.reason_code == MQTTReasonCode.MalformedPacket
     else:
         pytest.fail("Expected MQTT error")

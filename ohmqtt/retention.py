@@ -157,7 +157,7 @@ class MessageRetention:
         if msg.received:
             packet = MQTTPubRelPacket(
                 packet_id=msg.packet_id,
-                reason_code=MQTTReasonCode["Success"],
+                reason_code=MQTTReasonCode.Success,
             )
         else:
             packet = MQTTPublishPacket(

@@ -43,7 +43,7 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         sz += 1
         result += byte % 0x80 * mult
         if result > MAX_VARINT:
-            raise MQTTError("Varint overflow", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
         if byte < 0x80:
             return VarintDecodeResult(result, mult, True)
         mult *= 0x80

@@ -21,12 +21,12 @@ def decode_bool(data: memoryview) -> tuple[bool, int]:
     Returns a tuple of the decoded boolean and the number of bytes consumed."""
     try:
         if data[0] not in (0, 1):
-            raise MQTTError("Invalid boolean value", MQTTReasonCode["ProtocolError"])
+            raise MQTTError("Invalid boolean value", MQTTReasonCode.ProtocolError)
         return bool(data[0]), 1
     except MQTTError:
         raise
     except Exception as e:
-        raise MQTTError("Failed to decode boolean from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode boolean from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_uint8(x: int) -> bytes:
@@ -41,7 +41,7 @@ def decode_uint8(data: memoryview) -> tuple[int, int]:
     try:
         return int(data[0]), 1
     except Exception as e:
-        raise MQTTError("Failed to decode byte from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode byte from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_uint16(x: int) -> bytes:
@@ -58,7 +58,7 @@ def decode_uint16(data: memoryview) -> tuple[int, int]:
             raise ValueError("Integer underrun")
         return int.from_bytes(data[:2], byteorder="big"), 2
     except Exception as e:
-        raise MQTTError("Failed to decode 16-bit integer from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode 16-bit integer from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_uint32(x: int) -> bytes:
@@ -75,7 +75,7 @@ def decode_uint32(data: memoryview) -> tuple[int, int]:
             raise ValueError("Integer underrun")
         return int.from_bytes(data[:4], byteorder="big"), 4
     except Exception as e:
-        raise MQTTError("Failed to decode 32-bit integer from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode 32-bit integer from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_string(s: str) -> bytes:
@@ -102,7 +102,7 @@ def decode_string(data: memoryview) -> tuple[str, int]:
             raise ValueError("Unicode null character in string")
         return s, length + 2
     except Exception as e:
-        raise MQTTError("Failed to decode string from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode string from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_string_pair(values: tuple[str, str]) -> bytes:
@@ -121,7 +121,7 @@ def decode_string_pair(data: memoryview) -> tuple[tuple[str, str], int]:
         value, value_length = decode_string(data[key_length:])
         return (key, value), key_length + value_length
     except Exception as e:
-        raise MQTTError("Failed to decode string pair from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode string pair from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_binary(data: bytes) -> bytes:
@@ -141,7 +141,7 @@ def decode_binary(data: memoryview) -> tuple[bytes, int]:
             raise ValueError("Binary data underrun")
         return data[2:2 + length].tobytes("A"), length + 2
     except Exception as e:
-        raise MQTTError("Failed to decode binary data from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode binary data from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_varint(x: int) -> bytes:
@@ -180,4 +180,4 @@ def decode_varint(data: memoryview) -> tuple[int, int]:
             mult *= 0x80
         raise ValueError("Varint underrun")
     except Exception as e:
-        raise MQTTError("Failed to decode varint from buffer", MQTTReasonCode["MalformedPacket"]) from e
+        raise MQTTError("Failed to decode varint from buffer", MQTTReasonCode.MalformedPacket) from e

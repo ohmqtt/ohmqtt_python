@@ -104,20 +104,20 @@ class MQTTConnectPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTConnectPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
 
         offset = 0
         protocol_name, sz = decode_binary(data)
         offset += sz
 
         if protocol_name != b"MQTT":
-            raise MQTTError("Invalid protocol name", MQTTReasonCode["ProtocolError"])
+            raise MQTTError("Invalid protocol name", MQTTReasonCode.ProtocolError)
         
         protocol_version, sz = decode_uint8(data[offset:])
         offset += sz
 
         if protocol_version != 5:
-            raise MQTTError(f"Invalid protocol version, expected 5 but got {protocol_version}", MQTTReasonCode["UnsupportedProtocolVersion"])
+            raise MQTTError(f"Invalid protocol version, expected 5 but got {protocol_version}", MQTTReasonCode.UnsupportedProtocolVersion)
 
         connect_flags, sz = decode_uint8(data[offset:])
         offset += sz
@@ -185,7 +185,7 @@ class MQTTConnectPacket(MQTTPacket):
 @dataclass(match_args=True, slots=True)
 class MQTTConnAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNACK
-    reason_code: int = MQTTReasonCode["Success"]
+    reason_code: int = MQTTReasonCode.Success
     session_present: bool = False
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
@@ -206,7 +206,7 @@ class MQTTConnAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTConnAckPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
 
         session_present, _ = decode_bool(data[0:])
         reason_code, _ = decode_uint8(data[1:])
@@ -217,7 +217,7 @@ class MQTTConnAckPacket(MQTTPacket):
 @dataclass(match_args=True, slots=True)
 class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.DISCONNECT
-    reason_code: int = MQTTReasonCode["Success"]
+    reason_code: int = MQTTReasonCode.Success
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __str__(self) -> str:
@@ -229,7 +229,7 @@ class MQTTDisconnectPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
-        if self.reason_code == MQTTReasonCode["Success"] and len(self.properties) == 0:
+        if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
             return HEAD_DISCONNECT.to_bytes(1, "big") + b"\x00"
         encoded = bytearray()
         encoded.append(HEAD_DISCONNECT)
@@ -243,7 +243,7 @@ class MQTTDisconnectPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTDisconnectPacket:
         if flags != 0:
-            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()

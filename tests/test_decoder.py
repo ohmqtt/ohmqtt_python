@@ -49,7 +49,7 @@ def test_decoder_bad_length(loopback_socket):
     try:
         decoder.decode(loopback_socket)
     except MQTTError as exc:
-        assert exc.reason_code == MQTTReasonCode["MalformedPacket"]
+        assert exc.reason_code == MQTTReasonCode.MalformedPacket
     else:
         pytest.fail("Expected MQTTError")
 

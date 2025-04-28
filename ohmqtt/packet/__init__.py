@@ -54,7 +54,7 @@ def decode_packet(data: bytes) -> MQTTPacket:
         cls_id = data[0] // 0x10
         decoder = _ControlPacketClasses[cls_id]
     except KeyError:
-        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode["MalformedPacket"])
+        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode.MalformedPacket)
     flags = data[0] % 0x10
 
     view = memoryview(data)
@@ -62,7 +62,7 @@ def decode_packet(data: bytes) -> MQTTPacket:
     offset = sz + 1
     remainder = view[offset:]
     if len(remainder) != length:
-        raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode["MalformedPacket"])
+        raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode.MalformedPacket)
     return decoder.decode(flags, remainder)
 
 
@@ -72,7 +72,7 @@ def decode_packet_from_parts(head: int, data: memoryview) -> MQTTPacket:
         cls_id = head // 0x10
         decoder = _ControlPacketClasses[cls_id]
     except KeyError:
-        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode["MalformedPacket"])
+        raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode.MalformedPacket)
     flags = head % 0x10
 
     return decoder.decode(flags, data)

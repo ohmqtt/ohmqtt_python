@@ -152,7 +152,7 @@ class Client:
         authentication_data: bytes | None = None,
         reason_string: str | None = None,
         user_properties: Sequence[tuple[str, str]] | None = None,
-        reason_code: int = MQTTReasonCode["Success"],
+        reason_code: int = MQTTReasonCode.Success,
     ) -> None:
         """Send an AUTH packet to the broker."""
         self.session.auth(

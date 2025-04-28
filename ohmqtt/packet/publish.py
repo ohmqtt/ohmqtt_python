@@ -79,7 +79,7 @@ class MQTTPublishPacket(MQTTPacket):
     def decode(cls, flags: int, data: memoryview) -> MQTTPublishPacket:
         qos = (flags >> 1) & 0x03
         if qos > 2:
-            raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode.MalformedPacket)
         retain = (flags % 2) == 1
         dup = (flags & 0x08) == 8
 
@@ -110,7 +110,7 @@ class MQTTPublishPacket(MQTTPacket):
 class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBACK
     packet_id: int
-    reason_code: int = MQTTReasonCode["Success"]
+    reason_code: int = MQTTReasonCode.Success
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
     def __str__(self) -> str:
@@ -124,7 +124,7 @@ class MQTTPubAckPacket(MQTTPacket):
     def encode(self) -> bytes:
         head = HEAD_PUBACKS[self.packet_type]
         encoded = bytearray(self.packet_id.to_bytes(2, byteorder="big"))
-        if self.reason_code != MQTTReasonCode["Success"]:
+        if self.reason_code != MQTTReasonCode.Success:
             encoded.append(self.reason_code)
         if self.properties:
             encoded.extend(encode_properties(self.properties))
@@ -135,14 +135,14 @@ class MQTTPubAckPacket(MQTTPacket):
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPubAckPacket:
         if flags != FLAGS_PUBACKS[cls.packet_type]:
-            raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode["MalformedPacket"])
+            raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode.MalformedPacket)
 
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
         if offset == len(data):
             # Reason code and properties are optional.
-            return cls(packet_id, MQTTReasonCode["Success"], {})
+            return cls(packet_id, MQTTReasonCode.Success, {})
         reason_code, reason_code_length = decode_uint8(data[offset:])
         offset += reason_code_length
         if offset == len(data):

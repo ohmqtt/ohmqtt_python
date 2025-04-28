@@ -367,7 +367,7 @@ class Connection:
                     except Exception:
                         logger.exception("Error while calling close callback")
                     if not sent_disconnect:
-                        self._try_to_send_disconnect(sock, MQTTReasonCode["NormalDisconnection"])
+                        self._try_to_send_disconnect(sock, MQTTReasonCode.NormalDisconnection)
                 sock.close()
                 self._decoder.reset()
                 self._write_buffer.clear()

@@ -117,7 +117,7 @@ def test_decode_string_surrogates():
         y = memoryview(len(x).to_bytes(2, byteorder="big") + x)
         with pytest.raises(MQTTError) as exc:
             decode_string(y)
-        assert exc.value.reason_code == MQTTReasonCode["MalformedPacket"]
+        assert exc.value.reason_code == MQTTReasonCode.MalformedPacket
 
 
 def test_encode_string_pair(test_data):
