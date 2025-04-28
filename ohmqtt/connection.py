@@ -121,15 +121,6 @@ class Connection(threading.Thread):
     def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         self.shutdown()
 
-    def _goto_state(self, state: int) -> None:
-        """Set the state of the connection.
-
-        This will wake up any sleeping thread states."""
-        with self._connect_cond:
-            self._state = state
-            self._connect_cond.notify_all()
-            self._interrupt()
-
     def connect(self, params: ConnectionConnectParams) -> None:
         """Connect to the broker.
 
@@ -173,6 +164,16 @@ class Connection(threading.Thread):
             do_interrupt = not self._in_read and not self._write_buffer
             self._write_buffer.extend(data)
         if do_interrupt:
+            self._interrupt()
+
+    def _goto_state(self, state: int) -> None:
+        """Set the state of the connection and wake up any sleeping thread states.
+
+        This method must only be called from threads other than the Connection thread
+            (the public interface of this class, other than run)."""
+        with self._connect_cond:
+            self._state = state
+            self._connect_cond.notify_all()
             self._interrupt()
 
     def _try_to_send_disconnect(self, sock: socket.socket | ssl.SSLSocket, reason_code: int) -> None:
