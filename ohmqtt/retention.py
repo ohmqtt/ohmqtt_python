@@ -152,7 +152,9 @@ class MessageRetention:
             message.received = True
 
     def render(self, msg: RetainedMessage) -> MQTTPacket:
-        """Render the message as a packet."""
+        """Render the message as a packet.
+
+        Calling this method indicates that the message is being sent."""
         packet: MQTTPacket
         if msg.received:
             packet = MQTTPubRelPacket(
