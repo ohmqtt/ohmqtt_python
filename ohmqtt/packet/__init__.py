@@ -57,15 +57,16 @@ def decode_packet(data: bytes) -> MQTTPacket:
         raise MQTTError(f"Invalid packet type {cls_id}", MQTTReasonCode["MalformedPacket"])
     flags = data[0] % 0x10
 
-    length, sz = decode_varint(data[1:])
+    view = memoryview(data)
+    length, sz = decode_varint(view[1:])
     offset = sz + 1
-    remainder = data[offset:]
+    remainder = view[offset:]
     if len(remainder) != length:
         raise MQTTError(f"Invalid length, expected {length} bytes but got {len(remainder)}", MQTTReasonCode["MalformedPacket"])
     return decoder.decode(flags, remainder)
 
 
-def decode_packet_from_parts(head: int, data: bytes) -> MQTTPacket:
+def decode_packet_from_parts(head: int, data: memoryview) -> MQTTPacket:
     """Finish decoding a packet which has already been split into parts by an incremental reader."""
     try:
         cls_id = head // 0x10

@@ -76,7 +76,7 @@ class MQTTPublishPacket(MQTTPacket):
         return bytes(encoded)
 
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTPublishPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPublishPacket:
         qos = (flags >> 1) & 0x03
         if qos > 2:
             raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode["MalformedPacket"])
@@ -94,7 +94,7 @@ class MQTTPublishPacket(MQTTPacket):
         if props:
             validate_properties(props, MQTTPacketType["PUBLISH"])
         offset += props_length
-        payload = bytes(data[offset:])
+        payload = data[offset:].tobytes("A")
         return MQTTPublishPacket(
             topic,
             payload,
@@ -133,7 +133,7 @@ class MQTTPubAckPacket(MQTTPacket):
         return bytes(encoded)
     
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTPubAckPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPubAckPacket:
         if flags != FLAGS_PUBACKS[cls.packet_type]:
             raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode["MalformedPacket"])
 

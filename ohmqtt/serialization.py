@@ -15,7 +15,7 @@ def encode_bool(x: bool) -> bytes:
     return b"\x01" if x else b"\x00"
 
 
-def decode_bool(data: bytes) -> tuple[bool, int]:
+def decode_bool(data: memoryview) -> tuple[bool, int]:
     """Decode a boolean from a buffer.
     
     Returns a tuple of the decoded boolean and the number of bytes consumed."""
@@ -34,7 +34,7 @@ def encode_uint8(x: int) -> bytes:
     return x.to_bytes(length=1, byteorder="big")
 
 
-def decode_uint8(data: bytes) -> tuple[int, int]:
+def decode_uint8(data: memoryview) -> tuple[int, int]:
     """Decode an 8-bit integer from a buffer.
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
@@ -49,7 +49,7 @@ def encode_uint16(x: int) -> bytes:
     return x.to_bytes(length=2, byteorder="big")
 
 
-def decode_uint16(data: bytes) -> tuple[int, int]:
+def decode_uint16(data: memoryview) -> tuple[int, int]:
     """Decode a 16-bit integer from a buffer.
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
@@ -66,7 +66,7 @@ def encode_uint32(x: int) -> bytes:
     return x.to_bytes(length=4, byteorder="big")
 
 
-def decode_uint32(data: bytes) -> tuple[int, int]:
+def decode_uint32(data: memoryview) -> tuple[int, int]:
     """Decode a 32-bit integer from a buffer.
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
@@ -84,7 +84,7 @@ def encode_string(s: str) -> bytes:
     return len(data).to_bytes(2, byteorder="big") + data
 
 
-def decode_string(data: bytes) -> tuple[str, int]:
+def decode_string(data: memoryview) -> tuple[str, int]:
     """Decode a UTF-8 string from a buffer.
     
     Returns a tuple of the decoded string and the number of bytes consumed."""
@@ -96,7 +96,7 @@ def decode_string(data: bytes) -> tuple[str, int]:
             raise ValueError("String data underrun")
         # Strict UTF-8 decoding will catch any invalid UTF-8 sequences.
         # This is important for MQTT, as invalid sequences are not allowed.
-        s = data[2:2 + length].decode("utf-8", errors="strict")
+        s = data[2:2 + length].tobytes("A").decode("utf-8", errors="strict")
         # The only other invalid character is the null character.
         if "\u0000" in s:
             raise ValueError("Unicode null character in string")
@@ -112,7 +112,7 @@ def encode_string_pair(values: tuple[str, str]) -> bytes:
     return len(left).to_bytes(2, byteorder="big") + left + len(right).to_bytes(2, byteorder="big") + right
 
 
-def decode_string_pair(data: bytes) -> tuple[tuple[str, str], int]:
+def decode_string_pair(data: memoryview) -> tuple[tuple[str, str], int]:
     """Decode a UTF-8 string pair from a buffer.
     
     Returns a tuple of the decoded string pair and the number of bytes consumed."""
@@ -129,7 +129,7 @@ def encode_binary(data: bytes) -> bytes:
     return len(data).to_bytes(2, byteorder="big") + data
 
 
-def decode_binary(data: bytes) -> tuple[bytes, int]:
+def decode_binary(data: memoryview) -> tuple[bytes, int]:
     """Decode binary data from a buffer.
     
     Returns a tuple of the decoded data and the number of bytes consumed."""
@@ -139,7 +139,7 @@ def decode_binary(data: bytes) -> tuple[bytes, int]:
         length = int.from_bytes(data[:2], byteorder="big")
         if length > len(data) - 2:
             raise ValueError("Binary data underrun")
-        return bytes(data[2:2 + length]), length + 2
+        return data[2:2 + length].tobytes("A"), length + 2
     except Exception as e:
         raise MQTTError("Failed to decode binary data from buffer", MQTTReasonCode["MalformedPacket"]) from e
 
@@ -162,7 +162,7 @@ def encode_varint(x: int) -> bytes:
             return bytes(packed)
 
 
-def decode_varint(data: bytes) -> tuple[int, int]:
+def decode_varint(data: memoryview) -> tuple[int, int]:
     """Decode a variable length integer from a buffer.
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""

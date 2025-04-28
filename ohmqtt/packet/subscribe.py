@@ -57,7 +57,7 @@ class MQTTSubscribePacket(MQTTPacket):
         return bytes(encoded)
 
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTSubscribePacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTSubscribePacket:
         if flags != 0x02:
             raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
@@ -106,7 +106,7 @@ class MQTTSubAckPacket(MQTTPacket):
         return bytes(encoded)
 
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTSubAckPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTSubAckPacket:
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
@@ -146,7 +146,7 @@ class MQTTUnsubscribePacket(MQTTPacket):
         return bytes(encoded)
 
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTUnsubscribePacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTUnsubscribePacket:
         if flags != 0x02:
             raise MQTTError(f"Invalid flags, expected 0x02 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0
@@ -190,7 +190,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
         return bytes(encoded)
 
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTUnsubAckPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTUnsubAckPacket:
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         offset = 0

@@ -92,8 +92,11 @@ class IncrementalDecoder:
             return None
 
         # We have a complete packet, decode it and clear the read buffer.
-        # Reset the partial state first, in case of decoding errors.
-        packet_data = bytes(self._partial_data)
+        packet_data = memoryview(self._partial_data)
+        packet_data.toreadonly()
         packet_head = self._partial_head
-        self.reset()
-        return decode_packet_from_parts(packet_head, packet_data)
+        try:
+            return decode_packet_from_parts(packet_head, packet_data)
+        finally:
+            packet_data.release()
+            self.reset()

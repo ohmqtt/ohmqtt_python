@@ -19,5 +19,5 @@ class MQTTPacket(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPacket:
         ...  # pragma: no cover

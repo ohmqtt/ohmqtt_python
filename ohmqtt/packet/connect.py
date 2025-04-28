@@ -102,7 +102,7 @@ class MQTTConnectPacket(MQTTPacket):
         return bytes(encoded)
     
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTConnectPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTConnectPacket:
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
 
@@ -204,7 +204,7 @@ class MQTTConnAckPacket(MQTTPacket):
         return b"".join((bytes([head]), length, data))
 
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTConnAckPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTConnAckPacket:
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
 
@@ -241,7 +241,7 @@ class MQTTDisconnectPacket(MQTTPacket):
         return bytes(encoded)
     
     @classmethod
-    def decode(cls, flags: int, data: bytes) -> MQTTDisconnectPacket:
+    def decode(cls, flags: int, data: memoryview) -> MQTTDisconnectPacket:
         if flags != 0:
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode["MalformedPacket"])
         if len(data) == 0:

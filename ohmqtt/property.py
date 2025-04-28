@@ -94,11 +94,11 @@ _MQTTPropertySerializers: Final[Mapping[str, _SerializerTypes]] = {
 
 # Possible property deserializer function signatures.
 _DeserializerTypes = (
-    Callable[[bytes], tuple[bool, int]] |
-    Callable[[bytes], tuple[bytes, int]] |
-    Callable[[bytes], tuple[int, int]] |
-    Callable[[bytes], tuple[str, int]] |
-    Callable[[bytes], tuple[tuple[str, str], int]]
+    Callable[[memoryview], tuple[bool, int]] |
+    Callable[[memoryview], tuple[bytes, int]] |
+    Callable[[memoryview], tuple[int, int]] |
+    Callable[[memoryview], tuple[str, int]] |
+    Callable[[memoryview], tuple[tuple[str, str], int]]
 )
 # MQTT property deserializers.
 _MQTTPropertyDeserializers: Final[Mapping[str, _DeserializerTypes]] = {
@@ -260,7 +260,7 @@ def encode_properties(properties: MQTTPropertyDict) -> bytes:
     return bytes(data)
 
 
-def decode_properties(data: bytes) -> tuple[MQTTPropertyDict, int]:
+def decode_properties(data: memoryview) -> tuple[MQTTPropertyDict, int]:
     """Decode MQTT properties from a buffer.
     
     Returns a tuple of the decoded properties and the number of bytes consumed."""
