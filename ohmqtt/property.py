@@ -311,7 +311,7 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: int | None = 
     if not frozenset(properties.keys()).issubset(allowed_properties):
         disallowed = ", ".join([key for key in properties if key not in allowed_properties])
         raise MQTTError(
-            f"Disallowed propert(ies) found in packet type {packet_type} (will: {is_will}): {disallowed}",
+            f"Disallowed properties found in packet type {packet_type} (will: {is_will}): {disallowed}",
             MQTTReasonCode["ProtocolError"],
         )
     # TODO: Numeric limits

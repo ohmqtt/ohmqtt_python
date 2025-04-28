@@ -139,8 +139,8 @@ class LoopbackTLSSocket(LoopbackSocket):
 
     def test_do_handshake(self) -> None:
         """Call do_handshake() on the test side of the socket in a thread, to avoid blocking the test."""
-        self.handhake_thread = threading.Thread(target=self._do_handshake, daemon=True)
-        self.handhake_thread.start()
+        self.handshake_thread = threading.Thread(target=self._do_handshake, daemon=True)
+        self.handshake_thread.start()
 
 
 @pytest.fixture
