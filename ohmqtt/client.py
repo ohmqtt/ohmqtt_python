@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import ssl
+from types import TracebackType
 from typing import Final, Sequence
 
 from .connection import ConnectParams
@@ -46,6 +47,12 @@ class Client:
             message_callback=self._handle_message,
             open_callback=self._handle_open,
         )
+
+    def __enter__(self) -> Client:
+        return self
+
+    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, tb: TracebackType) -> None:
+        self.shutdown()
 
     def is_connected(self) -> bool:
         """Check if the client is connected to the broker."""
