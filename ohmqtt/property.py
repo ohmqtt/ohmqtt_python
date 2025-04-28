@@ -1,7 +1,7 @@
 from typing import Callable, Final, Mapping, Sequence, TypedDict
 
 from .error import MQTTError
-from .mqtt_spec import MQTTPacketType, MQTTPropertyId, MQTTPropertyIdReverse, MQTTReasonCode
+from .mqtt_spec import MQTTPacketType, MQTTPropertyIdStrings, MQTTPropertyIdReverse, MQTTReasonCode
 from .serialization import (
     encode_bool,
     decode_bool,
@@ -239,7 +239,7 @@ def encode_properties(properties: MQTTPropertyDict) -> bytes:
         return b"\x00"
     data = bytearray()
     for key, prop_value in properties.items():
-        prop_id = MQTTPropertyId[key]
+        prop_id = MQTTPropertyIdStrings[key]
         serializer = _MQTTPropertySerializers[key]
 
         # MQTT specification calls for a variable integer for the property ID,
@@ -307,7 +307,7 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: int | None = 
         allowed_properties = allowed_properties | _MQTTPropertyAllowedInWill
     #if allowed_properties and any(key not in allowed_properties for key in properties):
     if not allowed_properties and packet_type is None:
-        allowed_properties = frozenset(MQTTPropertyId.keys())
+        allowed_properties = frozenset(MQTTPropertyIdStrings.keys())
     if not frozenset(properties.keys()).issubset(allowed_properties):
         disallowed = ", ".join([key for key in properties if key not in allowed_properties])
         raise MQTTError(
