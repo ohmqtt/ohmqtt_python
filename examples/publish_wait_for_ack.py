@@ -12,17 +12,17 @@ from ohmqtt.client import Client
 
 def main() -> None:
     logging.basicConfig(level=logging.DEBUG)
-    client = Client()
+    with Client() as client:
 
-    client.connect("localhost", 1883)
-    client.wait_for_connect(timeout=5.0)
-    
-    for n in range(1, 9):
-        publish_handle = client.publish("ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=2)
-        assert publish_handle.wait_for_ack()
+        client.connect("localhost", 1883)
+        client.wait_for_connect(timeout=5.0)
+        
+        for n in range(1, 9):
+            publish_handle = client.publish("ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=2)
+            assert publish_handle.wait_for_ack()
 
-    client.disconnect()
-    client.wait_for_disconnect(timeout=5.0)
+        client.disconnect()
+        client.wait_for_disconnect(timeout=5.0)
 
 
 if __name__ == "__main__":

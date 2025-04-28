@@ -73,7 +73,7 @@ class ConnectParams:
     connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
 
-class Connection(threading.Thread):
+class Connection:
     """Non-blocking socket wrapper with TLS and application keepalive support."""
     __slots__ = (
         "_params",
@@ -90,6 +90,7 @@ class Connection(threading.Thread):
         "_decoder",
         "_keepalive",
         "_state_cond",
+        "_thread",
     )
 
     def __init__(
@@ -98,7 +99,6 @@ class Connection(threading.Thread):
         open_callback: ConnectionOpenCallback,
         read_callback: ConnectionReadCallback,
     ) -> None:
-        super().__init__(daemon=True)
         self._close_callback = close_callback
         self._open_callback = open_callback
         self._read_callback = read_callback
@@ -113,9 +113,10 @@ class Connection(threading.Thread):
         self._state_cond = threading.Condition()
         self._decoder = IncrementalDecoder()
         self._keepalive = KeepAlive()
+        self._thread: threading.Thread | None = None
 
     def __enter__(self) -> Connection:
-        self.start()
+        self.start_loop()
         return self
 
     def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
@@ -173,6 +174,7 @@ class Connection(threading.Thread):
     def send(self, data: bytes) -> None:
         """Write data to the broker."""
         if self._state < STATE_CONNECT:
+            logger.debug("Connection not established, ignoring send")
             return
         with self._write_buffer_lock:
             do_interrupt = not self._in_read and not self._write_buffer
@@ -186,6 +188,10 @@ class Connection(threading.Thread):
         This method must only be called from threads other than the Connection thread
             (the public interface of this class, other than run)."""
         with self._state_cond:
+            if self._state == state:
+                return
+            if self._state == STATE_SHUTDOWN:
+                raise RuntimeError("Cannot change state after shutdown")
             self._state = state
             self._state_cond.notify_all()
             self._interrupt()
@@ -196,8 +202,8 @@ class Connection(threading.Thread):
         If the socket is not ready to write, we will not wait for it."""
         disconnect_packet = MQTTDisconnectPacket(reason_code=reason_code)
         try:
-            sock.send(disconnect_packet.encode())
             logger.debug(f"---> {str(disconnect_packet)}")
+            sock.send(disconnect_packet.encode())
         except (BlockingIOError, ssl.SSLWantWriteError, OSError):
             pass
 
@@ -250,12 +256,13 @@ class Connection(threading.Thread):
 
         # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType["PINGRESP"]:
-            self._keepalive.mark_pong()
             logger.debug("<--- PONG")
+            self._keepalive.mark_pong()
         elif packet.packet_type == MQTTPacketType["PINGREQ"]:
-            self.send(PONG)
             logger.debug("<--- PING PONG --->")
+            self.send(PONG)
         elif packet.packet_type == MQTTPacketType["CONNACK"]:
+            logger.debug(f"<--- {str(packet)}")
             packet = cast(MQTTConnAckPacket, packet)
             if "ServerKeepAlive" in packet.properties:
                 # Override the keepalive interval with the server's value.
@@ -264,10 +271,9 @@ class Connection(threading.Thread):
                 logger.debug(f"Keepalive interval set by server to {keepalive_interval} seconds")
             with self._state_cond:
                 if self._state == STATE_CONNECTING:
-                    self._open_callback(packet)
                     self._state = STATE_CONNECT
+                    self._open_callback(packet)
                     self._state_cond.notify_all()
-            logger.debug(f"<--- {str(packet)}")
         else:
             # All other packets are passed to the read callback.
             self._read_callback(packet)
@@ -289,7 +295,7 @@ class Connection(threading.Thread):
             raise ConnectionCloseCondition("Shutting down")
         return bool(self._state == STATE_CONNECTING and self._address != _InitAddress)
 
-    def run(self) -> None:
+    def loop_forever(self) -> None:
         while self._state > STATE_SHUTDOWN:
             was_open = False
             sent_disconnect = False
@@ -372,3 +378,22 @@ class Connection(threading.Thread):
                             logger.debug("Reconnect cancelled")
                             break
         logger.debug("Shutdown complete")
+
+    def start_loop(self) -> None:
+        """Start the connection loop in a new thread."""
+        if self._thread is not None:
+            raise RuntimeError("Connection loop already started")
+        self._thread = threading.Thread(target=self.loop_forever, daemon=True)
+        self._thread.start()
+
+    def join(self, timeout: float | None = None) -> None:
+        """Join the connection thread."""
+        if self._thread is None:
+            raise RuntimeError("Connection loop not started")
+        self._thread.join(timeout)
+
+    def is_alive(self) -> bool:
+        """Check if the connection thread is alive."""
+        if self._thread is None:
+            return False
+        return self._thread.is_alive()

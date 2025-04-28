@@ -8,29 +8,29 @@ from ohmqtt.message import MQTTMessage
 
 
 def main() -> None:
-    client = Client()
+    with Client() as client:
 
-    client.connect("localhost", 1883)
-    client.wait_for_connect(timeout=5.0)
-    print("*** Connected to broker")
+        client.connect("localhost", 1883)
+        client.wait_for_connect(timeout=5.0)
+        print("*** Connected to broker")
 
-    pub = client.publish("ohmqtt/examples/publish_retain", b"test_payload", qos=1, retain=True)
-    assert pub.wait_for_ack()
+        pub = client.publish("ohmqtt/examples/publish_retain", b"test_payload", qos=1, retain=True)
+        assert pub.wait_for_ack()
 
-    q: Queue[MQTTMessage] = Queue()
-    def callback(_: Client, msg: MQTTMessage) -> None:
-        q.put(msg)
-    client.subscribe("ohmqtt/examples/publish_retain", qos=1, callback=callback)
-    msg = q.get(timeout=5.0)
-    assert msg.topic == "ohmqtt/examples/publish_retain"
-    assert msg.payload == b"test_payload"
-    assert msg.qos == 1
-    assert msg.retain
-    print(f"*** Received retained message: {str(msg)}")
+        q: Queue[MQTTMessage] = Queue()
+        def callback(_: Client, msg: MQTTMessage) -> None:
+            q.put(msg)
+        client.subscribe("ohmqtt/examples/publish_retain", qos=1, callback=callback)
+        msg = q.get(timeout=5.0)
+        assert msg.topic == "ohmqtt/examples/publish_retain"
+        assert msg.payload == b"test_payload"
+        assert msg.qos == 1
+        assert msg.retain
+        print(f"*** Received retained message: {str(msg)}")
 
-    client.disconnect()
-    client.wait_for_disconnect(timeout=5.0)
-    print("*** Disconnected from broker")
+        client.disconnect()
+        client.wait_for_disconnect(timeout=5.0)
+        print("*** Disconnected from broker")
 
 
 if __name__ == "__main__":

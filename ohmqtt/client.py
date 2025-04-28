@@ -31,11 +31,27 @@ class Client:
         )
 
     def __enter__(self) -> Client:
+        self.start_loop()
         return self
 
     def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, tb: TracebackType) -> None:
         self.shutdown()
 
+    def start_loop(self) -> None:
+        """Start the MQTT client loop.
+
+        This will block until the client is stopped or shutdown.
+        """
+        self.session.connection.start_loop()
+
+    def loop_forever(self) -> None:
+        """Run the MQTT client loop.
+
+        This will run until the client is stopped or shutdown.
+        """
+        self.session.connection.loop_forever()
+
+    @property
     def is_connected(self) -> bool:
         """Check if the client is connected to the broker."""
         return self.session.connection.is_connected()
@@ -109,7 +125,8 @@ class Client:
     ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
         self.subscriptions.add(topic_filter, qos, callback)
-        self.session.subscribe(topic_filter, qos=qos, properties=properties)
+        if self.is_connected:
+            self.session.subscribe(topic_filter, qos=qos, properties=properties)
         return SubscriptionHandle(
             topic_filter=topic_filter,
             callback=callback,
@@ -169,6 +186,8 @@ class Client:
 
     def _handle_open(self) -> None:
         """Callback for when the connection is opened."""
+        for topic_filter, qos in self.subscriptions.get_topics().items():
+            self.session.subscribe(topic_filter, qos=qos)
 
     def _handle_close(self) -> None:
         """Callback for when the connection is closed."""

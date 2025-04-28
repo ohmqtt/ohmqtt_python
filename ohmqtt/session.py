@@ -107,13 +107,12 @@ class Session:
             MQTTPacketType["SUBSCRIBE"]: 1,
             MQTTPacketType["UNSUBSCRIBE"]: 1,
         }
-        self.connection.start()
 
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
-        self.connection.send(packet.encode())
         if logging.DEBUG >= logging.root.level:
             logger.debug(f"---> {packet}")
+        self.connection.send(packet.encode())
 
     def _connection_open_callback(self, packet: MQTTConnAckPacket) -> None:
         """Handle a connection open event."""
