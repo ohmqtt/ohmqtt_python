@@ -12,7 +12,7 @@ from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 
 @dataclass(match_args=True, slots=True)
 class MQTTPingReqPacket(MQTTPacket):
-    packet_type = MQTTPacketType["PINGREQ"]
+    packet_type = MQTTPacketType.PINGREQ
 
     def __str__(self) -> str:
         return "PINGREQ[]"
@@ -31,7 +31,7 @@ class MQTTPingReqPacket(MQTTPacket):
 
 @dataclass(match_args=True, slots=True)
 class MQTTPingRespPacket(MQTTPacket):
-    packet_type = MQTTPacketType["PINGRESP"]
+    packet_type = MQTTPacketType.PINGRESP
 
     def __str__(self) -> str:
         return "PINGRESP[]"

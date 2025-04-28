@@ -28,14 +28,14 @@ from ..serialization import (
 )
 
 
-HEAD_CONNECT = MQTTPacketType["CONNECT"] << 4
-HEAD_CONNACK = MQTTPacketType["CONNACK"] << 4
-HEAD_DISCONNECT = MQTTPacketType["DISCONNECT"] << 4
+HEAD_CONNECT = MQTTPacketType.CONNECT << 4
+HEAD_CONNACK = MQTTPacketType.CONNACK << 4
+HEAD_DISCONNECT = MQTTPacketType.DISCONNECT << 4
 
 
 @dataclass(match_args=True, slots=True)
 class MQTTConnectPacket(MQTTPacket):
-    packet_type = MQTTPacketType["CONNECT"]
+    packet_type = MQTTPacketType.CONNECT
     client_id: str = ""
     keep_alive: int = 0
     protocol_version: int = 5
@@ -135,7 +135,7 @@ class MQTTConnectPacket(MQTTPacket):
         props, sz = decode_properties(data[offset:])
         offset += sz
         if props:
-            validate_properties(props, MQTTPacketType["CONNECT"])
+            validate_properties(props, MQTTPacketType.CONNECT)
 
         client_id, sz = decode_string(data[offset:])
         offset += sz
@@ -184,7 +184,7 @@ class MQTTConnectPacket(MQTTPacket):
 
 @dataclass(match_args=True, slots=True)
 class MQTTConnAckPacket(MQTTPacket):
-    packet_type = MQTTPacketType["CONNACK"]
+    packet_type = MQTTPacketType.CONNACK
     reason_code: int = MQTTReasonCode["Success"]
     session_present: bool = False
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
@@ -216,7 +216,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
 @dataclass(match_args=True, slots=True)
 class MQTTDisconnectPacket(MQTTPacket):
-    packet_type = MQTTPacketType["DISCONNECT"]
+    packet_type = MQTTPacketType.DISCONNECT
     reason_code: int = MQTTReasonCode["Success"]
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
@@ -250,5 +250,5 @@ class MQTTDisconnectPacket(MQTTPacket):
         reason_code, sz = decode_uint8(data)
         props, props_sz = decode_properties(data[sz:])
         if props:
-            validate_properties(props, MQTTPacketType["DISCONNECT"])
+            validate_properties(props, MQTTPacketType.DISCONNECT)
         return MQTTDisconnectPacket(reason_code, properties=props)

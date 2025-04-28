@@ -18,12 +18,12 @@ from ..serialization import (
     decode_uint8,
 )
 
-HEAD_AUTH = MQTTPacketType["AUTH"] << 4
+HEAD_AUTH = MQTTPacketType.AUTH << 4
 
 
 @dataclass(match_args=True, slots=True)
 class MQTTAuthPacket(MQTTPacket):
-    packet_type = MQTTPacketType["AUTH"]
+    packet_type = MQTTPacketType.AUTH
     reason_code: int = MQTTReasonCode["Success"]
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
@@ -56,5 +56,5 @@ class MQTTAuthPacket(MQTTPacket):
         reason_code, sz = decode_uint8(data)
         props, props_sz = decode_properties(data[sz:])
         if props:
-            validate_properties(props, MQTTPacketType["AUTH"])
+            validate_properties(props, MQTTPacketType.AUTH)
         return MQTTAuthPacket(reason_code, properties=props)

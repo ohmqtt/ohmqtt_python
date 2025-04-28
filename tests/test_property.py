@@ -10,7 +10,7 @@ def test_validate():
         "ContentType": b"application/json",
     }
     validate_properties(props)
-    validate_properties(props, packet_type=MQTTPacketType["PUBLISH"])
+    validate_properties(props, packet_type=MQTTPacketType.PUBLISH)
     validate_properties(props, is_will=True)
 
     props = {
@@ -18,6 +18,6 @@ def test_validate():
     }
     validate_properties(props)
     with pytest.raises(MQTTError):
-        validate_properties(props, packet_type=MQTTPacketType["PUBLISH"])
+        validate_properties(props, packet_type=MQTTPacketType.PUBLISH)
     with pytest.raises(MQTTError):
         validate_properties(props, is_will=True)

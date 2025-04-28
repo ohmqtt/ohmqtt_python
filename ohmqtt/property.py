@@ -134,7 +134,7 @@ _MQTTPropertyDeserializers: Final[Mapping[str, _DeserializerTypes]] = {
 
 # Allowed MQTT property types for each packet type.
 _MQTTPropertyPacketTypes: Final[Mapping[int, frozenset[str]]] = {
-    MQTTPacketType["CONNECT"]: frozenset({  # [MQ5 3.1.2.11]
+    MQTTPacketType.CONNECT: frozenset({  # [MQ5 3.1.2.11]
         "SessionExpiryInterval",
         "ReceiveMaximum",
         "MaximumPacketSize",
@@ -145,7 +145,7 @@ _MQTTPropertyPacketTypes: Final[Mapping[int, frozenset[str]]] = {
         "AuthenticationMethod",
         "AuthenticationData",
     }),
-    MQTTPacketType["CONNACK"]: frozenset({  # [MQ5 3.2.2.3]
+    MQTTPacketType.CONNACK: frozenset({  # [MQ5 3.2.2.3]
         "SessionExpiryInterval",
         "ReceiveMaximum",
         "MaximumQoS",
@@ -164,7 +164,7 @@ _MQTTPropertyPacketTypes: Final[Mapping[int, frozenset[str]]] = {
         "AuthenticationMethod",
         "AuthenticationData",
     }),
-    MQTTPacketType["PUBLISH"]: frozenset({  # [MQ5 3.3.2.3]
+    MQTTPacketType.PUBLISH: frozenset({  # [MQ5 3.3.2.3]
         "PayloadFormatIndicator",
         "MessageExpiryInterval",
         "TopicAlias",
@@ -174,44 +174,44 @@ _MQTTPropertyPacketTypes: Final[Mapping[int, frozenset[str]]] = {
         "SubscriptionIdentifier",
         "ContentType",
     }),
-    MQTTPacketType["PUBACK"]: frozenset({  # [MQ5 3.4.2.2]
+    MQTTPacketType.PUBACK: frozenset({  # [MQ5 3.4.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType["PUBREC"]: frozenset({  # [MQ5 3.5.2.2]
+    MQTTPacketType.PUBREC: frozenset({  # [MQ5 3.5.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType["PUBREL"]: frozenset({  # [MQ5 3.6.2.2]
+    MQTTPacketType.PUBREL: frozenset({  # [MQ5 3.6.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType["PUBCOMP"]: frozenset({  # [MQ5 3.7.2.2]
+    MQTTPacketType.PUBCOMP: frozenset({  # [MQ5 3.7.2.2]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType["SUBSCRIBE"]: frozenset({  # [MQ5 3.8.2.1]
+    MQTTPacketType.SUBSCRIBE: frozenset({  # [MQ5 3.8.2.1]
         "SubscriptionIdentifier",
         "UserProperty",
     }),
-    MQTTPacketType["SUBACK"]: frozenset({  # [MQ5 3.9.2.1]
+    MQTTPacketType.SUBACK: frozenset({  # [MQ5 3.9.2.1]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType["UNSUBSCRIBE"]: frozenset({  # [MQ5 3.10.2.1]
+    MQTTPacketType.UNSUBSCRIBE: frozenset({  # [MQ5 3.10.2.1]
         "UserProperty",
     }),
-    MQTTPacketType["UNSUBACK"]: frozenset({  # [MQ5 3.11.2.1]
+    MQTTPacketType.UNSUBACK: frozenset({  # [MQ5 3.11.2.1]
         "ReasonString",
         "UserProperty",
     }),
-    MQTTPacketType["DISCONNECT"]: frozenset({  # [MQ5 3.14.2.2]
+    MQTTPacketType.DISCONNECT: frozenset({  # [MQ5 3.14.2.2]
         "SessionExpiryInterval",
         "ReasonString",
         "UserProperty",
         "ServerReference",
     }),
-    MQTTPacketType["AUTH"]: frozenset({  # [MQ5 3.15.2.2]
+    MQTTPacketType.AUTH: frozenset({  # [MQ5 3.15.2.2]
         "AuthenticationMethod",
         "AuthenticationData",
         "ReasonString",

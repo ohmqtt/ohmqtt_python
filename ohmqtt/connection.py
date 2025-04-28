@@ -255,13 +255,13 @@ class Connection:
             return
 
         # Ping requests and responses are handled at this layer.
-        if packet.packet_type == MQTTPacketType["PINGRESP"]:
+        if packet.packet_type == MQTTPacketType.PINGRESP:
             logger.debug("<--- PONG")
             self._keepalive.mark_pong()
-        elif packet.packet_type == MQTTPacketType["PINGREQ"]:
+        elif packet.packet_type == MQTTPacketType.PINGREQ:
             logger.debug("<--- PING PONG --->")
             self.send(PONG)
-        elif packet.packet_type == MQTTPacketType["CONNACK"]:
+        elif packet.packet_type == MQTTPacketType.CONNACK:
             logger.debug(f"<--- {str(packet)}")
             packet = cast(MQTTConnAckPacket, packet)
             if "ServerKeepAlive" in packet.properties:

@@ -90,22 +90,22 @@ class Session:
             read_callback=self._connection_read_callback,
         )
         self._read_handlers: Mapping[int, Callable[[Any], None]] = {
-            MQTTPacketType["PUBACK"]: self._handle_puback,
-            MQTTPacketType["PUBREC"]: self._handle_pubrec,
-            MQTTPacketType["PUBREL"]: self._handle_pubrel,
-            MQTTPacketType["PUBCOMP"]: self._handle_pubcomp,
-            MQTTPacketType["PUBLISH"]: self._handle_publish,
-            MQTTPacketType["SUBACK"]: self._handle_suback,
-            MQTTPacketType["UNSUBACK"]: self._handle_unsuback,
-            MQTTPacketType["AUTH"]: self._handle_auth,
+            MQTTPacketType.PUBACK: self._handle_puback,
+            MQTTPacketType.PUBREC: self._handle_pubrec,
+            MQTTPacketType.PUBREL: self._handle_pubrel,
+            MQTTPacketType.PUBCOMP: self._handle_pubcomp,
+            MQTTPacketType.PUBLISH: self._handle_publish,
+            MQTTPacketType.SUBACK: self._handle_suback,
+            MQTTPacketType.UNSUBACK: self._handle_unsuback,
+            MQTTPacketType.AUTH: self._handle_auth,
         }
         # This lock protects _retention, _inflight and _next_packet_ids.
         self._lock = threading.RLock()
         self._retention = MessageRetention()
         self._inflight: int = 0
         self._next_packet_ids = {
-            MQTTPacketType["SUBSCRIBE"]: 1,
-            MQTTPacketType["UNSUBSCRIBE"]: 1,
+            MQTTPacketType.SUBSCRIBE: 1,
+            MQTTPacketType.UNSUBSCRIBE: 1,
         }
 
     def _send_packet(self, packet: MQTTPacket) -> None:
@@ -280,7 +280,7 @@ class Session:
     def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
         """Subscribe to a single topic."""
         topics = ((topic, qos),)
-        packet_id = self._next_packet_id(MQTTPacketType["SUBSCRIBE"])
+        packet_id = self._next_packet_id(MQTTPacketType.SUBSCRIBE)
         packet = MQTTSubscribePacket(
             packet_id=packet_id,
             topics=topics,
@@ -291,7 +291,7 @@ class Session:
     def unsubscribe(self, topic: str, properties: MQTTPropertyDict | None = None) -> None:
         """Unsubscribe from a single topic."""
         topics = [topic]
-        packet_id = self._next_packet_id(MQTTPacketType["UNSUBSCRIBE"])
+        packet_id = self._next_packet_id(MQTTPacketType.UNSUBSCRIBE)
         packet = MQTTUnsubscribePacket(
             packet_id=packet_id,
             topics=topics,

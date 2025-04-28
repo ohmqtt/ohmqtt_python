@@ -24,24 +24,24 @@ from ..serialization import (
 
 
 
-HEAD_PUBLISH: Final = MQTTPacketType["PUBLISH"] << 4
+HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
 HEAD_PUBACKS: Final[Mapping[int, int]] = {
-    MQTTPacketType["PUBACK"]: MQTTPacketType["PUBACK"] << 4,
-    MQTTPacketType["PUBREC"]: MQTTPacketType["PUBREC"] << 4,
-    MQTTPacketType["PUBREL"]: (MQTTPacketType["PUBREL"] << 4) + 0x02,
-    MQTTPacketType["PUBCOMP"]: MQTTPacketType["PUBCOMP"] << 4,
+    MQTTPacketType.PUBACK: MQTTPacketType.PUBACK << 4,
+    MQTTPacketType.PUBREC: MQTTPacketType.PUBREC << 4,
+    MQTTPacketType.PUBREL: (MQTTPacketType.PUBREL << 4) + 0x02,
+    MQTTPacketType.PUBCOMP: MQTTPacketType.PUBCOMP << 4,
 }
 FLAGS_PUBACKS: Final[Mapping[int, int]] = {
-    MQTTPacketType["PUBACK"]: 0,
-    MQTTPacketType["PUBREC"]: 0,
-    MQTTPacketType["PUBREL"]: 2,
-    MQTTPacketType["PUBCOMP"]: 0,
+    MQTTPacketType.PUBACK: 0,
+    MQTTPacketType.PUBREC: 0,
+    MQTTPacketType.PUBREL: 2,
+    MQTTPacketType.PUBCOMP: 0,
 }
 
 
 @dataclass(match_args=True, slots=True)
 class MQTTPublishPacket(MQTTPacket):
-    packet_type = MQTTPacketType["PUBLISH"]
+    packet_type = MQTTPacketType.PUBLISH
     topic: str = ""
     payload: bytes = b""
     qos: int = 0
@@ -92,7 +92,7 @@ class MQTTPublishPacket(MQTTPacket):
             packet_id = 0
         props, props_length = decode_properties(data[offset:])
         if props:
-            validate_properties(props, MQTTPacketType["PUBLISH"])
+            validate_properties(props, MQTTPacketType.PUBLISH)
         offset += props_length
         payload = data[offset:].tobytes("A")
         return MQTTPublishPacket(
@@ -108,7 +108,7 @@ class MQTTPublishPacket(MQTTPacket):
 
 @dataclass(match_args=True, slots=True)
 class MQTTPubAckPacket(MQTTPacket):
-    packet_type = MQTTPacketType["PUBACK"]
+    packet_type = MQTTPacketType.PUBACK
     packet_id: int
     reason_code: int = MQTTReasonCode["Success"]
     properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
@@ -156,14 +156,14 @@ class MQTTPubAckPacket(MQTTPacket):
 
 @dataclass(match_args=True, slots=True)
 class MQTTPubRecPacket(MQTTPubAckPacket):
-    packet_type = MQTTPacketType["PUBREC"]
+    packet_type = MQTTPacketType.PUBREC
 
 
 @dataclass(match_args=True, slots=True)
 class MQTTPubRelPacket(MQTTPubAckPacket):
-    packet_type = MQTTPacketType["PUBREL"]
+    packet_type = MQTTPacketType.PUBREL
 
 
 @dataclass(match_args=True, slots=True)
 class MQTTPubCompPacket(MQTTPubAckPacket):
-    packet_type = MQTTPacketType["PUBCOMP"]
+    packet_type = MQTTPacketType.PUBCOMP

@@ -28,21 +28,21 @@ from .auth import MQTTAuthPacket as MQTTAuthPacket
 
 # Map of packet types to their respective classes.
 _ControlPacketClasses: Final[Mapping[int, type[MQTTPacket]]] = {
-    MQTTPacketType["CONNECT"]: MQTTConnectPacket,
-    MQTTPacketType["CONNACK"]: MQTTConnAckPacket,
-    MQTTPacketType["PUBLISH"]: MQTTPublishPacket,
-    MQTTPacketType["PUBACK"]: MQTTPubAckPacket,
-    MQTTPacketType["PUBREC"]: MQTTPubRecPacket,
-    MQTTPacketType["PUBREL"]: MQTTPubRelPacket,
-    MQTTPacketType["PUBCOMP"]: MQTTPubCompPacket,
-    MQTTPacketType["SUBSCRIBE"]: MQTTSubscribePacket,
-    MQTTPacketType["SUBACK"]: MQTTSubAckPacket,
-    MQTTPacketType["UNSUBSCRIBE"]: MQTTUnsubscribePacket,
-    MQTTPacketType["UNSUBACK"]: MQTTUnsubAckPacket,
-    MQTTPacketType["PINGREQ"]: MQTTPingReqPacket,
-    MQTTPacketType["PINGRESP"]: MQTTPingRespPacket,
-    MQTTPacketType["DISCONNECT"]: MQTTDisconnectPacket,
-    MQTTPacketType["AUTH"]: MQTTAuthPacket,
+    MQTTPacketType.CONNECT: MQTTConnectPacket,
+    MQTTPacketType.CONNACK: MQTTConnAckPacket,
+    MQTTPacketType.PUBLISH: MQTTPublishPacket,
+    MQTTPacketType.PUBACK: MQTTPubAckPacket,
+    MQTTPacketType.PUBREC: MQTTPubRecPacket,
+    MQTTPacketType.PUBREL: MQTTPubRelPacket,
+    MQTTPacketType.PUBCOMP: MQTTPubCompPacket,
+    MQTTPacketType.SUBSCRIBE: MQTTSubscribePacket,
+    MQTTPacketType.SUBACK: MQTTSubAckPacket,
+    MQTTPacketType.UNSUBSCRIBE: MQTTUnsubscribePacket,
+    MQTTPacketType.UNSUBACK: MQTTUnsubAckPacket,
+    MQTTPacketType.PINGREQ: MQTTPingReqPacket,
+    MQTTPacketType.PINGRESP: MQTTPingRespPacket,
+    MQTTPacketType.DISCONNECT: MQTTDisconnectPacket,
+    MQTTPacketType.AUTH: MQTTAuthPacket,
 }
 
 
