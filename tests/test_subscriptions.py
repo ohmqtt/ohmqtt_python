@@ -7,10 +7,17 @@ def test_subscriptions():
     callback3 = lambda: None
 
     subscriptions = Subscriptions()
-    subscriptions.add("test/topic", callback1)
-    subscriptions.add("test/topic", callback2)
-    subscriptions.add("test/topic2", callback3)
-    subscriptions.add("#", callback1)
+    subscriptions.add("test/topic", 0, callback1)
+    subscriptions.add("test/topic", 1, callback2)
+    subscriptions.add("test/topic2", 2, callback3)
+    subscriptions.add("#", 0, callback1)
+
+    topics = subscriptions.get_topics()
+    assert topics == {
+        "test/topic": 1,
+        "test/topic2": 2,
+        "#": 0,
+    }
 
     callbacks = subscriptions.get_callbacks("test/topic")
     assert len(callbacks) == 2

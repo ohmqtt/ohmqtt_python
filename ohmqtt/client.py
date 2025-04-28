@@ -118,7 +118,7 @@ class Client:
         properties: MQTTPropertyDict | None = None,
     ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
-        self.subscriptions.add(topic_filter, callback)
+        self.subscriptions.add(topic_filter, qos, callback)
         self.session.subscribe(topic_filter, qos=qos, properties=properties)
         return SubscriptionHandle(
             topic_filter=topic_filter,
