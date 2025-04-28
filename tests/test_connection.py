@@ -201,6 +201,8 @@ def test_connection_ping_pong(callbacks, mocker, loopback_socket):
         time.sleep(0.7)
         callbacks.close_callback.assert_called_once_with()
         callbacks.close_callback.reset_mock()
+        # Should not have received a DISCONNECT packet.
+        assert not loopback_socket.test_recv(512)
 
 
 def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
@@ -235,3 +237,5 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
         time.sleep(1.6)
         callbacks.close_callback.assert_called_once_with()
         callbacks.close_callback.reset_mock()
+        # Should not have received a DISCONNECT packet.
+        assert not loopback_socket.test_recv(512)
