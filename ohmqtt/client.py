@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ssl
 from types import TracebackType
 from typing import Final, Sequence
@@ -13,31 +12,14 @@ from .packet import MQTTPublishPacket
 from .property import MQTTPropertyDict
 from .retention import PublishHandle
 from .session import Session
-from .subscriptions import Subscriptions, SubscribeCallback
+from .subscriptions import Subscriptions, SubscribeCallback, SubscriptionHandle
 
 logger: Final = get_logger("client")
 
 
-@dataclass(match_args=True, slots=True, frozen=True)
-class SubscriptionHandle:
-    """Represents a subscription to a topic filter with a callback."""
-    topic_filter: str
-    callback: SubscribeCallback
-    _client: Client
-
-    def unsubscribe(self) -> None:
-        """Unsubscribe from the topic filter."""
-        self._client.unsubscribe(self.topic_filter, self.callback)
-
-
 class Client:
     """High level interface for the MQTT client."""
-    __slots__ = (
-        "session",
-        "subscriptions",
-    )
-    session: Session
-    subscriptions: Subscriptions
+    __slots__ = ("session", "subscriptions")
 
     def __init__(self) -> None:
         self.subscriptions = Subscriptions()
@@ -115,6 +97,7 @@ class Client:
         retain: bool = False,
         properties: MQTTPropertyDict | None = None,
     ) -> PublishHandle:
+        """Publish a message to a topic."""
         return self.session.publish(topic, payload, qos=qos, retain=retain, properties=properties)
     
     def subscribe(

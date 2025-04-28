@@ -13,6 +13,18 @@ if TYPE_CHECKING:
 SubscribeCallback = Callable[["Client", MQTTMessage], None]
 
 
+@dataclass(match_args=True, slots=True, frozen=True)
+class SubscriptionHandle:
+    """Represents a subscription to a topic filter with a callback."""
+    topic_filter: str
+    callback: SubscribeCallback
+    _client: Client
+
+    def unsubscribe(self) -> None:
+        """Unsubscribe from the topic filter."""
+        self._client.unsubscribe(self.topic_filter, self.callback)
+
+
 @dataclass(match_args=True, slots=True)
 class Subscription:
     """Represents subscriptions to a topic filter with a callback."""
