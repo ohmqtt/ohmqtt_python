@@ -316,16 +316,3 @@ def validate_properties(properties: MQTTPropertyDict, packet_type: int | None = 
         )
     # TODO: Numeric limits
     # TODO: Uniqueness
-
-
-def hash_properties(properties: MQTTPropertyDict) -> int:
-    """Calculate the hash of the properties."""
-    def _hashable_value(value: object) -> object:
-        """Hash a value."""
-        if isinstance(value, set):
-            return frozenset(value)
-        elif isinstance(value, list):
-            return tuple(value)
-        else:
-            return value
-    return hash(frozenset((key, _hashable_value(value)) for key, value in properties.items()))
