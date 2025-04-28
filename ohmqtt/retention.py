@@ -141,8 +141,6 @@ class MessageRetention:
         message = self.messages[packet_id]
         if message.qos == 1 or message.received:
             del self.messages[packet_id]
-            if not self.messages:
-                self.messages.clear()
             with self._cond:
                 message.handle.acked = True
                 self._cond.notify_all()
