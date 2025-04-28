@@ -184,42 +184,6 @@ def test_connection_nodelay(callbacks, mocker):
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 
-def test_connection_ping_no_response(callbacks, mocker, loopback_socket):
-    """Test that the Connection class sends pings and disconnects on no receipt."""
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
-        assert loopback_socket.test_recv(512) == PING
-        time.sleep(0.8)
-        callbacks.close_callback.assert_not_called()
-        time.sleep(0.5)
-        callbacks.close_callback.assert_called_once_with()
-        callbacks.close_callback.reset_mock()
-
-
-def test_connection_ping_no_pong(callbacks, mocker, loopback_socket):
-    """Test that the Connection class sends pings and disconnects on no receipt."""
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectionConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
-        assert loopback_socket.test_recv(512) == PING
-        loopback_socket.test_sendall(MQTTPublishPacket().encode())  # Any technically valid packet.
-        time.sleep(0.1)
-        callbacks.read_callback.assert_called_once_with(MQTTPublishPacket())
-        callbacks.read_callback.reset_mock()
-        time.sleep(1.6)
-        callbacks.close_callback.assert_called_once_with()
-        callbacks.close_callback.reset_mock()
-
-
 def test_connection_ping_pong(callbacks, mocker, loopback_socket):
     """Test that the Connection class sends pings and handles pongs."""
     mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)

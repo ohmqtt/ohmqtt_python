@@ -5,12 +5,12 @@ import select
 import socket
 import ssl
 import threading
-import time
 from typing import Callable, cast, Final
 from types import TracebackType
 
 from .decoder import IncrementalDecoder
 from .error import MQTTError
+from .keepalive import KeepAlive
 from .logger import get_logger
 from .mqtt_spec import MQTTPacketType, MQTTReasonCode
 from .packet import (
@@ -75,15 +75,12 @@ class Connection(threading.Thread):
         "_write_buffer_lock",
         "_interrupt_r",
         "_interrupt_w",
-        "_keepalive_interval",
-        "_last_send",
-        "_last_recv",
-        "_pong_deadline",
         "_in_read",
         "_tcp_nodelay",
         "_reconnect_delay",
         "_state",
         "_decoder",
+        "_keepalive",
     )
 
     def __init__(
@@ -102,18 +99,15 @@ class Connection(threading.Thread):
         self._tls_hostname = ""
         self._tcp_nodelay = True
         self._reconnect_delay = 1.0
-        self._keepalive_interval = 0
 
         self._state = STATE_CLOSED
         self._write_buffer = bytearray()
         self._write_buffer_lock = threading.Lock()
         self._interrupt_r, self._interrupt_w = socket.socketpair()
-        self._last_send = 0.0
-        self._last_recv = 0.0
-        self._pong_deadline = 0.0
         self._in_read = False
         self._connect_cond = threading.Condition()
         self._decoder = IncrementalDecoder()
+        self._keepalive = KeepAlive()
 
     def __enter__(self) -> Connection:
         self.start()
@@ -135,7 +129,7 @@ class Connection(threading.Thread):
         """Connect to the broker.
 
         This method is non-blocking and will return immediately. The connection will be established in the background."""
-        self._keepalive_interval = params.keepalive_interval
+        self._keepalive.keepalive_interval = params.keepalive_interval
         self._reconnect_delay = params.reconnect_delay
         self._tcp_nodelay = params.tcp_nodelay
         self._use_tls = params.use_tls
@@ -210,7 +204,7 @@ class Connection(threading.Thread):
         try:
             with self._write_buffer_lock:
                 sent = sock.send(self._write_buffer)
-                self._last_send = time.monotonic()
+                self._keepalive.mark_send()
                 del self._write_buffer[:sent]
         except ssl.SSLWantWriteError:
             pass
@@ -220,7 +214,6 @@ class Connection(threading.Thread):
         self._in_read = True
         try:
             self._read_packet(sock)
-            self._last_recv = time.monotonic()
         except ssl.SSLWantReadError:
             pass
         finally:
@@ -238,10 +231,10 @@ class Connection(threading.Thread):
 
         # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType["PINGRESP"]:
-            self._pong_deadline = 0.0
+            self._keepalive.mark_pong()
             logger.debug("<--- PONG")
         elif packet.packet_type == MQTTPacketType["PINGREQ"]:
-            sock.send(PONG)
+            self.send(PONG)
             logger.debug("<--- PING PONG --->")
         else:
             # All non-ping packets are passed to the read callback.
@@ -252,34 +245,17 @@ class Connection(threading.Thread):
             if "ServerKeepAlive" in packet.properties:
                 # Override the keepalive interval with the server's value.
                 keepalive_interval = packet.properties["ServerKeepAlive"]
-                self._keepalive_interval = keepalive_interval
-                self._pong_deadline = 0.0  # Cancel any pending ping expectations.
+                self._keepalive.keepalive_interval = keepalive_interval
                 logger.debug(f"Keepalive interval set by server to {keepalive_interval} seconds")
 
-    def _get_next_timeout(self) -> float | None:
-        """Get the next timeout for the connection.
-
-        This is used to implement the keepalive interval."""
-        if self._keepalive_interval > 0:
-            now = time.monotonic()
-            send_timeout = self._last_send + self._keepalive_interval
-            recv_timeout = self._last_recv + self._keepalive_interval * 2
-            pong_timeout = self._pong_deadline if self._pong_deadline > 0.0 else recv_timeout + 1.0
-            next_timeout = min(send_timeout, recv_timeout, pong_timeout) - now
-            return max(0.001, next_timeout)
-        return None
-
-    def _check_keepalive(self) -> None:
-        """Check if the keepalive interval has been reached."""
-        now = time.monotonic()
-        if now - self._last_send > self._keepalive_interval and self._pong_deadline == 0.0:
+    def _check_keepalive(self, sock: socket.socket | ssl.SSLSocket) -> None:
+        """Check if we should send a ping or close the connection."""
+        if self._keepalive.should_close():
+            raise ConnectionCloseCondition("Keepalive timeout")
+        if self._keepalive.should_send_ping():
             self.send(PING)
-            self._pong_deadline = time.monotonic() + self._keepalive_interval
             logger.debug("---> PING")
-        elif now - self._last_recv > self._keepalive_interval * 2:
-            raise ConnectionCloseCondition("No data received in time")
-        elif self._pong_deadline > 0.0 and now > self._pong_deadline:
-            raise ConnectionCloseCondition("No pong received in time")
+            self._keepalive.mark_ping()
 
     def _check_connect(self) -> bool:
         """Check if we should connect to the server.
@@ -310,12 +286,10 @@ class Connection(threading.Thread):
                     self._open_callback()
                     was_open = True
 
-                self._last_send = time.monotonic()
-                self._last_recv = self._last_send
-                self._pong_deadline = 0.0
+                self._keepalive.mark_init()
 
                 while self._state == STATE_CONNECT:
-                    next_timeout = self._get_next_timeout()
+                    next_timeout = self._keepalive.get_next_timeout()
                     write_check = (sock,) if self._write_buffer else tuple()
                     readable, writable, _ = select.select([sock, self._interrupt_r], write_check, [], next_timeout)
 
@@ -325,8 +299,7 @@ class Connection(threading.Thread):
                     if sock in readable:
                         self._try_read(sock)
 
-                    if self._keepalive_interval > 0 and self._state == STATE_CONNECT:
-                        self._check_keepalive()
+                    self._check_keepalive(sock)
 
                     if self._interrupt_r in readable:
                         self._interrupt_r.recv(1024)
