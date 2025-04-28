@@ -26,7 +26,7 @@ from .property import MQTTPropertyDict
 logger: Final = get_logger("connection")
 
 ConnectionCloseCallback = Callable[[], None]
-ConnectionOpenCallback = Callable[[], None]
+ConnectionOpenCallback = Callable[[MQTTConnAckPacket], None]
 ConnectionReadCallback = Callable[[MQTTPacket], None]
 
 
@@ -254,11 +254,7 @@ class Connection(threading.Thread):
         elif packet.packet_type == MQTTPacketType["PINGREQ"]:
             self.send(PONG)
             logger.debug("<--- PING PONG --->")
-        else:
-            # All non-ping packets are passed to the read callback.
-            self._read_callback(packet)
-        # Handle connection-level server parameters here.
-        if packet.packet_type == MQTTPacketType["CONNACK"]:
+        elif packet.packet_type == MQTTPacketType["CONNACK"]:
             packet = cast(MQTTConnAckPacket, packet)
             if "ServerKeepAlive" in packet.properties:
                 # Override the keepalive interval with the server's value.
@@ -267,9 +263,12 @@ class Connection(threading.Thread):
                 logger.debug(f"Keepalive interval set by server to {keepalive_interval} seconds")
             with self._state_cond:
                 if self._state == STATE_CONNECTING:
-                    self._open_callback()
+                    self._open_callback(packet)
                     self._state = STATE_CONNECT
                     self._state_cond.notify_all()
+        else:
+            # All other packets are passed to the read callback.
+            self._read_callback(packet)
 
     def _check_keepalive(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Check if we should send a ping or close the connection."""

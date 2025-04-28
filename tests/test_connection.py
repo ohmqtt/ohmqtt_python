@@ -81,10 +81,8 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
         loop.test_sendall(connack_packet.encode())
 
         connection.wait_for_connect(timeout=0.1)
-        callbacks.open_callback.assert_called_once_with()
+        callbacks.open_callback.assert_called_once_with(connack_packet)
         callbacks.open_callback.reset_mock()
-        callbacks.read_callback.assert_called_once_with(connack_packet)
-        callbacks.read_callback.reset_mock()
 
         # DISCONNECT
         connection.disconnect()
@@ -119,8 +117,6 @@ def test_connection_partial_read(callbacks, mocker, loopback_socket):
         connack_packet = MQTTConnAckPacket()
         loopback_socket.test_sendall(connack_packet.encode())
         connection.wait_for_connect(timeout=0.1)
-        callbacks.read_callback.assert_called_once_with(connack_packet)
-        callbacks.read_callback.reset_mock()
 
         packet = MQTTPublishPacket(
             topic="test/topic",
@@ -248,8 +244,8 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
         )
         loopback_socket.test_sendall(connack_packet.encode())
         connection.wait_for_connect(timeout=0.1)
-        callbacks.read_callback.assert_called_once_with(connack_packet)
-        callbacks.read_callback.reset_mock()
+        callbacks.open_callback.assert_called_once_with(connack_packet)
+        callbacks.open_callback.reset_mock()
 
         assert loopback_socket.test_recv(512) == PING
         time.sleep(1.6)

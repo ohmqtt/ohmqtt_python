@@ -90,7 +90,6 @@ class Session:
             read_callback=self._connection_read_callback,
         )
         self._read_handlers: Mapping[int, Callable[[Any], None]] = {
-            MQTTPacketType["CONNACK"]: self._handle_connack,
             MQTTPacketType["PUBACK"]: self._handle_puback,
             MQTTPacketType["PUBREC"]: self._handle_pubrec,
             MQTTPacketType["PUBREL"]: self._handle_pubrel,
@@ -116,9 +115,23 @@ class Session:
         if logging.DEBUG >= logging.root.level:
             logger.debug(f"---> {packet}")
 
-    def _connection_open_callback(self) -> None:
+    def _connection_open_callback(self, packet: MQTTConnAckPacket) -> None:
         """Handle a connection open event."""
-        pass
+        if packet.reason_code >= 0x80:
+            logger.error(f"Connection failed: {packet.reason_code}")
+            raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
+        with self._lock:
+            #if "AssignedClientIdentifier" in packet.properties:
+            #    self.client_id = packet.properties["AssignedClientIdentifier"]
+            if "ReceiveMaximum" in packet.properties:
+                self.server_receive_maximum = packet.properties["ReceiveMaximum"]
+            else:
+                self.server_receive_maximum = MAX_PACKET_ID - 1
+            if "TopicAliasMaximum" in packet.properties:
+                self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
+            self._flush()
+        if self.open_callback is not None:
+            self.open_callback()
 
     def _connection_close_callback(self) -> None:
         """Handle a connection close event."""
@@ -136,24 +149,6 @@ class Session:
             logger.debug(f"<--- {packet}")
         if packet.packet_type in self._read_handlers:
             self._read_handlers[packet.packet_type](packet)
-
-    def _handle_connack(self, packet: MQTTConnAckPacket) -> None:
-        """Handle a CONNACK packet from the server."""
-        if packet.reason_code >= 0x80:
-            logger.error(f"Connection failed: {packet.reason_code}")
-            raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
-        with self._lock:
-            #if "AssignedClientIdentifier" in packet.properties:
-            #    self.client_id = packet.properties["AssignedClientIdentifier"]
-            if "ReceiveMaximum" in packet.properties:
-                self.server_receive_maximum = packet.properties["ReceiveMaximum"]
-            else:
-                self.server_receive_maximum = MAX_PACKET_ID - 1
-            if "TopicAliasMaximum" in packet.properties:
-                self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
-            self._flush()
-        if self.open_callback is not None:
-            self.open_callback()
 
     def _handle_puback(self, packet: MQTTPubAckPacket) -> None:
         """Handle a PUBACK packet from the server."""
