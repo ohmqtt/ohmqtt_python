@@ -67,9 +67,9 @@ MQTTPropertyIdReverse: Final[Mapping[int, str]] = {v: k for k, v in MQTTProperty
 
 # Indicates the result of an operation.
 MQTTReasonCode: Final[Mapping[str, int]] = {
-    "Success": 0x00,
-    "NormalDisconnection": 0x00,
     "GrantedQoS0": 0x00,
+    "NormalDisconnection": 0x00,
+    "Success": 0x00,
     "GrantedQoS1": 0x01,
     "GrantedQoS2": 0x02,
     "DisconnectWithWillMessage": 0x04,
