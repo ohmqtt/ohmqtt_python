@@ -4,6 +4,7 @@ from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTPropertyId
 from ohmqtt.packet import (
     decode_packet,
+    decode_packet_from_parts,
     MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTPublishPacket,
@@ -260,3 +261,12 @@ def test_packet_decode_packet_errors():
             assert e.reason_code == MQTTReasonCode["MalformedPacket"]
         else:
             pytest.fail("Expected MQTT error")
+
+
+def test_packet_decode_packet_from_parts_errors():
+    try:
+        decode_packet_from_parts(0, b"\x00")
+    except MQTTError as e:
+        assert e.reason_code == MQTTReasonCode["MalformedPacket"]
+    else:
+        pytest.fail("Expected MQTT error")
