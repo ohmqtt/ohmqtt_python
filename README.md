@@ -10,7 +10,6 @@ A lightweight MQTT client library for Python.
 ## TODO for 1.0
 
 * Autodoc
-* Reconnect
 * Subscription identifiers
 * Shared subscriptions
 * Portability (Windows)
