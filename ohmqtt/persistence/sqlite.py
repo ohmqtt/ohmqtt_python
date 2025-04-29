@@ -174,13 +174,13 @@ class SQLitePersistence(Persistence):
         with self._cond:
             self._cursor.execute(
                 """
-                SELECT id, packet_id from messages WHERE packet_id = (SELECT MAX(packet_id) FROM messages)
+                SELECT packet_id from messages WHERE packet_id = (SELECT MAX(packet_id) FROM messages)
                 """
             )
             row = self._cursor.fetchone()
             packet_id = 1
             if row is not None:
-                message_id, packet_id = row
+                packet_id = row[0]
                 packet_id = packet_id + 1 if packet_id < 65535 else 1
             return packet_id
 
