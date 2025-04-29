@@ -62,11 +62,11 @@ class SQLitePersistence(Persistence):
                     received INTEGER DEFAULT 0,
                     packet_id INTEGER UNIQUE DEFAULT NULL,
                     inflight INTEGER DEFAULT 0
-                );
+                ) STRICT;
                 CREATE TABLE IF NOT EXISTS client_id (
                     id INTEGER PRIMARY KEY CHECK (id = 0),
                     client_id TEXT DEFAULT NULL
-                );
+                ) STRICT;
                 INSERT OR IGNORE INTO client_id (id) VALUES (0);
                 COMMIT;
                 """
