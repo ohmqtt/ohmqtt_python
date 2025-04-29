@@ -70,6 +70,11 @@ class ConnectParams:
     tls_hostname: str = ""
     protocol_version: int = 5
     clean_start: bool = False
+    will_topic: str = ""
+    will_payload: bytes = b""
+    will_qos: int = 0
+    will_retain: bool = False
+    will_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
     connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
 
@@ -320,6 +325,11 @@ class Connection:
                     clean_start=self._params.clean_start,
                     keep_alive=self._params.keepalive_interval,
                     properties=self._params.connect_properties,
+                    will_topic=self._params.will_topic,
+                    will_payload=self._params.will_payload,
+                    will_qos=self._params.will_qos,
+                    will_retain=self._params.will_retain,
+                    will_props=self._params.will_properties,
                 )
                 self._write_buffer.extend(connect_packet.encode())
                 logger.debug(f"---> {str(connect_packet)}")

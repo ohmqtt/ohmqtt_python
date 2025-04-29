@@ -22,7 +22,10 @@ test_packet_connect_encode:
       will_payload: "9c9c9c9c"
       will_qos: 1
       will_retain: true
-    raw: "101d00044d515454052e0bb800000362617a0000046475636b00049c9c9c9c"
+      will_props:
+      - - "ResponseTopic"
+        - "a/topic"
+    raw: "102700044d515454052e0bb800000362617a0a080007612f746f70696300046475636b00049c9c9c9c"
   - args:
       protocol_version: 5
       keep_alive: 30000

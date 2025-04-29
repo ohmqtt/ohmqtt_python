@@ -69,7 +69,12 @@ class Client:
         use_tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
-        connect_properties: MQTTPropertyDict | None = None,
+        will_topic: str = "",
+        will_payload: bytes = b"",
+        will_qos: int = 0,
+        will_retain: bool = False,
+        will_properties: MQTTProperties | None = None,
+        connect_properties: MQTTProperties | None = None,
     ) -> None:
         """Connect to the broker."""
         self.session.connect(ConnectParams(
@@ -82,7 +87,12 @@ class Client:
             use_tls=use_tls,
             tls_context=tls_context if tls_context is not None else ssl.create_default_context(),
             tls_hostname=tls_hostname,
-            connect_properties=connect_properties if connect_properties is not None else MQTTPropertyDict(),
+            will_topic=will_topic,
+            will_payload=will_payload,
+            will_qos=will_qos,
+            will_retain=will_retain,
+            will_properties=will_properties.to_dict() if will_properties is not None else MQTTPropertyDict(),
+            connect_properties=connect_properties.to_dict() if connect_properties is not None else MQTTPropertyDict(),
         ))
 
     def disconnect(self) -> None:

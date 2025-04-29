@@ -41,8 +41,8 @@ class MQTTConnectPacket(MQTTPacket):
     protocol_version: int = 5
     clean_start: bool = False
     will_props: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-    will_topic: str | None = None
-    will_payload: bytes | None = None
+    will_topic: str = ""
+    will_payload: bytes = b""
     will_qos: int = 0
     will_retain: bool = False
     username: str | None = None
@@ -75,7 +75,7 @@ class MQTTConnectPacket(MQTTPacket):
 
         payload = bytearray()
         payload.extend(encode_string(self.client_id))
-        if self.will_topic is not None and self.will_payload is not None:
+        if self.will_topic:
             payload.extend(encode_properties(self.will_props) + encode_string(self.will_topic) + encode_binary(self.will_payload))
             connect_flags += 0x04
         if self.username is not None:
@@ -151,8 +151,8 @@ class MQTTConnectPacket(MQTTPacket):
             offset += sz
         else:
             will_props = {}
-            will_topic = None
-            will_payload = None
+            will_topic = ""
+            will_payload = b""
         
         if username_flag:
             username, sz = decode_string(data[offset:])

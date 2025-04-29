@@ -48,7 +48,7 @@ def extract_args(data, binary_args):
     for k, v in data.items():
         if k in binary_args:
             args[k] = bytes.fromhex(v)
-        elif k == "properties":
+        elif k in ("properties", "will_props"):
             args[k] = extract_props(v)
         else:
             args[k] = v
