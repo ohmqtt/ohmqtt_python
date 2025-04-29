@@ -26,9 +26,7 @@ class LoopbackSocket:
     
     Return an instance of this class from a mock to use as a socket in tests."""
     def __init__(self):
-        self.mocksock, self.testsock = socket.socketpair()
-        self.testsock.settimeout(3.0)
-        self.connect_calls = []
+        self.reset()
 
     def __enter__(self):
         return self
@@ -40,6 +38,12 @@ class LoopbackSocket:
     def __del__(self):
         self.mocksock.close()
         self.testsock.close()
+
+    def reset(self) -> None:
+        """Reset the socket pair."""
+        self.mocksock, self.testsock = socket.socketpair()
+        self.testsock.settimeout(3.0)
+        self.connect_calls = []
 
     def test_close(self) -> None:
         self.testsock.close()
@@ -122,6 +126,15 @@ class LoopbackTLSSocket(LoopbackSocket):
     You must call test_do_handshake() before using either end of the socket."""
     def __init__(self):
         super().__init__()
+        self._wrap_socket()
+
+    def reset(self) -> None:
+        """Reset the socket pair."""
+        super().reset()
+        self._wrap_socket()
+
+    def _wrap_socket(self) -> None:
+        """Wrap the test side of the socket in an SSL context."""
         self.server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.cert_pem, key_pem = generate_selfsigned_cert("localhost")
         with tempfile.TemporaryDirectory() as tmpdir:

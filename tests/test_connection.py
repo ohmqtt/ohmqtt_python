@@ -253,3 +253,48 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
         callbacks.close_callback.reset_mock()
         # Should not have received a DISCONNECT packet.
         assert not loopback_socket.test_recv(512)
+
+
+def test_connection_reconnect(callbacks, mocker, loopback_socket):
+    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
+    with Connection(
+        callbacks.close_callback,
+        callbacks.open_callback,
+        callbacks.read_callback,
+    ) as connection:
+        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False, keepalive_interval=1, reconnect_delay=0.5))
+
+        connect_packet = MQTTConnectPacket(keep_alive=1)
+        assert loopback_socket.test_recv(512) == connect_packet.encode()
+        assert loopback_socket.connect_calls == [("localhost", 1883)]
+        loopback_socket.connect_calls.clear()
+
+        connack_packet = MQTTConnAckPacket(
+            session_present=False,
+            reason_code=MQTTReasonCode.Success,
+        )
+        loopback_socket.test_sendall(connack_packet.encode())
+        connection.wait_for_connect(timeout=0.1)
+        callbacks.open_callback.assert_called_once_with(connack_packet)
+        callbacks.open_callback.reset_mock()
+
+        # Simulate a disconnect.
+        disconnect_packet = MQTTDisconnectPacket()
+        loopback_socket.test_sendall(disconnect_packet.encode())
+        time.sleep(0.1)
+        loopback_socket.test_close()
+        connection.wait_for_disconnect(timeout=2.0)  # Should close on keepalive timeout.
+        loopback_socket.reset()
+
+        assert loopback_socket.test_recv(512) == connect_packet.encode()
+        assert loopback_socket.connect_calls == [("localhost", 1883)]
+        loopback_socket.connect_calls.clear()
+
+        connack_packet = MQTTConnAckPacket(
+            session_present=False,
+            reason_code=MQTTReasonCode.Success,
+        )
+        loopback_socket.test_sendall(connack_packet.encode())
+        connection.wait_for_connect(timeout=0.1)
+        callbacks.open_callback.assert_called_once_with(connack_packet)
+        callbacks.open_callback.reset_mock()

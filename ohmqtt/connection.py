@@ -201,7 +201,7 @@ class Connection:
             self._state_cond.notify_all()
             self._interrupt()
 
-    def _try_to_send_disconnect(self, sock: socket.socket | ssl.SSLSocket, reason_code: int) -> None:
+    def _try_to_send_disconnect(self, sock: socket.socket | ssl.SSLSocket, reason_code: int = MQTTReasonCode.NormalDisconnection) -> None:
         """Try to send a DISCONNECT packet to the broker and close the socket.
 
         If the socket is not ready to write, we will not wait for it."""
@@ -238,6 +238,8 @@ class Connection:
                 del self._write_buffer[:sent]
         except ssl.SSLWantWriteError:
             pass
+        except BrokenPipeError:
+            raise ConnectionCloseCondition("Broken pipe")
 
     def _try_read(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Try to read data from the socket."""
@@ -279,6 +281,9 @@ class Connection:
                     self._state = STATE_CONNECT
                     self._open_callback(packet)
                     self._state_cond.notify_all()
+        elif packet.packet_type == MQTTPacketType.DISCONNECT:
+            # DISCONNECT is purely informational.
+            logger.debug(f"<--- {str(packet)}")
         else:
             # All other packets are passed to the read callback.
             self._read_callback(packet)
@@ -367,8 +372,8 @@ class Connection:
                 logger.exception("Unhandled error in socket read thread, shutting down")
                 self._state = STATE_SHUTDOWN
             finally:
-                self._state = min(self._state, STATE_CLOSED)
                 with self._state_cond:
+                    self._state = min(self._state, STATE_CLOSED)
                     # Wake up wait_for_disconnect.
                     self._state_cond.notify_all()
                 if was_open:
@@ -377,16 +382,24 @@ class Connection:
                     except Exception:
                         logger.exception("Error while calling close callback")
                     if not sent_disconnect:
-                        self._try_to_send_disconnect(sock, MQTTReasonCode.NormalDisconnection)
+                        self._try_to_send_disconnect(sock)
                 sock.close()
                 self._decoder.reset()
                 self._write_buffer.clear()
-                if self._state > STATE_SHUTDOWN and self._params.reconnect_delay > 0:
-                    with self._state_cond:
-                        self._state_cond.wait(timeout=self._params.reconnect_delay)
-                        if self._address == _InitAddress:
-                            logger.debug("Reconnect cancelled")
-                            break
+                with self._state_cond:
+                    if self._state > STATE_SHUTDOWN and self._params.reconnect_delay > 0:
+                        try:
+                            logger.debug(f"Waiting {self._params.reconnect_delay}s for reconnect")
+                            was_cancelled = self._state_cond.wait_for(self._check_connect, timeout=self._params.reconnect_delay)
+                        except ConnectionCloseCondition:
+                            # In shutdown.
+                            logger.debug("Reconnect cancelled by shutdown")
+                        else:
+                            if was_cancelled:
+                                logger.debug("Reconnect timeout cancelled")
+                            else:
+                                logger.debug("Reconnecting to broker")
+                                self._state = STATE_CONNECTING
         logger.debug("Shutdown complete")
 
     def start_loop(self) -> None:
