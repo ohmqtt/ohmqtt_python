@@ -30,7 +30,7 @@ def extract_props(data) -> MQTTPropertyDict:
     for prop in data:
         k = prop[0]
         prop_key = MQTTPropertyIdStrings[k]
-        if MQTTPropertyDict.__annotations__[k] is bytes:
+        if prop_key in (MQTTPropertyId.CorrelationData, MQTTPropertyId.AuthenticationData):
             prop_value = bytes.fromhex(prop[1])
         elif prop_key == MQTTPropertyId.SubscriptionIdentifier:
             prop_value = set(prop[1:])

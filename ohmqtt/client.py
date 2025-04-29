@@ -9,7 +9,7 @@ from .logger import get_logger
 from .message import MQTTMessage
 from .mqtt_spec import MQTTReasonCode
 from .packet import MQTTPublishPacket
-from .property import MQTTPropertyDict
+from .property import MQTTPropertyDict, MQTTProperties
 from .persistence.base import PublishHandle
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback, SubscriptionHandle
@@ -112,10 +112,11 @@ class Client:
         *,
         qos: int = 0,
         retain: bool = False,
-        properties: MQTTPropertyDict | None = None,
+        properties: MQTTProperties | None = None,
     ) -> PublishHandle:
         """Publish a message to a topic."""
-        return self.session.publish(topic, payload, qos=qos, retain=retain, properties=properties)
+        property_dict = properties.to_dict() if properties is not None else None
+        return self.session.publish(topic, payload, qos=qos, retain=retain, properties=property_dict)
     
     def subscribe(
         self,
@@ -177,7 +178,7 @@ class Client:
             packet_id=packet.packet_id,
             retain=packet.retain,
             dup=packet.dup,
-            properties=packet.properties,
+            properties=MQTTProperties.from_dict(packet.properties),
         )
         for callback in callbacks:
             try:

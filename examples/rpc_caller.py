@@ -11,6 +11,7 @@ from typing import Callable
 
 from ohmqtt.client import Client
 from ohmqtt.message import MQTTMessage
+from ohmqtt.property import MQTTProperties
 
 
 RPCCallback = Callable[[bytes], None]
@@ -38,7 +39,7 @@ class RPCCaller:
             "ohmqtt/examples/rpc/request",
             payload,
             qos=2,
-            properties={"ResponseTopic": response_topic},
+            properties=MQTTProperties(ResponseTopic=response_topic),
         ).wait_for_ack()
 
         print(f"Sent RPC request with response topic: {response_topic}")

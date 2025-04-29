@@ -9,7 +9,7 @@ See the "rpc_caller" example for the request side of this RPC implementation."""
 
 from ohmqtt.client import Client
 from ohmqtt.message import MQTTMessage
-from ohmqtt.property import MQTTPropertyDict
+from ohmqtt.property import MQTTProperties
 
 
 class RPCServer:
@@ -19,16 +19,13 @@ class RPCServer:
         print(f"*** Received RPC request: {str(msg)}")
 
         # Find the response topic in the message properties.
-        try:
-            response_topic = msg.properties["ResponseTopic"]
-        except KeyError:
+        if msg.properties.ResponseTopic is None:
             print("Request was missing required response topic property")
             return
+        response_topic = msg.properties.ResponseTopic
         
         # If the request includes correlation data, send it back in the response.
-        response_props: MQTTPropertyDict = {}
-        if "CorrelationData" in msg.properties:
-            response_props["CorrelationData"] = msg.properties["CorrelationData"]
+        response_props = MQTTProperties(CorrelationData=msg.properties.CorrelationData)
 
         # Simulate some processing.
         response = f"This is a good day for {msg.payload.decode()}"

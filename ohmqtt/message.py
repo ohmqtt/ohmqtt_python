@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from .property import MQTTPropertyDict
+from .property import MQTTProperties
 
 
 @dataclass(match_args=True, slots=True)
@@ -12,4 +12,4 @@ class MQTTMessage:
     packet_id: int = 0
     retain: bool = False
     dup: bool = False
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTProperties = field(default_factory=MQTTProperties)

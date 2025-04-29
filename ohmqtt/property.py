@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Callable, Final, Mapping, Sequence, TypedDict
 
 from .error import MQTTError
@@ -23,6 +26,7 @@ from .serialization import (
 
 
 class MQTTPropertyDict(TypedDict, total=False):
+    """Internal representation of MQTT properties."""
     PayloadFormatIndicator: int
     MessageExpiryInterval: int
     ContentType: str
@@ -50,6 +54,56 @@ class MQTTPropertyDict(TypedDict, total=False):
     WildcardSubscriptionAvailable: bool
     SubscriptionIdentifierAvailable: bool
     SharedSubscriptionAvailable: bool
+
+
+@dataclass(match_args=True, kw_only=True)
+class MQTTProperties:
+    """User interface for reading and writing MQTT properties."""
+    PayloadFormatIndicator: int | None = None
+    MessageExpiryInterval: int | None = None
+    ContentType: str | None = None
+    ResponseTopic: str | None = None
+    CorrelationData: bytes | None = None
+    SubscriptionIdentifier: set[int] | None = None
+    SessionExpiryInterval: int | None = None
+    AssignedClientIdentifier: str | None = None
+    ServerKeepAlive: int | None = None
+    AuthenticationMethod: str | None = None
+    AuthenticationData: bytes | None = None
+    RequestProblemInformation: bool | None = None
+    WillDelayInterval: int | None = None
+    RequestResponseInformation: bool | None = None
+    ResponseInformation: str | None = None
+    ServerReference: str | None = None
+    ReasonString: str | None = None
+    ReceiveMaximum: int | None = None
+    TopicAliasMaximum: int | None = None
+    TopicAlias: int | None = None
+    MaximumQoS: int | None = None
+    RetainAvailable: bool | None = None
+    UserProperty: Sequence[tuple[str, str]] | None = None
+    MaximumPacketSize: int | None = None
+    WildcardSubscriptionAvailable: bool | None = None
+    SubscriptionIdentifierAvailable: bool | None = None
+    SharedSubscriptionAvailable: bool | None = None
+
+    def to_dict(self) -> MQTTPropertyDict:
+        """Convert the properties to a dictionary."""
+        # Type ignore required at this conversion point.
+        return {key: value for key, value in self.__dict__.items() if value is not None}  # type: ignore
+
+    @classmethod
+    def from_dict(cls, properties: MQTTPropertyDict) -> MQTTProperties:
+        """Create a properties object from a dictionary."""
+        return cls(**properties)
+
+    def __repr__(self) -> str:
+        """Return a string representation of the properties."""
+        return f"{self.__class__.__name__}({', '.join(f'{key}={value}' for key, value in self.__dict__.items() if value is not None)})"
+    
+    def __str__(self) -> str:
+        """Return a string representation of the properties."""
+        return self.__repr__()
 
 
 # Possible property serializer function signatures.
