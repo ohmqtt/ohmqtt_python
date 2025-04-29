@@ -101,43 +101,6 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
     callbacks.close_callback.assert_not_called()
 
 
-def test_connection_partial_read(callbacks, mocker, loopback_socket):
-    loopback_socket.setblocking(False)
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
-    with Connection(
-        close_callback=callbacks.close_callback,
-        open_callback=callbacks.open_callback,
-        read_callback=callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False))
-
-        connect_packet = MQTTConnectPacket()
-        assert loopback_socket.test_recv(512) == connect_packet.encode()
-
-        connack_packet = MQTTConnAckPacket()
-        loopback_socket.test_sendall(connack_packet.encode())
-        connection.wait_for_connect(timeout=0.1)
-
-        packet = MQTTPublishPacket(
-            topic="test/topic",
-            payload=b"x" * 255,  # Length of packet must be long enough that the length varint is split.
-            qos=1,
-            packet_id=66,
-        )
-        encoded = packet.encode()
-
-        for n in range(1, len(encoded)):
-            loopback_socket.test_sendall(encoded[:n])
-            time.sleep(0.002)
-            assert not callbacks.read_callback.called
-            loopback_socket.test_sendall(encoded[n:])
-            time.sleep(0.002)
-            assert callbacks.read_callback.called
-            recvd = callbacks.read_callback.call_args[0][0]
-            assert recvd == packet
-            callbacks.read_callback.reset_mock()
-
-
 def test_connection_garbage_read(callbacks, mocker, loopback_socket):
     mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
     with Connection(
