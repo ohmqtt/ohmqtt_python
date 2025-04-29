@@ -125,7 +125,7 @@ class InMemoryPersistence(Persistence):
         with self._cond:
             self._messages.clear()
             self._pending.clear()
-            self.next_packet_id = 1
+            self._next_packet_id = 1
 
     def open(self, client_id: str, clear: bool = False) -> None:
         if clear or client_id != self._client_id:
