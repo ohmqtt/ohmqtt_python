@@ -24,6 +24,12 @@ class SQLitePersistence(Persistence):
         self._db_path = db_path
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._cursor = self._conn.cursor()
+        self._cursor.executescript(
+            """
+            PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+            """
+        )
         self._create_tables()
 
     def __len__(self) -> int:
