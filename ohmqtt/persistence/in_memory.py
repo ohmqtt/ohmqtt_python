@@ -2,6 +2,7 @@ from collections import deque
 from dataclasses import dataclass, field
 import threading
 from typing import Final, Sequence
+import weakref
 
 from .base import Persistence, ReliablePublishHandle
 from ..logger import get_logger
@@ -23,7 +24,7 @@ class RetainedMessage:
     properties: MQTTPropertyDict
     dup: bool
     received: bool
-    handle: ReliablePublishHandle
+    handle: weakref.ReferenceType[ReliablePublishHandle]
 
 
 @dataclass(slots=True)
@@ -68,7 +69,7 @@ class InMemoryPersistence(Persistence):
             properties=properties,
             dup=False,
             received=False,
-            handle=handle,
+            handle=weakref.ref(handle),
         )
         self._messages[packet_id] = message
         self._pending.append(packet_id)
@@ -83,10 +84,12 @@ class InMemoryPersistence(Persistence):
             return
         message = self._messages[packet_id]
         if message.qos == 1 or message.received:
+            handle = message.handle()
+            if handle is not None:
+                with self._cond:
+                    handle.acked = True
+                    self._cond.notify_all()
             del self._messages[packet_id]
-            with self._cond:
-                message.handle.acked = True
-                self._cond.notify_all()
         else:
             # Prioritize PUBREL over PUBLISH
             self._pending.appendleft(packet_id)
