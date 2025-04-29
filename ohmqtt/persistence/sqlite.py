@@ -25,7 +25,6 @@ class SQLitePersistence(Persistence):
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._cursor = self._conn.cursor()
         self._create_tables()
-        self._conn.commit()
 
     def __len__(self) -> int:
         """Return the number of messages in the persistence store."""
@@ -41,9 +40,7 @@ class SQLitePersistence(Persistence):
             return int(row[0])
 
     def _create_tables(self) -> None:
-        """Create the necessary tables in the SQLite database.
-        
-        Does not commit the transaction."""
+        """Create the necessary tables in the SQLite database."""
         with self._cond:
             self._cursor.executescript(
                 """
@@ -70,6 +67,7 @@ class SQLitePersistence(Persistence):
             )
 
     def _get_client_id(self) -> str:
+        """Get the client ID from the database."""
         with self._cond:
             self._cursor.execute(
                 """
@@ -82,9 +80,7 @@ class SQLitePersistence(Persistence):
             return str(row[0])
 
     def _set_client_id(self, client_id: str) -> None:
-        """Set the client ID in the SQLite database.
-        
-        Does not commit the transaction."""
+        """Set the client ID in the database."""
         with self._cond:
             self._cursor.execute(
                 """
@@ -242,7 +238,7 @@ class SQLitePersistence(Persistence):
                 """
             )
             self._conn.commit()
-        self._handles.clear()
+            self._handles.clear()
 
     def open(self, client_id: str, clear: bool = False) -> None:
         logger.debug(f"Opening SQLite persistence with client ID: {client_id} {clear=}")
@@ -250,6 +246,6 @@ class SQLitePersistence(Persistence):
             if clear or client_id != self._get_client_id():
                 logger.debug(f"Clearing SQLite persistence for client ID: {client_id}")
                 self._set_client_id(client_id)
-                self.clear()  # Will commit the transaction.
+                self.clear()
             else:
                 self._reset_inflight()
