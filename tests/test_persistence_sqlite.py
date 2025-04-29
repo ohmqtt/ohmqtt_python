@@ -155,3 +155,36 @@ def test_persistence_sqlite_open(tempdbpath):
     # This should clear the store.
     persistence.open("test_client_2")
     assert len(persistence) == 0
+
+def test_persistence_sqlite_properties():
+    persistence = SQLitePersistence(":memory:")
+    persistence.open("test_client")
+
+    # Add a message with all the properties.
+    packet = MQTTPublishPacket(
+        packet_id=1,
+        topic="test/topic",
+        payload=b"test payload",
+        qos=1,
+        retain=False,
+        properties={
+            "ResponseTopic": "response/topic",
+            "CorrelationData": b"correlation data",
+            "MessageExpiryInterval": 60,
+            "UserProperty": [("key", "value")],
+            "SubscriptionIdentifier": {123},
+        },
+    )
+    persistence.add(
+        topic=packet.topic,
+        payload=packet.payload,
+        qos=packet.qos,
+        retain=packet.retain,
+        properties=packet.properties,
+    )
+    assert len(persistence) == 1
+
+    # Retrieve the PUBLISH from the store.
+    message_ids = persistence.get(10)
+    rendered = persistence.render(message_ids[0])
+    assert rendered == packet

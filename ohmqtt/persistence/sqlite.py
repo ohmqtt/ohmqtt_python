@@ -1,12 +1,11 @@
-import json
 import sqlite3
 import threading
-from typing import cast, Final
+from typing import Final
 
 from .base import Persistence, ReliablePublishHandle
 from ..logger import get_logger
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
-from ..property import MQTTPropertyDict
+from ..property import MQTTPropertyDict, decode_properties, encode_properties
 
 logger: Final = get_logger("persistence.sqlite")
 
@@ -57,7 +56,7 @@ class SQLitePersistence(Persistence):
                     payload BLOB NOT NULL,
                     qos INTEGER NOT NULL,
                     retain INTEGER NOT NULL,
-                    properties TEXT,
+                    properties BLOB,
                     dup INTEGER DEFAULT 0,
                     received INTEGER DEFAULT 0,
                     packet_id INTEGER UNIQUE DEFAULT NULL,
@@ -105,13 +104,13 @@ class SQLitePersistence(Persistence):
         properties: MQTTPropertyDict | None = None,
     ) -> ReliablePublishHandle:
         with self._cond:
-            properties_str = json.dumps(properties) if properties else None
+            properties_blob = encode_properties(properties) if properties else None
             self._cursor.execute(
                 """
                 INSERT INTO messages (topic, payload, qos, retain, properties)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (topic, payload, qos, int(retain), properties_str),
+                (topic, payload, qos, int(retain), properties_blob),
             )
             self._conn.commit()
             message_id = self._cursor.lastrowid
@@ -197,9 +196,12 @@ class SQLitePersistence(Persistence):
             row = self._cursor.fetchone()
             if row is None:
                 raise ValueError(f"Message ID {message_id} not found in persistence store.")
-            topic, payload, qos, retain, properties_str, dup, received, packet_id = row
-            properties = json.loads(properties_str) if properties_str is not None else {}
-            properties = cast(MQTTPropertyDict, properties)
+            topic, payload, qos, retain, properties_blob, dup, received, packet_id = row
+            if properties_blob is not None:
+                properties_view = memoryview(properties_blob)
+                properties, _ = decode_properties(properties_view)
+            else:
+                properties = {}
             if packet_id is None:
                 packet_id = self._generate_packet_id()
             packet: MQTTPublishPacket | MQTTPubRelPacket
