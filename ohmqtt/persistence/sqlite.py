@@ -45,8 +45,9 @@ class SQLitePersistence(Persistence):
         
         Does not commit the transaction."""
         with self._cond:
-            self._cursor.execute(
+            self._cursor.executescript(
                 """
+                BEGIN;
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY,
                     topic TEXT NOT NULL,
@@ -58,20 +59,13 @@ class SQLitePersistence(Persistence):
                     received INTEGER DEFAULT 0,
                     packet_id INTEGER UNIQUE DEFAULT NULL,
                     inflight INTEGER DEFAULT 0
-                )
-                """
-            )
-            self._cursor.execute(
-                """
+                );
                 CREATE TABLE IF NOT EXISTS client_id (
                     id INTEGER PRIMARY KEY CHECK (id = 0),
                     client_id TEXT DEFAULT NULL
-                )
-                """
-            )
-            self._cursor.execute(
-                """
-                INSERT OR IGNORE INTO client_id (id) VALUES (0)
+                );
+                INSERT OR IGNORE INTO client_id (id) VALUES (0);
+                COMMIT;
                 """
             )
 
@@ -231,17 +225,14 @@ class SQLitePersistence(Persistence):
     def _reset_inflight(self) -> None:
         """Clear inflight status of all messages."""
         with self._cond:
-            self._cursor.execute(
+            self._cursor.executescript(
                 """
-                UPDATE messages SET dup = 1 WHERE inflight = 1
-                """
-            )
-            self._cursor.execute(
-                """
-                UPDATE messages SET inflight = 0
+                BEGIN;
+                UPDATE messages SET dup = 1 WHERE inflight = 1;
+                UPDATE messages SET inflight = 0;
+                COMMIT;
                 """
             )
-            self._conn.commit()
 
     def clear(self) -> None:
         with self._cond:
