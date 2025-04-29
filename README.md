@@ -11,7 +11,6 @@ A lightweight MQTT client library for Python.
 
 * Autodoc
 * Reconnect
-* Wills
 * Subscription identifiers
 * Shared subscriptions
 * Portability (Windows)
