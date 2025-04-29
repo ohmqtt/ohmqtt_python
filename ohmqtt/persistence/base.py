@@ -61,6 +61,8 @@ class ReliablePublishHandle(PublishHandle):
 
 class Persistence(metaclass=ABCMeta):
     """Abstract base class for message persistence."""
+    __slots__: ClassVar[Sequence[str]] = tuple()
+
     @abstractmethod
     def __len__(self) -> int:
         """Return the number of messages in the persistence store."""
