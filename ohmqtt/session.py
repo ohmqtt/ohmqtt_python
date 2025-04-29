@@ -10,7 +10,6 @@ from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
 from .packet import (
     MQTTPacket,
     MQTTConnAckPacket,
-    MQTTDisconnectPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
     MQTTPubRecPacket,
@@ -233,8 +232,6 @@ class Session:
 
     def disconnect(self) -> None:
         """Disconnect from the server."""
-        packet = MQTTDisconnectPacket()
-        self._send_packet(packet)
         self.connection.disconnect()
 
     def shutdown(self) -> None:

@@ -16,7 +16,6 @@ from ohmqtt.packet import (
     MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTDisconnectPacket,
-    MQTTPublishPacket,
     PING,
     PONG,
 )

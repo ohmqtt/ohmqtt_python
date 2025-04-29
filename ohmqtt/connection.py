@@ -30,11 +30,35 @@ ConnectionOpenCallback = Callable[[MQTTConnAckPacket], None]
 ConnectionReadCallback = Callable[[MQTTPacket], None]
 
 
+def _get_socket() -> socket.socket:
+    """Helper function to get a socket.
+
+    This mostly helps us mock sockets in tests."""
+    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+
+# Connection has finite states.
 STATE_SHUTDOWN: Final = 0
-STATE_CLOSING: Final = 1
-STATE_CLOSED: Final = 2
+STATE_CLOSED: Final = 1
+STATE_CLOSING: Final = 2
 STATE_CONNECTING: Final = 3
-STATE_CONNECT: Final = 4
+STATE_TLS_HANDSHAKE: Final = 4
+STATE_MQTT_CONNECT: Final = 5
+STATE_MQTT_CONNACK: Final = 6
+STATE_CONNECTED: Final = 7
+
+
+@dataclass(kw_only=True, slots=True)
+class StateData:
+    """State data for the connection.
+
+    This should contain any attributes needed by multiple states.
+
+    The data in this class should never be accessed from outside the state methods."""
+    sock: socket.socket | ssl.SSLSocket = field(init=False, default_factory=_get_socket)
+    disconnect_rc: int = field(init=False, default=MQTTReasonCode.NormalDisconnection)
+    keepalive: KeepAlive = field(init=False, default_factory=KeepAlive)
+    decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
 
 
 _InitAddress: Final[tuple[str, int]] = ("", -1)
@@ -48,13 +72,6 @@ class ConnectionCloseCondition(Exception):
 class KeepAliveTimeout(Exception):
     """This exception means a PINGRESP has not been received within the interval."""
     pass
-
-
-def _get_socket() -> socket.socket:
-    """Helper function to get a socket.
-
-    This mostly helps us mock sockets in tests."""
-    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
 @dataclass(slots=True, match_args=True, frozen=True)
@@ -91,11 +108,14 @@ class Connection:
         "_interrupt_r",
         "_interrupt_w",
         "_in_read",
-        "_state",
-        "_decoder",
-        "_keepalive",
-        "_state_cond",
         "_thread",
+        "_state",
+        "_previous_state",
+        "_state_changed",
+        "_state_data",
+        "_state_cond",
+        "_state_do_map",
+        "_state_enter_map",
     )
 
     def __init__(
@@ -110,15 +130,35 @@ class Connection:
         self._params = ConnectParams(*_InitAddress)
         self._address = _InitAddress
 
-        self._state = STATE_CLOSED
         self._write_buffer = bytearray()
         self._write_buffer_lock = threading.Lock()
         self._interrupt_r, self._interrupt_w = socket.socketpair()
         self._in_read = False
-        self._state_cond = threading.Condition()
-        self._decoder = IncrementalDecoder()
-        self._keepalive = KeepAlive()
         self._thread: threading.Thread | None = None
+
+        self._state = STATE_CLOSED
+        self._previous_state = STATE_CLOSED
+        self._state_changed = False
+        self._state_data = StateData()
+        self._state_cond = threading.Condition()
+        self._state_do_map: dict[int, Callable[[StateData], bool]] = {
+            STATE_SHUTDOWN: self._do_state_shutdown,
+            STATE_CLOSED: self._do_state_closed,
+            STATE_CONNECTING: self._do_state_connecting,
+            STATE_TLS_HANDSHAKE: self._do_state_tls_handshake,
+            STATE_MQTT_CONNECT: self._do_state_mqtt_connect,
+            STATE_MQTT_CONNACK: self._do_state_mqtt_connack,
+            STATE_CONNECTED: self._do_state_connected,
+        }
+        self._state_enter_map: dict[int, Callable[[StateData], None]] = {
+            STATE_SHUTDOWN: self._enter_state_shutdown,
+            STATE_CLOSED: self._enter_state_closed,
+            STATE_CONNECTING: self._enter_state_connecting,
+            STATE_TLS_HANDSHAKE: self._enter_state_tls_handshake,
+            STATE_MQTT_CONNECT: self._enter_state_mqtt_connect,
+            STATE_MQTT_CONNACK: self._enter_state_mqtt_connack,
+            STATE_CONNECTED: self._enter_state_connected,
+        }
 
     def __enter__(self) -> Connection:
         self.start_loop()
@@ -132,20 +172,17 @@ class Connection:
 
         This method is non-blocking and will return immediately. The connection will be established in the background."""
         with self._state_cond:
-            if self._state >= STATE_CONNECTING:
-                raise RuntimeError("Already connecting or connected")
             self._params = params
-            self._keepalive.keepalive_interval = params.keepalive_interval
             self._address = params.host, params.port
-            self._goto_state(STATE_CONNECTING)
+            self._request_state(STATE_CONNECTING)
 
     def wait_for_connect(self, timeout: float | None = None) -> None:
         """Wait for the connection to be established.
 
         This method will block until the connection is established or the timeout is reached."""
         with self._state_cond:
-            self._state_cond.wait_for(lambda: self._state >= STATE_CONNECT, timeout=timeout)
-            if self._state < STATE_CONNECT:
+            self._state_cond.wait_for(lambda: self._state >= STATE_CONNECTED, timeout=timeout)
+            if self._state < STATE_CONNECTED:
                 raise TimeoutError("Socket did not connect in time")
 
     def disconnect(self) -> None:
@@ -153,110 +190,69 @@ class Connection:
 
         This method does not guarantee pending reads or writes will be completed."""
         self._address = _InitAddress
-        self._goto_state(STATE_CLOSING)
+        self._request_state(STATE_CLOSED)
 
     def wait_for_disconnect(self, timeout: float | None = None) -> None:
         """Wait for the connection to be closed.
 
         This method will block until the connection is closed or the timeout is reached."""
         with self._state_cond:
-            self._state_cond.wait_for(lambda: self._state <= STATE_CLOSED, timeout=timeout)
-            if self._state > STATE_CLOSED:
+            self._state_cond.wait_for(lambda: self._state < STATE_CONNECTING, timeout=timeout)
+            if self._state >= STATE_CONNECTING:
                 raise TimeoutError("Socket did not close in time")
             
     def is_connected(self) -> bool:
         """Check if the connection is established.
 
         This method will return True if the connection is established, False otherwise."""
-        return self._state >= STATE_CONNECT
+        return self._state >= STATE_CONNECTED
 
     def shutdown(self) -> None:
         """Shutdown the connection, finalizing the instance.
 
         This method does not guarantee pending reads or writes will be completed."""
-        self._goto_state(STATE_SHUTDOWN)
+        self._request_state(STATE_SHUTDOWN)
 
     def send(self, data: bytes) -> None:
         """Write data to the broker."""
-        if self._state < STATE_CONNECT:
-            logger.debug("Connection not established, ignoring send")
-            return
+        with self._state_cond:
+            if self._state < STATE_CONNECTED:
+                logger.debug("Connection not established, ignoring send")
+                return
         with self._write_buffer_lock:
             do_interrupt = not self._in_read and not self._write_buffer
             self._write_buffer.extend(data)
         if do_interrupt:
-            self._interrupt()
+            self._interrupt_w.send(b"\x00")
 
-    def _goto_state(self, state: int) -> None:
-        """Set the state of the connection and wake up any sleeping thread states.
-
-        This method must only be called from threads other than the Connection thread
-            (the public interface of this class, other than run)."""
-        with self._state_cond:
-            if self._state == state:
-                return
-            if self._state == STATE_SHUTDOWN:
-                raise RuntimeError("Cannot change state after shutdown")
-            self._state = state
-            self._state_cond.notify_all()
-            self._interrupt()
-
-    def _try_to_send_disconnect(self, sock: socket.socket | ssl.SSLSocket, reason_code: int = MQTTReasonCode.NormalDisconnection) -> None:
-        """Try to send a DISCONNECT packet to the broker and close the socket.
-
-        If the socket is not ready to write, we will not wait for it."""
-        disconnect_packet = MQTTDisconnectPacket(reason_code=reason_code)
-        try:
-            logger.debug(f"---> {str(disconnect_packet)}")
-            sock.send(disconnect_packet.encode())
-        except (BlockingIOError, ssl.SSLWantWriteError, OSError):
-            pass
-
-    def _interrupt(self) -> None:
-        """Interrupt select to wake up the thread."""
-        self._interrupt_w.send(b"\x00")
-
-    def _handshake_loop(self, sock: socket.socket) -> ssl.SSLSocket:
-        """Run the TLS handshake in a loop until it is complete."""
-        sock = self._params.tls_context.wrap_socket(sock, server_hostname=self._params.tls_hostname, do_handshake_on_connect=False)
-        while self._state == STATE_CONNECTING:
-            try:
-                sock.do_handshake()
-                return sock
-            except ssl.SSLWantReadError:
-                select.select([sock, self._interrupt_r], [], [])
-            except ssl.SSLWantWriteError:
-                select.select([self._interrupt_r], [sock], [])
-        raise ConnectionCloseCondition("Handshake loop did not complete")
-
-    def _try_write(self, sock: socket.socket | ssl.SSLSocket) -> None:
+    def _try_write(self, state_data: StateData) -> None:
         """Try to flush the write buffer to the socket."""
         try:
             with self._write_buffer_lock:
-                sent = sock.send(self._write_buffer)
-                self._keepalive.mark_send()
+                sent = state_data.sock.send(self._write_buffer)
+                state_data.keepalive.mark_send()
                 del self._write_buffer[:sent]
         except ssl.SSLWantWriteError:
             pass
         except BrokenPipeError:
             raise ConnectionCloseCondition("Broken pipe")
 
-    def _try_read(self, sock: socket.socket | ssl.SSLSocket) -> None:
+    def _try_read(self, state_data: StateData) -> None:
         """Try to read data from the socket."""
         self._in_read = True
         try:
-            self._read_packet(sock)
+            self._read_packet(state_data)
         except ssl.SSLWantReadError:
             pass
         finally:
             self._in_read = False
 
-    def _read_packet(self, sock: socket.socket | ssl.SSLSocket) -> None:
+    def _read_packet(self, state_data: StateData) -> None:
         """Called by the underlying SocketWrapper when the socket is ready to read.
         
         Incrementally reads and decodes a packet from the socket.
         Complete packets are passed up to the read callback."""
-        packet = self._decoder.decode(sock)
+        packet = state_data.decoder.decode(state_data.sock)
         if packet is None:
             # No complete packet available yet.
             return
@@ -264,143 +260,17 @@ class Connection:
         # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType.PINGRESP:
             logger.debug("<--- PONG")
-            self._keepalive.mark_pong()
+            state_data.keepalive.mark_pong()
         elif packet.packet_type == MQTTPacketType.PINGREQ:
             logger.debug("<--- PING PONG --->")
-            self.send(PONG)
-        elif packet.packet_type == MQTTPacketType.CONNACK:
-            logger.debug(f"<--- {str(packet)}")
-            packet = cast(MQTTConnAckPacket, packet)
-            if "ServerKeepAlive" in packet.properties:
-                # Override the keepalive interval with the server's value.
-                keepalive_interval = packet.properties["ServerKeepAlive"]
-                self._keepalive.keepalive_interval = keepalive_interval
-                logger.debug(f"Keepalive interval set by server to {keepalive_interval} seconds")
-            with self._state_cond:
-                if self._state == STATE_CONNECTING:
-                    self._state = STATE_CONNECT
-                    self._open_callback(packet)
-                    self._state_cond.notify_all()
+            with self._write_buffer_lock:
+                self._write_buffer.extend(PONG)
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
             # DISCONNECT is purely informational.
             logger.debug(f"<--- {str(packet)}")
         else:
             # All other packets are passed to the read callback.
             self._read_callback(packet)
-
-    def _check_keepalive(self, sock: socket.socket | ssl.SSLSocket) -> None:
-        """Check if we should send a ping or close the connection."""
-        if self._keepalive.should_close():
-            raise KeepAliveTimeout("Keepalive timeout")
-        if self._keepalive.should_send_ping():
-            self.send(PING)
-            logger.debug("---> PING")
-            self._keepalive.mark_ping()
-
-    def _check_connect(self) -> bool:
-        """Check if we should connect to the server.
-
-        Raises ConnectionCloseCondition if the thread should be shutdown instead."""
-        if self._state == STATE_SHUTDOWN:
-            raise ConnectionCloseCondition("Shutting down")
-        return bool(self._state == STATE_CONNECTING and self._address != _InitAddress)
-
-    def loop_forever(self) -> None:
-        while self._state > STATE_SHUTDOWN:
-            was_open = False
-            sent_disconnect = False
-            sock: socket.socket | ssl.SSLSocket = _get_socket()
-            try:
-                with self._state_cond:
-                    self._state_cond.wait_for(self._check_connect)
-                    address = self._address
-
-                if self._params.tcp_nodelay:
-                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                sock.connect(address)
-                sock.setblocking(False)
-
-                if self._params.use_tls:
-                    sock = self._handshake_loop(sock)
-
-                # Send CONNECT
-                connect_packet = MQTTConnectPacket(
-                    client_id=self._params.client_id,
-                    protocol_version=self._params.protocol_version,
-                    clean_start=self._params.clean_start,
-                    keep_alive=self._params.keepalive_interval,
-                    properties=self._params.connect_properties,
-                    will_topic=self._params.will_topic,
-                    will_payload=self._params.will_payload,
-                    will_qos=self._params.will_qos,
-                    will_retain=self._params.will_retain,
-                    will_props=self._params.will_properties,
-                )
-                self._write_buffer.extend(connect_packet.encode())
-                logger.debug(f"---> {str(connect_packet)}")
-
-                self._keepalive.mark_init()
-                was_open = True
-
-                while self._state >= STATE_CONNECTING:
-                    next_timeout = self._keepalive.get_next_timeout()
-                    write_check = (sock,) if self._write_buffer else tuple()
-                    readable, writable, _ = select.select([sock, self._interrupt_r], write_check, [], next_timeout)
-
-                    if sock in writable:
-                        self._try_write(sock)
-
-                    if sock in readable:
-                        self._try_read(sock)
-
-                    self._check_keepalive(sock)
-
-                    if self._interrupt_r in readable:
-                        self._interrupt_r.recv(1024)
-
-            except MQTTError as exc:
-                logger.error(f"There was a problem with data from broker, closing connection: {exc}")
-                self._try_to_send_disconnect(sock, exc.reason_code)
-                sent_disconnect = True
-            except ConnectionCloseCondition as exc:
-                logger.debug(f"Closing socket: {exc}")
-            except KeepAliveTimeout:
-                logger.error("Keepalive timeout, closing socket")
-                # Do not try to send a DISCONNECT in this case.
-                sent_disconnect = True
-            except Exception:
-                logger.exception("Unhandled error in socket read thread, shutting down")
-                self._state = STATE_SHUTDOWN
-            finally:
-                with self._state_cond:
-                    self._state = min(self._state, STATE_CLOSED)
-                    # Wake up wait_for_disconnect.
-                    self._state_cond.notify_all()
-                if was_open:
-                    try:
-                        self._close_callback()
-                    except Exception:
-                        logger.exception("Error while calling close callback")
-                    if not sent_disconnect:
-                        self._try_to_send_disconnect(sock)
-                sock.close()
-                self._decoder.reset()
-                self._write_buffer.clear()
-                with self._state_cond:
-                    if self._state > STATE_SHUTDOWN and self._params.reconnect_delay > 0:
-                        try:
-                            logger.debug(f"Waiting {self._params.reconnect_delay}s for reconnect")
-                            was_cancelled = self._state_cond.wait_for(self._check_connect, timeout=self._params.reconnect_delay)
-                        except ConnectionCloseCondition:
-                            # In shutdown.
-                            logger.debug("Reconnect cancelled by shutdown")
-                        else:
-                            if was_cancelled:
-                                logger.debug("Reconnect timeout cancelled")
-                            else:
-                                logger.debug("Reconnecting to broker")
-                                self._state = STATE_CONNECTING
-        logger.debug("Shutdown complete")
 
     def start_loop(self) -> None:
         """Start the connection loop in a new thread."""
@@ -420,3 +290,304 @@ class Connection:
         if self._thread is None:
             return False
         return self._thread.is_alive()
+
+    def loop_forever(self) -> None:
+        """Run the state machine.
+
+        This method will run in a loop until the connection is closed or shutdown.
+        It will call the appropriate state methods based on the current state."""
+        while True:
+            state_data = self._state_data
+            state_done = self._do_state(state_data)
+            with self._state_cond:
+                if state_done and not self._state_changed:
+                    # State is finished, wait for a change.
+                    self._state_cond.wait()
+                if self._state == STATE_SHUTDOWN:
+                    # We are shutting down, break the loop.
+                    logger.debug("Shutting down loop")
+                    break
+
+    def _do_state(self, state_data: StateData) -> bool:
+        """Do the current state.
+
+        State transition will be run if needed.
+
+        Returns True if the state is finished and the calling thread should wait for a change."""
+        with self._state_cond:
+            state = self._state
+            state_changed = self._state_changed
+            if state_changed:
+                self._state_changed = False
+                #logger.debug(f"Entering {state=}")
+                self._state_enter_map[state](state_data)
+                return False  # Run the state on the next loop, unless it has changed.
+        #logger.debug(f"Running state {state}")
+        return self._state_do_map[state](state_data)
+
+    def _request_state(self, state: int) -> None:
+        """Called from the public interface to request a state change."""
+        if state in (STATE_TLS_HANDSHAKE, STATE_MQTT_CONNECT, STATE_MQTT_CONNACK, STATE_CONNECTED):
+            raise RuntimeError(f"Cannot request {state=} directly")
+        # Interrupt select before entering the Condition.
+        logger.debug(f"Requesting {state=}")
+        self._interrupt_w.send(b"\x00")
+        with self._state_cond:
+            if self._state == state:
+                return
+            self._change_state(state)
+
+    def _change_state(self, state: int) -> None:
+        """Transition into a new state.
+
+        This method can be called directly from a state method to transition to a new state.
+
+        Requests from the public Connection interface must use _request_state instead."""
+        with self._state_cond:
+            if state == self._state:
+                return
+            if self._state == STATE_SHUTDOWN:
+                raise RuntimeError("Cannot change state after shutdown")
+            self._state_changed = True
+            self._previous_state = self._state
+            self._state = state
+            self._state_cond.notify_all()
+
+    def _enter_state_connecting(self, state_data: StateData) -> None:
+        """Transition into CONNECTING state."""
+        state_data.keepalive.keepalive_interval = self._params.keepalive_interval
+        state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+        if self._params.tcp_nodelay:
+            state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+    def _do_state_connecting(self, state_data: StateData) -> bool:
+        """Run CONNECTING state."""
+        state_data.sock.connect(self._address)
+        state_data.sock.setblocking(False)
+
+        if self._params.use_tls:
+            self._change_state(STATE_TLS_HANDSHAKE)
+            return True
+        else:
+            self._change_state(STATE_MQTT_CONNECT)
+            return True
+
+    def _enter_state_tls_handshake(self, state_data: StateData) -> None:
+        """Transition into TLS handshake state."""
+        state_data.sock = self._params.tls_context.wrap_socket(
+            state_data.sock,
+            server_hostname=self._params.tls_hostname,
+            do_handshake_on_connect=False,
+        )
+
+    def _do_state_tls_handshake(self, state_data: StateData) -> bool:
+        """Run TLS handshake."""
+        sock = cast(ssl.SSLSocket, state_data.sock)
+        try:
+            sock.do_handshake()
+            self._change_state(STATE_MQTT_CONNECT)
+            return True
+        except ssl.SSLWantReadError:
+            readable, _, _ = select.select([sock, self._interrupt_r], [], [])
+            if self._interrupt_r in readable:
+                logger.debug("TLS handshake was interrupted")
+                self._interrupt_r.recv(1024)
+                return False
+        except ssl.SSLWantWriteError:
+            readable, _, _ = select.select([self._interrupt_r], [sock], [])
+            if self._interrupt_r in readable:
+                logger.debug("TLS handshake was interrupted")
+                self._interrupt_r.recv(1024)
+                return False
+        return False
+
+    def _enter_state_mqtt_connect(self, state_data: StateData) -> None:
+        """Transition into MQTT CONNECT handshake state."""
+        state_data.keepalive.mark_init()
+        connect_packet = MQTTConnectPacket(
+            client_id=self._params.client_id,
+            protocol_version=self._params.protocol_version,
+            clean_start=self._params.clean_start,
+            keep_alive=self._params.keepalive_interval,
+            properties=self._params.connect_properties,
+            will_topic=self._params.will_topic,
+            will_payload=self._params.will_payload,
+            will_qos=self._params.will_qos,
+            will_retain=self._params.will_retain,
+            will_props=self._params.will_properties,
+        )
+        logger.debug(f"---> {str(connect_packet)}")
+        self._write_buffer.clear()
+        self._write_buffer.extend(connect_packet.encode())
+
+    def _do_state_mqtt_connect(self, state_data: StateData) -> bool:
+        """Send CONNECT for MQTT handshake."""
+        timeout = state_data.keepalive.get_next_timeout()
+        readable, writable, _ = select.select([self._interrupt_r], [state_data.sock], [], timeout)
+
+        if self._interrupt_r in readable:
+            logger.debug("MQTT CONNECT handshake was interrupted")
+            self._interrupt_r.recv(1024)
+            return False
+        if state_data.sock in writable:
+            try:
+                num_sent = state_data.sock.send(self._write_buffer)
+                state_data.keepalive.mark_send()
+                if num_sent < len(self._write_buffer):
+                    # Not all data was sent, wait for writable again.
+                    logger.debug(f"Not all data was sent, waiting for writable again: {num_sent=}")
+                    del self._write_buffer[:num_sent]
+                    return False
+                self._write_buffer.clear()
+                self._change_state(STATE_MQTT_CONNACK)
+                return True
+            except ssl.SSLWantWriteError:
+                # Socket is not writable, wait for it to be writable.
+                logger.debug("MQTT CONNECT waiting for SSL")
+                return False
+        if state_data.keepalive.should_close():
+            logger.debug("MQTT CONNECT keepalive timeout")
+            self._change_state(STATE_CLOSED)
+            return True
+        return False
+
+    def _enter_state_mqtt_connack(self, state_data: StateData) -> None:
+        """Transition into waiting for MQTT CONNACK state."""
+        pass
+
+    def _do_state_mqtt_connack(self, state_data: StateData) -> bool:
+        """Wait for MQTT CONNACK."""
+        timeout = state_data.keepalive.get_next_timeout()
+        readable, _, _ = select.select([state_data.sock, self._interrupt_r], [], [], timeout)
+
+        if self._interrupt_r in readable:
+            logger.debug("MQTT CONNACK handshake was interrupted")
+            self._interrupt_r.recv(1024)
+            return False
+        if state_data.sock in readable:
+            try:
+                packet = state_data.decoder.decode(state_data.sock)
+                if packet is None:
+                    # No complete packet available yet.
+                    return False
+                if packet.packet_type == MQTTPacketType.CONNACK:
+                    logger.debug(f"<--- {str(packet)}")
+                    self._open_callback(cast(MQTTConnAckPacket, packet))
+                    self._change_state(STATE_CONNECTED)
+                    return True
+                else:
+                    logger.error(f"Unexpected packet while waiting for CONNACK: str({packet})")
+                    self._change_state(STATE_CLOSED)
+                    return True
+            except ssl.SSLWantReadError:
+                # Socket is not readable, wait for it to be readable.
+                logger.debug("MQTT CONNACK waiting for SSL")
+                return False
+        if state_data.keepalive.should_close():
+            logger.debug("MQTT CONNACK keepalive timeout")
+            self._change_state(STATE_CLOSED)
+            return True
+        return False
+
+    def _enter_state_connected(self, state_data: StateData) -> None:
+        """Transition into CONNECTED state."""
+        pass
+
+    def _do_state_connected(self, state_data: StateData) -> bool:
+        """Run the CONNECTED state."""
+        try:
+            next_timeout = state_data.keepalive.get_next_timeout()
+            write_check = (state_data.sock,) if self._write_buffer else tuple()
+            readable, writable, _ = select.select([state_data.sock, self._interrupt_r], write_check, [], next_timeout)
+            #logger.debug(f"select() returned {readable=}, {writable=}")
+
+            if self._interrupt_r in readable:
+                self._interrupt_r.recv(1024)
+
+            if state_data.sock in writable:
+                self._try_write(state_data)
+
+            if state_data.sock in readable:
+                self._try_read(state_data)
+
+            # Check keepalive
+            if state_data.keepalive.should_close():
+                raise KeepAliveTimeout("Keepalive timeout")
+            if state_data.keepalive.should_send_ping():
+                with self._write_buffer_lock:
+                    logger.debug("---> PING")
+                    self._write_buffer.extend(PING)
+                state_data.keepalive.mark_ping()
+
+            return False
+        except MQTTError as exc:
+            logger.error(f"There was a problem with data from broker, closing connection: {exc}")
+            state_data.disconnect_rc = exc.reason_code
+            self._change_state(STATE_CLOSED)
+            return True
+        except ConnectionCloseCondition as exc:
+            logger.debug(f"Closing socket: {exc}")
+            self._change_state(STATE_CLOSED)
+            return True
+        except KeepAliveTimeout:
+            logger.error("Keepalive timeout, closing socket")
+            state_data.disconnect_rc = -1  # Do not send DISCONNECT
+            self._change_state(STATE_CLOSED)
+            return True
+
+    def _enter_state_closed(self, state_data: StateData) -> None:
+        """Transition into CLOSED state."""
+        if self._previous_state == STATE_CONNECTED:
+            try:
+                self._close_callback()
+            except Exception:
+                logger.exception("Error while calling close callback")
+            if state_data.disconnect_rc >= 0:
+                disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
+                try:
+                    state_data.sock.send(disconnect_packet.encode())
+                    logger.debug(f"---> {str(disconnect_packet)}")
+                except (BlockingIOError, ssl.SSLWantWriteError, OSError):
+                    pass
+        state_data.sock.close()
+        state_data.decoder.reset()
+        with self._write_buffer_lock:
+            self._write_buffer.clear()
+
+    def _do_state_closed(self, state_data: StateData) -> bool:
+        """Run the CLOSED state."""
+        return True  # Fix reconnect later
+        """
+        if self._params.reconnect_delay > 0:
+            t0 = _time()
+            try:
+                logger.debug(f"Waiting {self._params.reconnect_delay}s for reconnect")
+                with self._state_cond:
+                    was_cancelled = self._state_cond.wait_for(self._check_connect, timeout=self._params.reconnect_delay)
+            except ConnectionCloseCondition:
+                # In shutdown.
+                logger.debug("Reconnect cancelled by shutdown")
+                return True
+            else:
+                if was_cancelled:
+                    logger.debug("Reconnect timeout cancelled by close")
+                    return True
+                else:
+                    logger.debug("Reconnecting to broker")
+                    self._change_state(STATE_CONNECTED)
+                    return True
+        return True
+        """
+
+    def _enter_state_shutdown(self, state_data: StateData) -> None:
+        """Transition into SHUTDOWN state."""
+        # We can enter this state from any other state.
+        # Free up as many resources as possible.
+        state_data.sock.close()
+        state_data.decoder.reset()
+        with self._write_buffer_lock:
+            self._write_buffer.clear()
+
+    def _do_state_shutdown(self, state_data: StateData) -> bool:
+        """Run the SHUTDOWN state."""
+        return True
