@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass, field
 import threading
 from typing import ClassVar, Sequence
 
@@ -41,14 +42,11 @@ class UnreliablePublishHandle(PublishHandle):
         return False
 
 
+@dataclass(slots=True, weakref_slot=True)
 class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
-    __slots__ = ("acked", "_cond")
-    acked: bool
-
-    def __init__(self, cond: threading.Condition) -> None:
-        self.acked = False
-        self._cond = cond
+    _cond: threading.Condition
+    acked: bool = field(default=False, init=False)
 
     def is_acked(self) -> bool:
         return self.acked

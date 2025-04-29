@@ -1,6 +1,7 @@
 import sqlite3
 import threading
 from typing import Final
+import weakref
 
 from .base import Persistence, ReliablePublishHandle
 from ..logger import get_logger
@@ -19,7 +20,7 @@ class SQLitePersistence(Persistence):
     __slots__ = ("_cond", "_handles", "_db_path", "_conn", "_cursor")
     def __init__(self, db_path: str) -> None:
         self._cond = threading.Condition()
-        self._handles: dict[int, ReliablePublishHandle] = {}
+        self._handles: weakref.WeakValueDictionary[int, ReliablePublishHandle] = weakref.WeakValueDictionary({})
         self._db_path = db_path
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._cursor = self._conn.cursor()
@@ -154,9 +155,9 @@ class SQLitePersistence(Persistence):
                     """,
                     (message_id,),
                 )
-                if message_id in self._handles:
-                    self._handles[message_id].acked = True
-                    del self._handles[message_id]
+                handle = self._handles.pop(message_id, None)
+                if handle is not None:
+                    handle.acked = True
                     self._cond.notify_all()
             else:
                 # If the message is QoS 2, we need to mark it as received.
