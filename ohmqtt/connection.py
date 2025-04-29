@@ -40,12 +40,13 @@ def _get_socket() -> socket.socket:
 # Connection has finite states.
 STATE_SHUTDOWN: Final = 0
 STATE_CLOSED: Final = 1
-STATE_CLOSING: Final = 2
-STATE_CONNECTING: Final = 3
-STATE_TLS_HANDSHAKE: Final = 4
-STATE_MQTT_CONNECT: Final = 5
-STATE_MQTT_CONNACK: Final = 6
-STATE_CONNECTED: Final = 7
+STATE_RECONNECT_WAIT: Final = 2
+STATE_CLOSING: Final = 3
+STATE_CONNECTING: Final = 4
+STATE_TLS_HANDSHAKE: Final = 5
+STATE_MQTT_CONNECT: Final = 6
+STATE_MQTT_CONNACK: Final = 7
+STATE_CONNECTED: Final = 8
 
 
 @dataclass(kw_only=True, slots=True)
@@ -79,7 +80,7 @@ class ConnectParams:
     host: str
     port: int
     client_id: str = ""
-    reconnect_delay: float = 0.0
+    reconnect_delay: int = 0
     keepalive_interval: int = 0
     tcp_nodelay: bool = True
     use_tls: bool = False
@@ -111,11 +112,12 @@ class Connection:
         "_thread",
         "_state",
         "_previous_state",
+        "_state_requested",
         "_state_changed",
         "_state_data",
         "_state_cond",
-        "_state_do_map",
         "_state_enter_map",
+        "_state_do_map",
     )
 
     def __init__(
@@ -130,35 +132,39 @@ class Connection:
         self._params = ConnectParams(*_InitAddress)
         self._address = _InitAddress
 
-        self._write_buffer = bytearray()
-        self._write_buffer_lock = threading.Lock()
-        self._interrupt_r, self._interrupt_w = socket.socketpair()
-        self._in_read = False
-        self._thread: threading.Thread | None = None
-
         self._state = STATE_CLOSED
         self._previous_state = STATE_CLOSED
+        self._state_requested = STATE_CLOSED
         self._state_changed = False
         self._state_data = StateData()
         self._state_cond = threading.Condition()
-        self._state_do_map: dict[int, Callable[[StateData], bool]] = {
-            STATE_SHUTDOWN: self._do_state_shutdown,
-            STATE_CLOSED: self._do_state_closed,
-            STATE_CONNECTING: self._do_state_connecting,
-            STATE_TLS_HANDSHAKE: self._do_state_tls_handshake,
-            STATE_MQTT_CONNECT: self._do_state_mqtt_connect,
-            STATE_MQTT_CONNACK: self._do_state_mqtt_connack,
-            STATE_CONNECTED: self._do_state_connected,
-        }
         self._state_enter_map: dict[int, Callable[[StateData], None]] = {
             STATE_SHUTDOWN: self._enter_state_shutdown,
             STATE_CLOSED: self._enter_state_closed,
+            STATE_RECONNECT_WAIT: self._enter_state_reconnect_wait,
             STATE_CONNECTING: self._enter_state_connecting,
             STATE_TLS_HANDSHAKE: self._enter_state_tls_handshake,
             STATE_MQTT_CONNECT: self._enter_state_mqtt_connect,
             STATE_MQTT_CONNACK: self._enter_state_mqtt_connack,
             STATE_CONNECTED: self._enter_state_connected,
         }
+        self._state_do_map: dict[int, Callable[[StateData], bool]] = {
+            STATE_SHUTDOWN: self._do_state_shutdown,
+            STATE_CLOSED: self._do_state_closed,
+            STATE_RECONNECT_WAIT: self._do_state_reconnect_wait,
+            STATE_CONNECTING: self._do_state_connecting,
+            STATE_TLS_HANDSHAKE: self._do_state_tls_handshake,
+            STATE_MQTT_CONNECT: self._do_state_mqtt_connect,
+            STATE_MQTT_CONNACK: self._do_state_mqtt_connack,
+            STATE_CONNECTED: self._do_state_connected,
+        }
+
+        self._write_buffer = bytearray()
+        self._write_buffer_lock = threading.Lock()
+        self._in_read = False
+        self._thread: threading.Thread | None = None
+        self._interrupt_r, self._interrupt_w = socket.socketpair()
+        self._interrupt_r.setblocking(False)
 
     def __enter__(self) -> Connection:
         self.start_loop()
@@ -223,7 +229,18 @@ class Connection:
             do_interrupt = not self._in_read and not self._write_buffer
             self._write_buffer.extend(data)
         if do_interrupt:
-            self._interrupt_w.send(b"\x00")
+            self._do_interrupt()
+
+    def _do_interrupt(self) -> None:
+        """Interrupt select."""
+        self._interrupt_w.send(b"\x00")
+
+    def _drain_interrupt(self) -> None:
+        """Drain the interrupt socket."""
+        try:
+            self._interrupt_r.recv(1024)
+        except BlockingIOError:
+            pass
 
     def _try_write(self, state_data: StateData) -> None:
         """Try to flush the write buffer to the socket."""
@@ -321,18 +338,20 @@ class Connection:
                 self._state_changed = False
                 #logger.debug(f"Entering {state=}")
                 self._state_enter_map[state](state_data)
+                self._drain_interrupt()
                 return False  # Run the state on the next loop, unless it has changed.
         #logger.debug(f"Running state {state}")
         return self._state_do_map[state](state_data)
 
     def _request_state(self, state: int) -> None:
         """Called from the public interface to request a state change."""
-        if state in (STATE_TLS_HANDSHAKE, STATE_MQTT_CONNECT, STATE_MQTT_CONNACK, STATE_CONNECTED):
+        if state not in (STATE_SHUTDOWN, STATE_CLOSED, STATE_CONNECTING):
             raise RuntimeError(f"Cannot request {state=} directly")
         # Interrupt select before entering the Condition.
         logger.debug(f"Requesting {state=}")
-        self._interrupt_w.send(b"\x00")
+        self._do_interrupt()
         with self._state_cond:
+            self._state_requested = state
             if self._state == state:
                 return
             self._change_state(state)
@@ -357,12 +376,17 @@ class Connection:
         """Transition into CONNECTING state."""
         state_data.keepalive.keepalive_interval = self._params.keepalive_interval
         state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+        state_data.sock = _get_socket()
         if self._params.tcp_nodelay:
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
     def _do_state_connecting(self, state_data: StateData) -> bool:
         """Run CONNECTING state."""
-        state_data.sock.connect(self._address)
+        try:
+            state_data.sock.connect(self._address)
+        except BlockingIOError:
+            select.select([self._interrupt_r, state_data.sock], [state_data.sock], [])
+            return False
         state_data.sock.setblocking(False)
 
         if self._params.use_tls:
@@ -471,8 +495,11 @@ class Connection:
                     # No complete packet available yet.
                     return False
                 if packet.packet_type == MQTTPacketType.CONNACK:
+                    packet = cast(MQTTConnAckPacket, packet)
                     logger.debug(f"<--- {str(packet)}")
-                    self._open_callback(cast(MQTTConnAckPacket, packet))
+                    self._open_callback(packet)
+                    if "ServerKeepAlive" in packet.properties:
+                        state_data.keepalive.keepalive_interval = packet.properties["ServerKeepAlive"]
                     self._change_state(STATE_CONNECTED)
                     return True
                 else:
@@ -535,6 +562,22 @@ class Connection:
             self._change_state(STATE_CLOSED)
             return True
 
+    def _enter_state_reconnect_wait(self, state_data: StateData) -> None:
+        """Transition into RECONNECT_WAIT state."""
+        state_data.keepalive.keepalive_interval = self._params.reconnect_delay
+
+    def _do_state_reconnect_wait(self, state_data: StateData) -> bool:
+        """Run the RECONNECT_WAIT state."""
+        # Here we repurpose the keepalive timer to wait for a reconnect.
+        if state_data.keepalive.should_send_ping():
+            self._change_state(STATE_CONNECTING)
+            return True
+        else:
+            timeout = state_data.keepalive.get_next_timeout()
+            with self._state_cond:
+                self._state_cond.wait(timeout)
+            return False
+
     def _enter_state_closed(self, state_data: StateData) -> None:
         """Transition into CLOSED state."""
         if self._previous_state == STATE_CONNECTED:
@@ -542,13 +585,16 @@ class Connection:
                 self._close_callback()
             except Exception:
                 logger.exception("Error while calling close callback")
-            if state_data.disconnect_rc >= 0:
+            if state_data.disconnect_rc >= 0 and not self._write_buffer:
                 disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
+                # Try to send a DISCONNECT packet, but no problem if we can't.
                 try:
                     state_data.sock.send(disconnect_packet.encode())
                     logger.debug(f"---> {str(disconnect_packet)}")
                 except (BlockingIOError, ssl.SSLWantWriteError, OSError):
                     pass
+            if self._params.reconnect_delay > 0 and self._state_requested == STATE_CONNECTING:
+                self._change_state(STATE_RECONNECT_WAIT)
         state_data.sock.close()
         state_data.decoder.reset()
         with self._write_buffer_lock:
@@ -556,28 +602,7 @@ class Connection:
 
     def _do_state_closed(self, state_data: StateData) -> bool:
         """Run the CLOSED state."""
-        return True  # Fix reconnect later
-        """
-        if self._params.reconnect_delay > 0:
-            t0 = _time()
-            try:
-                logger.debug(f"Waiting {self._params.reconnect_delay}s for reconnect")
-                with self._state_cond:
-                    was_cancelled = self._state_cond.wait_for(self._check_connect, timeout=self._params.reconnect_delay)
-            except ConnectionCloseCondition:
-                # In shutdown.
-                logger.debug("Reconnect cancelled by shutdown")
-                return True
-            else:
-                if was_cancelled:
-                    logger.debug("Reconnect timeout cancelled by close")
-                    return True
-                else:
-                    logger.debug("Reconnecting to broker")
-                    self._change_state(STATE_CONNECTED)
-                    return True
         return True
-        """
 
     def _enter_state_shutdown(self, state_data: StateData) -> None:
         """Transition into SHUTDOWN state."""

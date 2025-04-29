@@ -63,7 +63,7 @@ class Client:
         port: int,
         *,
         client_id: str = "",
-        reconnect_delay: float = 0.0,
+        reconnect_delay: int = 0,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = True,
         use_tls: bool = False,

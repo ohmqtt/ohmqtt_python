@@ -146,6 +146,7 @@ def test_connection_nodelay(callbacks, mocker):
     devnull = open(os.devnull, "rb")
     mock_socket.fileno.return_value = devnull.fileno()
     mock_socket.recv.return_value = b""
+    mock_socket.send.return_value = 0
     mocker.patch("ohmqtt.connection._get_socket", return_value=mock_socket)
     with Connection(
         callbacks.close_callback,
