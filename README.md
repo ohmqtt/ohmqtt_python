@@ -14,8 +14,6 @@ A lightweight MQTT client library for Python.
 * Wills
 * Subscription identifiers
 * Shared subscriptions
-* Session lifecycle
-* Persistence
 * Portability (Windows)
 * Publish automation
 
