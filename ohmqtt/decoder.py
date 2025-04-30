@@ -26,6 +26,11 @@ class ClosedSocketError(Exception):
     pass
 
 
+class WantRead(Exception):
+    """Indicates that the socket is not ready for reading."""
+    pass
+
+
 def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int, mult: int) -> VarintDecodeResult:
     """Incrementally decode a variable length integer from a socket.
 
@@ -38,7 +43,7 @@ def decode_varint_from_socket(sock: socket.socket | ssl.SSLSocket, partial: int,
         except (BlockingIOError, ssl.SSLWantReadError):
             return VarintDecodeResult(result, mult, False)
         if not data:
-            return VarintDecodeResult(result, mult, False)
+            raise ClosedSocketError("Socket closed")
         byte = data[0]
         sz += 1
         result += byte % 0x80 * mult
@@ -68,7 +73,7 @@ class IncrementalDecoder:
             if self._partial_head == -1:
                 partial_head = sock.recv(1)
                 if not partial_head:
-                    return None
+                    raise ClosedSocketError("Socket closed")
                 self._partial_head = partial_head[0]
             if not self._partial_length.complete:
                 self._partial_length = decode_varint_from_socket(sock, self._partial_length.value, self._partial_length.multiplier)
@@ -80,11 +85,13 @@ class IncrementalDecoder:
                 # Read the rest of the packet.
                 data = sock.recv(self._partial_length.value - len(self._partial_data))
                 if not data:
-                    return None
+                    raise ClosedSocketError("Socket closed")
                 self._partial_data.extend(data)
-        except (BlockingIOError, ssl.SSLWantReadError, OSError):
-            # If the socket doesn't have enough data for us, we need to wait for more.
+        except (BlockingIOError, ssl.SSLWantReadError, WantRead):
+            # If the socket is open but doesn't have enough data for us, we need to wait for more.
             return None
+        except OSError as exc:
+            raise ClosedSocketError("Socket closed") from exc
 
         # We have a complete packet, decode it and clear the read buffer.
         packet_data = memoryview(self._partial_data)

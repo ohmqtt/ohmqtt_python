@@ -42,7 +42,7 @@ class LoopbackSocket:
     def reset(self) -> None:
         """Reset the socket pair."""
         self.mocksock, self.testsock = socket.socketpair()
-        self.testsock.settimeout(3.0)
+        self.testsock.settimeout(5.0)
         self.connect_calls = []
 
     def test_close(self) -> None:

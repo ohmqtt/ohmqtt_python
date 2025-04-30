@@ -1,6 +1,6 @@
 import pytest
 
-from ohmqtt.decoder import IncrementalDecoder
+from ohmqtt.decoder import IncrementalDecoder, ClosedSocketError
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import MQTTPublishPacket
@@ -38,7 +38,8 @@ def test_decoder_drip_partial_closures(available_bytes, loopback_socket):
     assert decoder.decode(loopback_socket) is None
 
     loopback_socket.close()
-    assert decoder.decode(loopback_socket) is None
+    with pytest.raises(ClosedSocketError):
+        decoder.decode(loopback_socket)
 
 
 def test_decoder_bad_length(loopback_socket):
@@ -65,28 +66,33 @@ def test_decoder_empty_reads(mocker):
 
     # Empty read on first byte.
     mock_socket.recv.side_effect = [b""]
-    assert decoder.decode(mock_socket) is None
+    with pytest.raises(ClosedSocketError):
+        decoder.decode(mock_socket)
     decoder.reset()
 
     # Empty read on first varint byte.
     mock_socket.recv.side_effect = [data[:1], b""]
-    assert decoder.decode(mock_socket) is None
+    with pytest.raises(ClosedSocketError):
+        decoder.decode(mock_socket)
     decoder.reset()
 
     # Empty read on second varint byte.
     mock_socket.recv.side_effect = [data[:1], data[1:2], b""]
-    assert decoder.decode(mock_socket) is None
+    with pytest.raises(ClosedSocketError):
+        decoder.decode(mock_socket)
     decoder.reset()
 
     # Empty read on first byte of content.
     mock_socket.recv.side_effect = [data[:1], data[1:2], data[2:3], b""]
-    assert decoder.decode(mock_socket) is None
+    with pytest.raises(ClosedSocketError):
+        decoder.decode(mock_socket)
     decoder.reset()
 
     # Empty reads on each content byte.
     for n in range(3, len(data)):
         mock_socket.recv.side_effect = [data[:1], data[1:2], data[2:3], data[3:n], b""]
-        assert decoder.decode(mock_socket) is None
+        with pytest.raises(ClosedSocketError):
+            decoder.decode(mock_socket)
         decoder.reset()
 
     mock_socket.recv.side_effect = [data[:1], data[1:2], data[2:3], data[3:]]

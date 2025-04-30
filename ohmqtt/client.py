@@ -52,7 +52,6 @@ class Client:
         """
         self.session.connection.loop_forever()
 
-    @property
     def is_connected(self) -> bool:
         """Check if the client is connected to the broker."""
         return self.session.connection.is_connected()
@@ -107,13 +106,15 @@ class Client:
         """Wait for the client to connect to the broker.
 
         Raises TimeoutError if the timeout is exceeded."""
-        self.session.connection.wait_for_connect(timeout)
+        if not self.session.connection.wait_for_connect(timeout):
+            raise TimeoutError("Waiting for connection timed out")
 
     def wait_for_disconnect(self, timeout: float | None = None) -> None:
         """Wait for the client to disconnect from the broker.
 
         Raises TimeoutError if the timeout is exceeded."""
-        self.session.connection.wait_for_disconnect(timeout)
+        if not self.session.connection.wait_for_disconnect(timeout):
+            raise TimeoutError("Waiting for disconnection timed out")
 
     def publish(
         self,
@@ -137,8 +138,7 @@ class Client:
     ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
         self.subscriptions.add(topic_filter, qos, callback)
-        if self.is_connected:
-            self.session.subscribe(topic_filter, qos=qos, properties=properties)
+        self.session.subscribe(topic_filter, qos=qos, properties=properties)
         return SubscriptionHandle(
             topic_filter=topic_filter,
             callback=callback,

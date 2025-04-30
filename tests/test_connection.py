@@ -56,7 +56,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
     else:
         tls_context = ssl.create_default_context()
         loop = loopback_socket
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loop)
+    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loop)
     with Connection(
         callbacks.close_callback,
         callbacks.open_callback,
@@ -101,7 +101,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
 
 
 def test_connection_garbage_read(callbacks, mocker, loopback_socket):
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
+    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
     with Connection(
         close_callback=callbacks.close_callback,
         open_callback=callbacks.open_callback,
@@ -147,7 +147,7 @@ def test_connection_nodelay(callbacks, mocker):
     mock_socket.fileno.return_value = devnull.fileno()
     mock_socket.recv.return_value = b""
     mock_socket.send.return_value = 0
-    mocker.patch("ohmqtt.connection._get_socket", return_value=mock_socket)
+    mocker.patch("ohmqtt.connection.states._get_socket", return_value=mock_socket)
     with Connection(
         callbacks.close_callback,
         callbacks.open_callback,
@@ -160,7 +160,7 @@ def test_connection_nodelay(callbacks, mocker):
 
 def test_connection_ping_pong(callbacks, mocker, loopback_socket):
     """Test that the Connection class sends pings and handles pongs."""
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
+    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
     with Connection(
         callbacks.close_callback,
         callbacks.open_callback,
@@ -189,7 +189,7 @@ def test_connection_ping_pong(callbacks, mocker, loopback_socket):
 
 def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
     """Test that CONNACK can set the keepalive interval after starting the thread."""
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
+    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
     with Connection(
         callbacks.close_callback,
         callbacks.open_callback,
@@ -219,7 +219,7 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
 
 
 def test_connection_reconnect(callbacks, mocker, loopback_socket):
-    mocker.patch("ohmqtt.connection._get_socket", return_value=loopback_socket)
+    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
     with Connection(
         callbacks.close_callback,
         callbacks.open_callback,
