@@ -12,10 +12,13 @@ A lightweight and persistent MQTT 5.0 client library for Python 3.10+.
 When not persisting QoS >0 messages, a fast (but volatile) in memory store is used.
 Either way, publishing a message returns a handle with a method to wait for the message to be fully acknowledged by the broker.
 
-### TLS and Authentication
+### TLS
 
 Optionally use TLS and provide a TLS context when connecting to a broker.
-Attach an auth callback to the client to authenticate the connection.
+
+### Properties
+
+ΩQTT gives you easy access to all PUBLISH, SUBSCRIBE, AUTH and CONNECT optional properties.
 
 ### Diminutive Profile
 
@@ -23,20 +26,16 @@ Attach an auth callback to the client to authenticate the connection.
 ΩQTT is obsessively tested and analyzed by a suite of tests and static analysis tools.
 ΩQTT has no runtime dependencies.
 
-### Properties
-
-ΩQTT gives you easy access to all PUBLISH, SUBSCRIBE, AUTH and CONNECT optional properties.
-
 ## TODO for 0.1
 
 * Instructions
 * Error handling and validation
+* Client interface review
 
 ## TODO for 1.0
 
 * Autodoc
 * Subscription identifiers
-* Shared subscriptions
 * Portability (Windows)
 * Publish automation
 
@@ -49,45 +48,4 @@ Attach an auth callback to the client to authenticate the connection.
 
 ```bash
 nox
-```
-
-## Client Structure
-
-### Client
-
-* High-level interface
-* Subscription mapping
-
-### ClientSession
-
-* Persistence
-* Replay
-
-### ClientConnection
-
-* Socket
-* Thread ownership and keepalive
-* TLS
-* Serialization
-
-```
- ┌────────────────────────┐      ┌────────────────────────┐
- │                        │      │                        │
- │   Client               ├──────┤   Subscriptions        │
- │                        │      │                        │
- └───────────┬────────────┘      └────────────────────────┘
-             │
-             │
- ┌───────────┴────────────┐      ┌────────────────────────┐
- │                        │      │                        │
- │   Session              ├──────┤   Retention            │
- │                        │      │                        │
- └───────────┬────────────┘      └────────────────────────┘
-             │
-             │
- ┌───────────┴────────────┐      ┌────────────────────────┐
- │                        │      │                        │
- │   Connection           ├──────┤   IncrementalDecoder   │
- │                        │      │                        │
- └────────────────────────┘      └────────────────────────┘
 ```
