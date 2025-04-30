@@ -10,7 +10,7 @@ from ohmqtt.message import MQTTMessage
 def main() -> None:
     with Client() as client:
 
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         client.wait_for_connect(timeout=5.0)
         print("*** Connected to broker")
 

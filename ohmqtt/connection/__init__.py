@@ -4,6 +4,7 @@ import threading
 from types import TracebackType
 from typing import Final
 
+from .address import Address as Address
 from .fsm import FSM
 from .states import (
     ClosedState,

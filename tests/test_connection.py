@@ -5,6 +5,7 @@ import ssl
 import time
 
 from ohmqtt.connection import (
+    Address,
     Connection,
     ConnectParams,
     ConnectionCloseCallback,
@@ -63,8 +64,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
         callbacks.read_callback,
     ) as connection:
         connection.connect(ConnectParams(
-            "localhost",
-            1883,
+            Address("localhost"),
             use_tls=use_tls,
             tls_hostname=tls_hostname,
             tls_context=tls_context,
@@ -107,7 +107,7 @@ def test_connection_garbage_read(callbacks, mocker, loopback_socket):
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False))
+        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=False))
 
         connect_packet = MQTTConnectPacket()
         assert loopback_socket.test_recv(512) == connect_packet.encode()
@@ -153,7 +153,7 @@ def test_connection_nodelay(callbacks, mocker):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=True))
+        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=True))
         time.sleep(0.1)
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
@@ -166,7 +166,7 @@ def test_connection_ping_pong(callbacks, mocker, loopback_socket):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectParams("localhost", 1883, keepalive_interval=1, tcp_nodelay=False))
+        connection.connect(ConnectParams(Address("localhost"), keepalive_interval=1, tcp_nodelay=False))
 
         connect_packet = MQTTConnectPacket(keep_alive=1)
         assert loopback_socket.test_recv(512) == connect_packet.encode()
@@ -195,7 +195,7 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False))
+        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=False))
 
         connect_packet = MQTTConnectPacket()
         assert loopback_socket.test_recv(512) == connect_packet.encode()
@@ -225,7 +225,7 @@ def test_connection_reconnect(callbacks, mocker, loopback_socket):
         callbacks.open_callback,
         callbacks.read_callback,
     ) as connection:
-        connection.connect(ConnectParams("localhost", 1883, tcp_nodelay=False, keepalive_interval=1, reconnect_delay=0.5))
+        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=False, keepalive_interval=1, reconnect_delay=0.5))
 
         connect_packet = MQTTConnectPacket(keep_alive=1)
         assert loopback_socket.test_recv(512) == connect_packet.encode()

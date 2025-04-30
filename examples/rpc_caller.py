@@ -62,7 +62,7 @@ class RPCCaller:
 def main() -> None:
     with Client() as client:
         rpc_caller = RPCCaller(client)
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         client.wait_for_connect(timeout=5.0)
 
         while True:

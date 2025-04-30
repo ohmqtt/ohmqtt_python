@@ -5,7 +5,7 @@ from types import TracebackType
 from typing import Final, Sequence
 import weakref
 
-from .connection import ConnectParams
+from .connection import Address, ConnectParams
 from .logger import get_logger
 from .message import MQTTMessage
 from .mqtt_spec import MQTTReasonCode
@@ -60,8 +60,7 @@ class Client:
 
     def connect(
         self,
-        host: str,
-        port: int,
+        address: str,
         *,
         client_id: str = "",
         reconnect_delay: int = 0,
@@ -79,8 +78,7 @@ class Client:
     ) -> None:
         """Connect to the broker."""
         self.session.connect(ConnectParams(
-            host,
-            port,
+            address=Address(address),
             client_id=client_id,
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,

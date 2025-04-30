@@ -219,7 +219,6 @@ test_address_valid:
 
 test_address_invalid:
   # Invalid address
-  - address: ""
   - address: ":"
   - address: ":1234"
   - address: "http://localhost"

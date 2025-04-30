@@ -37,7 +37,7 @@ class RPCServer:
 def main() -> None:
     rpc_server = RPCServer()
     client = Client()
-    client.connect("localhost", 1883)
+    client.connect("localhost")
     client.subscribe("ohmqtt/examples/rpc/request", qos=2, callback=rpc_server.handle_request)
 
     print("*** Waiting for RPC requests...")

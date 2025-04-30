@@ -14,7 +14,7 @@ def main() -> None:
     logging.basicConfig(level=logging.DEBUG)
     with Client() as client:
 
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         client.wait_for_connect(timeout=5.0)
         
         for n in range(1, 9):

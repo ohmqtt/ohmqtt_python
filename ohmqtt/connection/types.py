@@ -6,9 +6,10 @@ import ssl
 import threading
 from typing import Callable
 
+from .address import Address
+from .decoder import IncrementalDecoder
 from .keepalive import KeepAlive
 from .selector import InterruptibleSelector
-from .decoder import IncrementalDecoder
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import MQTTPacket, MQTTConnAckPacket
 from ..property import MQTTPropertyDict
@@ -27,8 +28,7 @@ class ConnectionCloseCondition(Exception):
 @dataclass(slots=True, match_args=True, frozen=True)
 class ConnectParams:
     """Parameters for the MQTT connection."""
-    host: str = ""
-    port: int = 0
+    address: Address = field(default_factory=Address)
     client_id: str = ""
     reconnect_delay: int = 0
     keepalive_interval: int = 0

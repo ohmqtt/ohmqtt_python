@@ -38,10 +38,10 @@ def test_client_happy_path(MockSession, mock_session):
         MockSession.reset_mock()
 
         # Connect to the broker.
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         mock_session.connect.assert_called_once()
-        assert mock_session.connect.call_args[0][0].host == "localhost"
-        assert mock_session.connect.call_args[0][0].port == 1883
+        assert mock_session.connect.call_args[0][0].address.host == "localhost"
+        assert mock_session.connect.call_args[0][0].address.port == 1883
         mock_session.connect.reset_mock()
 
         # AUTH
@@ -135,7 +135,7 @@ def test_client_happy_path(MockSession, mock_session):
 def test_client_unsubscribe_untracked(MockSession, mock_session):
     """Test that unsubscribing from an untracked topic filter does not raise an error."""
     with Client() as client:
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         client.unsubscribe("test/topic")
         mock_session.unsubscribe.assert_called_once_with("test/topic", None)
         mock_session.unsubscribe.reset_mock()
@@ -147,7 +147,7 @@ def test_client_subscribe_callback_error(MockSession, mock_session):
         raise ValueError("Test error")
 
     with Client() as client:
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         client.subscribe("test/+", error_callback)
 
         packet = MQTTPublishPacket(
@@ -167,7 +167,7 @@ def test_client_subscribe_callback_unsubscribe(MockSession, mock_session):
     callback2 = lambda c, m: received.append(m)
 
     with Client() as client:
-        client.connect("localhost", 1883)
+        client.connect("localhost")
         client.subscribe("test/+", callback1)
         client.subscribe("test/+", callback2)
 

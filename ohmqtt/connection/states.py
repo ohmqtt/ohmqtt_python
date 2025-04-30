@@ -15,11 +15,11 @@ from ..packet import MQTTConnectPacket, MQTTConnAckPacket, MQTTDisconnectPacket,
 logger: Final = get_logger("connection.states")
 
 
-def _get_socket() -> socket.socket:
+def _get_socket(family: socket.AddressFamily) -> socket.socket:
     """Get a socket object.
 
     This is patched in tests to use a mock or loopback socket."""
-    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    return socket.socket(family, socket.SOCK_STREAM)
 
 
 class ConnectingState(FSMState):
@@ -29,8 +29,8 @@ class ConnectingState(FSMState):
         state_data.keepalive.keepalive_interval = params.keepalive_interval
         state_data.keepalive.mark_init()
         state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
-        state_data.sock = _get_socket()
-        if params.tcp_nodelay:
+        state_data.sock = _get_socket(params.address.family)
+        if params.tcp_nodelay and params.address.family != socket.AF_UNIX:
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         state_data.decoder.reset()
         with env.write_buffer_lock:
@@ -40,7 +40,11 @@ class ConnectingState(FSMState):
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
         try:
-            state_data.sock.connect((params.host, params.port))
+            address = params.address
+            if address.family == socket.AF_UNIX:
+                state_data.sock.connect(address.host)
+            else:
+                state_data.sock.connect((address.host, address.port))
         except BlockingIOError:
             rlist, wlist, _, inter = env.selector.select([state_data.sock], [state_data.sock], [])
             if inter:
