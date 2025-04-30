@@ -7,7 +7,7 @@ from .message import MQTTMessage
 from .topic_filter import match_topic_filter, validate_topic_filter
 
 if TYPE_CHECKING:
-    from .client import Client
+    from .client import Client  # pragma: no cover
 
 
 SubscribeCallback = Callable[["Client", MQTTMessage], None]
