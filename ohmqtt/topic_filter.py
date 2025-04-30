@@ -1,3 +1,6 @@
+import re
+
+
 def validate_topic(topic: str) -> None:
     """Validate an MQTT topic name.
 
@@ -28,6 +31,20 @@ def validate_topic_filter(topic_filter: str) -> None:
             raise ValueError("Multi-level wildcard '#' must be the last character in the topic filter")
         if len(topic_filter) > 1 and topic_filter[-2] != "/":
             raise ValueError("Multi-level wildcard '#' must be preceded by a '/' unless it is the only character in the topic filter")
+
+
+def validate_share_name(share_name: str) -> None:
+    """Validate an MQTT shared subscription name.
+
+    Raises ValueError if the share name is invalid."""
+    if len(share_name) == 0:
+        raise ValueError("Share name cannot be empty")
+    if "\u0000" in share_name:
+        raise ValueError("Share name cannot contain null characters")
+    if re.search(r"[+#/]", share_name):
+        raise ValueError("Share name cannot contain characters '#' or '+' or '/'")
+    if len(share_name.encode("utf-8")) > 65535:
+        raise ValueError("Share name is too long (> 65535 bytes encoded as UTF-8)")
 
 
 def _check_exact_match(topic_filter: str, topic: str) -> bool:
@@ -72,3 +89,8 @@ def match_topic_filter(topic_filter: str, topic: str) -> bool:
     if "+" in topic_filter and _check_single_level_wildcard(topic_filter, topic):
         return True
     return False
+
+
+def join_share(topic_filter: str, share_name: str | None) -> str:
+    """Join a topic filter with a share name."""
+    return f"$share/{share_name}/{topic_filter}" if share_name is not None else topic_filter

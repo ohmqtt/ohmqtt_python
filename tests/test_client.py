@@ -19,6 +19,7 @@ def MockSession(mocker, mock_session):
 
 def test_client_happy_path(MockSession, mock_session):
     received = []
+    share_received = []
 
     with Client() as client:
         MockSession.assert_called_once_with(
@@ -63,7 +64,14 @@ def test_client_happy_path(MockSession, mock_session):
         def callback(client, message):
             received.append(message)
         sub_handle = client.subscribe("test/+", callback)
-        mock_session.subscribe.assert_called_once_with("test/+", qos=2, properties=None)
+        mock_session.subscribe.assert_called_once_with("test/+", None, 2, None)
+        mock_session.subscribe.reset_mock()
+
+        # SUBSCRIBE shared
+        def callback(client, message):
+            share_received.append(message)
+        share_sub_handle = client.subscribe("omega/cutie", callback, share_name="abc")
+        mock_session.subscribe.assert_called_once_with("omega/cutie", "abc", 2, None)
         mock_session.subscribe.reset_mock()
 
         # Incoming subscribed PUBLISH
@@ -77,6 +85,17 @@ def test_client_happy_path(MockSession, mock_session):
         assert received[0].payload == packet.payload
         received.clear()
 
+        # Incoming subscribed PUBLISH shared
+        packet = MQTTPublishPacket(
+            topic="omega/cutie",
+            payload=b"floating",
+        )
+        client._handle_message(packet)
+        assert len(share_received) == 1
+        assert share_received[0].topic == packet.topic
+        assert share_received[0].payload == packet.payload
+        share_received.clear()
+
         # Incoming unsubscribed PUBLISH, discarded
         packet.topic = "foo/bar"
         client._handle_message(packet)
@@ -84,7 +103,12 @@ def test_client_happy_path(MockSession, mock_session):
 
         # UNSUBSCRIBE
         sub_handle.unsubscribe()
-        mock_session.unsubscribe.assert_called_once_with("test/+")
+        mock_session.unsubscribe.assert_called_once_with("test/+", None)
+        mock_session.unsubscribe.reset_mock()
+
+        # UNSUBSCRIBE shared
+        share_sub_handle.unsubscribe()
+        mock_session.unsubscribe.assert_called_once_with("omega/cutie", "abc")
         mock_session.unsubscribe.reset_mock()
 
         # Incoming unsubscribed PUBLISH, discarded
@@ -112,7 +136,7 @@ def test_client_unsubscribe_untracked(MockSession, mock_session):
     with Client() as client:
         client.connect("localhost", 1883)
         client.unsubscribe("test/topic")
-        mock_session.unsubscribe.assert_called_once_with("test/topic")
+        mock_session.unsubscribe.assert_called_once_with("test/topic", None)
         mock_session.unsubscribe.reset_mock()
 
 

@@ -25,6 +25,7 @@ from .property import MQTTPropertyDict
 from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
 from .persistence.in_memory import InMemoryPersistence
 from .persistence.sqlite import SQLitePersistence
+from .topic_filter import join_share
 
 logger: Final = get_logger("session")
 
@@ -279,8 +280,10 @@ class Session:
                 self._next_packet_ids[packet_type] = 1
             return packet_id
 
-    def subscribe(self, topic: str, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
+    def subscribe(self, topic: str, share_name: str | None, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
         """Subscribe to a single topic."""
+        if share_name is not None:
+            topic = join_share(topic, share_name)
         topics = ((topic, qos),)
         packet_id = self._next_packet_id(MQTTPacketType.SUBSCRIBE)
         packet = MQTTSubscribePacket(
@@ -290,8 +293,10 @@ class Session:
         )
         self._send_packet(packet)
 
-    def unsubscribe(self, topic: str, properties: MQTTPropertyDict | None = None) -> None:
+    def unsubscribe(self, topic: str, share_name: str | None, properties: MQTTPropertyDict | None = None) -> None:
         """Unsubscribe from a single topic."""
+        if share_name is not None:
+            topic = join_share(topic, share_name)
         topics = [topic]
         packet_id = self._next_packet_id(MQTTPacketType.UNSUBSCRIBE)
         packet = MQTTUnsubscribePacket(

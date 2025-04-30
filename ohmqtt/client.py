@@ -3,6 +3,7 @@ from __future__ import annotations
 import ssl
 from types import TracebackType
 from typing import Final, Sequence
+import weakref
 
 from .connection import ConnectParams
 from .logger import get_logger
@@ -19,7 +20,7 @@ logger: Final = get_logger("client")
 
 class Client:
     """High level interface for the MQTT client."""
-    __slots__ = ("session", "subscriptions")
+    __slots__ = ("session", "subscriptions", "__weakref__")
 
     def __init__(self, db_path: str = "") -> None:
         self.subscriptions = Subscriptions()
@@ -135,27 +136,34 @@ class Client:
         callback: SubscribeCallback,
         qos: int = 2,
         properties: MQTTPropertyDict | None = None,
+        share_name: str | None = None,
     ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
-        self.subscriptions.add(topic_filter, qos, callback)
-        self.session.subscribe(topic_filter, qos=qos, properties=properties)
+        self.subscriptions.add(topic_filter, share_name, qos, callback)
+        self.session.subscribe(topic_filter, share_name, qos, properties)
         return SubscriptionHandle(
             topic_filter=topic_filter,
+            share_name=share_name,
             callback=callback,
-            _client=self,
+            _client=weakref.ref(self),
         )
 
-    def unsubscribe(self, topic_filter: str, callback: SubscribeCallback | None = None) -> None:
+    def unsubscribe(
+        self,
+        topic_filter: str,
+        callback: SubscribeCallback | None = None,
+        share_name: str | None = None,
+    ) -> None:
         """Unsubscribe from a topic filter.
 
         If a callback is provided it will be removed, otherwise all callbacks for the topic filter will be removed."""
         remaining = 0
         if callback is None:
-            self.subscriptions.remove_all(topic_filter)
+            self.subscriptions.remove_all(topic_filter, share_name)
         else:
-            remaining = self.subscriptions.remove(topic_filter, callback)
+            remaining = self.subscriptions.remove(topic_filter, share_name, callback)
         if remaining == 0:
-            self.session.unsubscribe(topic_filter)
+            self.session.unsubscribe(topic_filter, share_name)
 
     def auth(
         self,
@@ -198,8 +206,8 @@ class Client:
 
     def _handle_open(self) -> None:
         """Callback for when the connection is opened."""
-        for topic_filter, qos in self.subscriptions.get_topics().items():
-            self.session.subscribe(topic_filter, qos=qos)
+        for sub_id, qos in self.subscriptions.get_topics().items():
+            self.session.subscribe(sub_id.topic_filter, sub_id.share_name, qos=qos)
 
     def _handle_close(self) -> None:
         """Callback for when the connection is closed."""

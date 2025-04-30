@@ -1,6 +1,6 @@
 import pytest
 
-from ohmqtt.topic_filter import validate_topic_filter, match_topic_filter
+from ohmqtt.topic_filter import validate_topic_filter, validate_share_name, match_topic_filter, join_share
 
 
 def test_topic_filter_empty_filter():
@@ -89,3 +89,20 @@ def test_topic_filter_single_level_wildcard_match_hidden():
 
     filter = "+/monitor/Clients"
     assert not match_topic_filter(filter, "$SYS/monitor/Clients")
+
+def test_topic_filter_validate_share_name():
+    for share_name in ["", "a/b", "a" * 65536, "\u0000", "#", "+"]:
+        try:
+            validate_share_name(share_name)
+        except ValueError:
+            pass
+        else:
+            pytest.fail(f"Expected ValueError for share name: {share_name}")
+    for share_name in ["(foo)", "B A R", "baz-23"]:
+        validate_share_name(share_name)
+
+def test_topic_filter_join_share():
+    assert join_share("sport/tennis/player1", "foo") == "$share/foo/sport/tennis/player1"
+    assert join_share("sport/tennis/player1", None) == "sport/tennis/player1"
+    assert join_share("$SYS/monitor/Clients", "foo") == "$share/foo/$SYS/monitor/Clients"
+    assert join_share("$SYS/monitor/Clients", None) == "$SYS/monitor/Clients"

@@ -91,10 +91,23 @@ def test_session_happy_path(callbacks, mocker):
     assert auth_packet.properties["AuthenticationData"] == b"test_auth_data"
 
     # SUBSCRIBE to a topic.
-    session.subscribe("topic", 2)
+    session.subscribe("topic", None, 2)
     subscribe_packet = expect_from_session(MockConnection, mock_connection, MQTTSubscribePacket)
     assert subscribe_packet.packet_id > 0
     assert subscribe_packet.topics == [("topic", 2),]
+
+    # SUBACK the subscription.
+    suback_packet = MQTTSubAckPacket(
+        packet_id=subscribe_packet.packet_id,
+        reason_codes=[MQTTReasonCode.Success],
+    )
+    send_to_session(MockConnection, mock_connection, suback_packet)
+
+    # SUBSCRIBE to a shared topic.
+    session.subscribe("care", "is", 2)
+    subscribe_packet = expect_from_session(MockConnection, mock_connection, MQTTSubscribePacket)
+    assert subscribe_packet.packet_id > 0
+    assert subscribe_packet.topics == [("$share/is/care", 2),]
 
     # SUBACK the subscription.
     suback_packet = MQTTSubAckPacket(
@@ -188,7 +201,7 @@ def test_session_happy_path(callbacks, mocker):
     assert pubcomp_packet.reason_code == MQTTReasonCode.Success
 
     # UNSUBSCRIBE from a topic.
-    session.unsubscribe("topic")
+    session.unsubscribe("topic", None)
     unsubscribe_packet = expect_from_session(MockConnection, mock_connection, MQTTUnsubscribePacket)
     assert unsubscribe_packet.packet_id > 0
     assert unsubscribe_packet.topics == ["topic"]
