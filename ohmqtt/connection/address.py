@@ -34,7 +34,7 @@ def get_family(parsed: ParseResult) -> socket.AddressFamily:
         raise ValueError(f"Unsupported scheme: {parsed.scheme}")
 
 
-@dataclass(slots=True, init=False)
+@dataclass(slots=True, init=False, frozen=True)
 class Address:
     family: socket.AddressFamily
     host: str
@@ -48,12 +48,12 @@ class Address:
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
             address = "//" + address
         parsed = urlparse(address, scheme="mqtt")
-        self.family = get_family(parsed)
-        self.host = parsed.hostname or parsed.path
+        object.__setattr__(self, "family", get_family(parsed))
+        object.__setattr__(self, "host", parsed.hostname or parsed.path)
         if not self.host:
             raise ValueError("No path in address")
         if self.family == socket.AF_UNIX and self.host == "/":
             raise ValueError("'/' is not a valid Unix socket path")
-        self.port = parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme]
-        self.username = parsed.username
-        self.password = parsed.password
+        object.__setattr__(self, "port", parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme])
+        object.__setattr__(self, "username", parsed.username)
+        object.__setattr__(self, "password", parsed.password)
