@@ -1,0 +1,235 @@
+test_address_valid:
+  ### IPV4
+  # Bare ipv4 hostname
+  - address: "localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+  - address: "user@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+    username: "user"
+  - address: "user:pw@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+    username: "user"
+    password: "pw"
+
+  # Bare ipv4 hostname with port
+  - address: "localhost:1234"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+  - address: "user@localhost:1234"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    username: "user"
+  - address: "user:pw@localhost:1234"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    username: "user"
+    password: "pw"
+
+  # Implied scheme ipv4 hostname
+  - address: "//localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+  - address: "//localhost:1234"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+  - address: "//user@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+    username: "user"
+  - address: "//user:pw@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+    username: "user"
+    password: "pw"
+
+  # Explicit mqtt scheme ipv4 hostname
+  - address: "mqtt://localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+  - address: "mqtt://localhost:1234"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+  - address: "mqtt://user@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+    username: "user"
+  - address: "mqtt://user:pw@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1883
+    username: "user"
+    password: "pw"
+
+  # Explicit mqtts scheme ipv4 hostname
+  - address: "mqtts://localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 8883
+  - address: "mqtts://localhost:1234"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+  - address: "mqtts://user@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 8883
+    username: "user"
+  - address: "mqtts://user:pw@localhost"
+    family: "AF_INET"
+    host: "localhost"
+    port: 8883
+    username: "user"
+    password: "pw"
+
+  ### IPV6
+  # Bare ipv6 hostname
+  - address: "[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+  - address: "user@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+    username: "user"
+  - address: "user:pw@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+    username: "user"
+    password: "pw"
+
+  # Bare ipv6 hostname with port
+  - address: "[::1]:1234"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1234
+  - address: "user@[::1]:1234"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1234
+    username: "user"
+  - address: "user:pw@[::1]:1234"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1234
+    username: "user"
+    password: "pw"
+
+  # Implied scheme ipv6 hostname
+  - address: "//[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+  - address: "//[::1]:1234"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1234
+  - address: "//user@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+    username: "user"
+  - address: "//user:pw@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+    username: "user"
+    password: "pw"
+
+  # Explicit mqtt scheme ipv6 hostname
+  - address: "mqtt://[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+  - address: "mqtt://[::1]:1234"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1234
+  - address: "mqtt://user@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+    username: "user"
+  - address: "mqtt://user:pw@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1883
+    username: "user"
+    password: "pw"
+
+  # Explicit mqtts scheme ipv6 hostname
+  - address: "mqtts://[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 8883
+  - address: "mqtts://[::1]:1234"
+    family: "AF_INET6"
+    host: "::1"
+    port: 1234
+  - address: "mqtts://user@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 8883
+    username: "user"
+  - address: "mqtts://user:pw@[::1]"
+    family: "AF_INET6"
+    host: "::1"
+    port: 8883
+    username: "user"
+    password: "pw"
+
+  ### UNIX
+  # Unix domain sockets
+  - address: "unix:/tmp/mqtt.sock"
+    family: "AF_UNIX"
+    host: "/tmp/mqtt.sock"
+    port: 0
+  - address: "unix:///tmp/mqtt.sock"
+    family: "AF_UNIX"
+    host: "/tmp/mqtt.sock"
+    port: 0
+  - address: "unix://user@/tmp/mqtt.sock"
+    family: "AF_UNIX"
+    host: "/tmp/mqtt.sock"
+    port: 0
+    username: "user"
+  - address: "unix://user:pw@/tmp/mqtt.sock"
+    family: "AF_UNIX"
+    host: "/tmp/mqtt.sock"
+    port: 0
+    username: "user"
+    password: "pw"
+
+test_address_invalid:
+  # Invalid address
+  - address: ""
+  - address: ":"
+  - address: ":1234"
+  - address: "http://localhost"
+  - address: "mqtt://"
+  - address: "mqtt://user@"
+  - address: "mqtt://user:pw@"
+  - address: "mqtts://"
+  - address: "mqtts://user@"
+  - address: "mqtts://user:pw@"
+  - address: "unix:/"
+  - address: "unix://"
+  - address: "unix://user@"
+  - address: "unix://user:pw@"
