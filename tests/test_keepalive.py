@@ -1,12 +1,12 @@
 import pytest
 
-from ohmqtt.keepalive import KeepAlive, MIN_TIMEOUT
+from ohmqtt.connection.keepalive import KeepAlive, MIN_TIMEOUT
 
 
 @pytest.fixture
 def mock_keepalive_time(mocker):
     """Mock the keepalive module's time method to control the passage of time."""
-    mock_keepalive_time = mocker.patch("ohmqtt.keepalive._time")
+    mock_keepalive_time = mocker.patch("ohmqtt.connection.keepalive._time")
     yield mock_keepalive_time
 
 
