@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-
-
 def validate_topic(topic: str) -> None:
     """Validate an MQTT topic name.
 
@@ -33,36 +30,45 @@ def validate_topic_filter(topic_filter: str) -> None:
             raise ValueError("Multi-level wildcard '#' must be preceded by a '/' unless it is the only character in the topic filter")
 
 
+def _check_exact_match(topic_filter: str, topic: str) -> bool:
+    """Check if the topic matches the filter exactly."""
+    return topic_filter == topic
+
+
+def _check_multi_level_wildcard(topic_filter: str, topic: str) -> bool:
+    """Check if the topic matches the filter with a multi-level wildcard."""
+    if len(topic_filter) == 1 and not topic.startswith("$"):
+        return True  # Matches everything that doesn't start with '$'.
+    # Otherwise the # must come at the end of the filter.
+    # Match the path up to the last '/' in the filter.
+    base = topic_filter[:-2]
+    if base and topic.startswith(base):
+        return True
+    return False
+
+
+def _check_single_level_wildcard(topic_filter: str, topic: str) -> bool:
+    if topic_filter.startswith("+") and topic.startswith("$"):
+        return False
+    filter_levels = topic_filter.split("/")
+    topic_levels = topic.split("/")
+    if len(filter_levels) != len(topic_levels):
+        return False
+    for filter_level, topic_level in zip(filter_levels, topic_levels):
+        if filter_level != "+" and filter_level != topic_level:
+            return False
+    return True
+
+
 def match_topic_filter(topic_filter: str, topic: str) -> bool:
     """Check if the topic matches the filter.
 
     This method will validate the topic, but assumes that the filter is already validated."""
     validate_topic(topic)
-
-    if topic_filter == topic:
-        return True  # Exact match.
-    
-    hidden_topic = topic.startswith("$")
-
-    if topic_filter == "#" and not hidden_topic:
-        return True  # Matches everything that doesn't start with '$'.
-    
-    if "#" in topic_filter:
-        base = topic_filter[:-2]
-        if base and topic.startswith(base):
-            return True  # Matches everything under the base topic.
-        return False
-    
-    if "+" in topic_filter:
-        if topic_filter.startswith("+") and hidden_topic:
-            return False
-        filter_levels = topic_filter.split("/")
-        topic_levels = topic.split("/")
-        if len(filter_levels) != len(topic_levels):
-            return False
-        for filter_level, topic_level in zip(filter_levels, topic_levels):
-            if filter_level != "+" and filter_level != topic_level:
-                return False
+    if _check_exact_match(topic_filter, topic):
         return True
-    
+    if "#" in topic_filter and _check_multi_level_wildcard(topic_filter, topic):
+        return True
+    if "+" in topic_filter and _check_single_level_wildcard(topic_filter, topic):
+        return True
     return False
