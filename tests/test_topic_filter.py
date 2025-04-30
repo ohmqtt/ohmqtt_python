@@ -1,95 +1,91 @@
 import pytest
 
-from ohmqtt.topic_filter import MQTTTopicFilter
+from ohmqtt.topic_filter import validate_topic_filter, match_topic_filter
 
-
-def test_topic_filter_slots():
-    filter = MQTTTopicFilter("sport/tennis/player1")
-    assert not hasattr(filter, "__dict__")
-    assert all(hasattr(filter, attr) for attr in filter.__slots__)
 
 def test_topic_filter_empty_filter():
+    filter = ""
     with pytest.raises(ValueError):
-        MQTTTopicFilter("")
+        validate_topic_filter(filter)
 
 def test_topic_filter_empty_topic():
-    filter = MQTTTopicFilter("sport/tennis/player1")
+    filter = "sport/tennis/player1"
     with pytest.raises(ValueError):
-        filter.match("")
+        match_topic_filter(filter, "")
 
 def test_topic_filter_null_character_filter():
     with pytest.raises(ValueError):
-        MQTTTopicFilter("sport/tennis/\u0000player1")
+        validate_topic_filter("sport/tennis/\u0000player1")
 
 def test_topic_filter_null_character_topic():
-    filter = MQTTTopicFilter("sport/tennis/player1")
+    filter = "sport/tennis/player1"
     with pytest.raises(ValueError):
-        filter.match("sport/tennis/\u0000player1")
+        match_topic_filter(filter, "sport/tennis/\u0000player1")
 
 def test_topic_filter_long_filter():
-    long_filter = "a" * 65536
+    filter = "a" * 65536
     with pytest.raises(ValueError):
-        MQTTTopicFilter(long_filter)
+        validate_topic_filter(filter)
 
 def test_topic_filter_long_topic():
-    filter = MQTTTopicFilter("sport/tennis/player1")
+    filter = "sport/tennis/player1"
     long_topic = "a" * 65536
     with pytest.raises(ValueError):
-        filter.match(long_topic)
+        match_topic_filter(filter, long_topic)
 
 def test_topic_filter_exact_match():
-    filter = MQTTTopicFilter("sport/tennis/player1")
-    assert filter.match("sport/tennis/player1")
-    assert not filter.match("sport/tennis/player2")
-    assert not filter.match("sport/tennis")
-    assert not filter.match("sport")
+    filter = "sport/tennis/player1"
+    assert match_topic_filter(filter, "sport/tennis/player1")
+    assert not match_topic_filter(filter, "sport/tennis/player2")
+    assert not match_topic_filter(filter, "sport/tennis")
+    assert not match_topic_filter(filter, "sport")
 
 def test_topic_filter_multi_level_wildcard_match():
-    filter = MQTTTopicFilter("sport/tennis/player1/#")
-    assert filter.match("sport/tennis/player1")
-    assert filter.match("sport/tennis/player1/ranking")
-    assert filter.match("sport/tennis/player1/score/wimbledon")
-    assert not filter.match("sport/tennis/player2")
-    assert not filter.match("sport/tennis")
-    assert not filter.match("sport")
+    filter = "sport/tennis/player1/#"
+    assert match_topic_filter(filter, "sport/tennis/player1")
+    assert match_topic_filter(filter, "sport/tennis/player1/ranking")
+    assert match_topic_filter(filter, "sport/tennis/player1/score/wimbledon")
+    assert not match_topic_filter(filter, "sport/tennis/player2")
+    assert not match_topic_filter(filter, "sport/tennis")
+    assert not match_topic_filter(filter, "sport")
 
 def test_topic_filter_multi_level_wildcard_match_hidden():
-    filter = MQTTTopicFilter("$SYS/#")
-    assert filter.match("$SYS/monitor/Clients")
+    filter = "$SYS/#"
+    assert match_topic_filter(filter, "$SYS/monitor/Clients")
 
 def test_topic_filter_multi_level_wildcard_match_all():
-    filter = MQTTTopicFilter("#")
-    assert filter.match("sport/tennis/player1")
-    assert filter.match("sport/tennis/player1/ranking")
-    assert filter.match("sport/tennis/player1/score/wimbledon")
-    assert filter.match("sport/tennis/player2")
-    assert filter.match("sport/tennis")
-    assert filter.match("sport")
-    assert not filter.match("$SYS/monitor/Clients")
+    filter = "#"
+    assert match_topic_filter(filter, "sport/tennis/player1")
+    assert match_topic_filter(filter, "sport/tennis/player1/ranking")
+    assert match_topic_filter(filter, "sport/tennis/player1/score/wimbledon")
+    assert match_topic_filter(filter, "sport/tennis/player2")
+    assert match_topic_filter(filter, "sport/tennis")
+    assert match_topic_filter(filter, "sport")
+    assert not match_topic_filter(filter, "$SYS/monitor/Clients")
 
 def test_topic_filter_multi_level_wildcard_invalid_filter():
     with pytest.raises(ValueError):
-        MQTTTopicFilter("sport/tennis#")
+        validate_topic_filter("sport/tennis#")
     with pytest.raises(ValueError):
-        MQTTTopicFilter("sport/tennis/#/ranking")
+        validate_topic_filter("sport/tennis/#/ranking")
 
 def test_topic_filter_multi_level_wildcard_invalid_topic():
-    filter = MQTTTopicFilter("sport/tennis/player1/#")
+    filter = "sport/tennis/player1/#"
     with pytest.raises(ValueError):
-        filter.match("sport/tennis/player1/#")
+        match_topic_filter(filter, "sport/tennis/player1/#")
 
 def test_topic_filter_single_level_wildcard_match():
-    filter = MQTTTopicFilter("sport/tennis/+/ranking")
-    assert filter.match("sport/tennis/player1/ranking")
-    assert filter.match("sport/tennis/player2/ranking")
-    assert not filter.match("sport/tennis/player1")
-    assert not filter.match("sport/tennis/player1/score")
-    assert not filter.match("sport/tennis/player1/score/wimbledon")
-    assert not filter.match("sport/tennis/ranking")
+    filter = "sport/tennis/+/ranking"
+    assert match_topic_filter(filter, "sport/tennis/player1/ranking")
+    assert match_topic_filter(filter, "sport/tennis/player2/ranking")
+    assert not match_topic_filter(filter, "sport/tennis/player1")
+    assert not match_topic_filter(filter, "sport/tennis/player1/score")
+    assert not match_topic_filter(filter, "sport/tennis/player1/score/wimbledon")
+    assert not match_topic_filter(filter, "sport/tennis/ranking")
 
 def test_topic_filter_single_level_wildcard_match_hidden():
-    filter = MQTTTopicFilter("$SYS/+/Clients")
-    assert filter.match("$SYS/monitor/Clients")
+    filter = "$SYS/+/Clients"
+    assert match_topic_filter(filter, "$SYS/monitor/Clients")
 
-    filter = MQTTTopicFilter("+/monitor/Clients")
-    assert not filter.match("$SYS/monitor/Clients")
+    filter = "+/monitor/Clients"
+    assert not match_topic_filter(filter, "$SYS/monitor/Clients")
