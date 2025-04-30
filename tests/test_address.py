@@ -42,3 +42,11 @@ def test_address_invalid(test_data):
             pass
         else:
             pytest.fail(f"Expected ValueError for address: {case['address']}")
+
+def test_address_empty():
+    """Test the Address class with an empty address.
+
+    This should result in an Address object with no values set."""
+    address = Address("")
+    for attr in Address.__slots__:
+        assert not hasattr(address, attr), attr

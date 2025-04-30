@@ -42,8 +42,11 @@ class Address:
     username: str | None
     password: str | None
 
-    def __init__(self, address: str) -> None:
+    def __init__(self, address: str = "") -> None:
         """Parse the address string into family, host, port, username, and password."""
+        # Special case: empty address is allowed, but slots will be empty.
+        if not address:
+            return
         if "//" not in address and not address.startswith("unix:"):
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
             address = "//" + address
