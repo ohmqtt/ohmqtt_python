@@ -1,6 +1,6 @@
 import pytest
 
-from ohmqtt.decoder import IncrementalDecoder, ClosedSocketError
+from ohmqtt.connection.decoder import IncrementalDecoder, ClosedSocketError
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import MQTTPublishPacket

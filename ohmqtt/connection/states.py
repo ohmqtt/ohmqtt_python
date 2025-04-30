@@ -6,7 +6,7 @@ from typing import cast, Final
 
 from .types import ConnectParams, StateData, StateEnvironment
 from .fsm import FSM, FSMState
-from ..decoder import ClosedSocketError, WantRead
+from .decoder import ClosedSocketError, WantRead
 from ..error import MQTTError
 from ..logger import get_logger
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode

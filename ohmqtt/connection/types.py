@@ -8,7 +8,7 @@ from typing import Callable
 
 from .keepalive import KeepAlive
 from .selector import InterruptibleSelector
-from ..decoder import IncrementalDecoder
+from .decoder import IncrementalDecoder
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import MQTTPacket, MQTTConnAckPacket
 from ..property import MQTTPropertyDict

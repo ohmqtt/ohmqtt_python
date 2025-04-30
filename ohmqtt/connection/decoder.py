@@ -3,10 +3,10 @@ import socket
 import ssl
 from typing import NamedTuple, Final
 
-from .error import MQTTError
-from .mqtt_spec import MQTTReasonCode
-from .packet import decode_packet_from_parts, MQTTPacket
-from .serialization import MAX_VARINT
+from ..error import MQTTError
+from ..mqtt_spec import MQTTReasonCode
+from ..packet import decode_packet_from_parts, MQTTPacket
+from ..serialization import MAX_VARINT
 
 
 class VarintDecodeResult(NamedTuple):
