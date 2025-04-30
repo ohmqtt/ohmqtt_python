@@ -18,18 +18,19 @@ class SQLitePersistence(Persistence):
     It allows storing and retrieving messages from a SQLite database.
     """
     __slots__ = ("_cond", "_handles", "_db_path", "_conn", "_cursor")
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, *, db_fast: bool = False) -> None:
         self._cond = threading.Condition()
         self._handles: weakref.WeakValueDictionary[int, ReliablePublishHandle] = weakref.WeakValueDictionary({})
         self._db_path = db_path
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._cursor = self._conn.cursor()
-        self._cursor.executescript(
-            """
-            PRAGMA journal_mode = WAL;
-            PRAGMA synchronous = NORMAL;
-            """
-        )
+        if db_fast:
+            self._cursor.executescript(
+                """
+                PRAGMA journal_mode = WAL;
+                PRAGMA synchronous = NORMAL;
+                """
+            )
         self._create_tables()
 
     def __len__(self) -> int:

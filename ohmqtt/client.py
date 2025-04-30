@@ -22,7 +22,7 @@ class Client:
     """High level interface for the MQTT client."""
     __slots__ = ("session", "subscriptions", "__weakref__")
 
-    def __init__(self, db_path: str = "") -> None:
+    def __init__(self, db_path: str = "", *, db_fast: bool = False) -> None:
         self.subscriptions = Subscriptions()
         self.session = Session(
             auth_callback=self._handle_auth,
@@ -30,6 +30,7 @@ class Client:
             message_callback=self._handle_message,
             open_callback=self._handle_open,
             db_path=db_path,
+            db_fast=db_fast,
         )
 
     def __enter__(self) -> Client:

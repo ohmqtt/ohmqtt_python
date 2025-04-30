@@ -77,6 +77,7 @@ class Session:
         open_callback: SessionOpenCallback | None = None,
         message_callback: SessionMessageCallback | None = None,
         db_path: str = "",
+        db_fast: bool = False,
     ) -> None:
         self.auth_callback = auth_callback
         self.close_callback = close_callback
@@ -107,7 +108,7 @@ class Session:
             MQTTPacketType.UNSUBSCRIBE: 1,
         }
         if db_path:
-            self.persistence = SQLitePersistence(db_path)
+            self.persistence = SQLitePersistence(db_path, db_fast=db_fast)
         else:
             self.persistence = InMemoryPersistence()
 
