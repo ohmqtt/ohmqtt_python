@@ -45,7 +45,6 @@ SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 
 @dataclass(slots=True, match_args=True, frozen=True)
 class SessionConnectParams(ConnectParams):
-    protocol_version: int = 5
     clean_start: bool = False
     connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
 
