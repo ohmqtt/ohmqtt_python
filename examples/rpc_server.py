@@ -24,8 +24,10 @@ class RPCServer:
             return
         response_topic = msg.properties.ResponseTopic
         
+        response_props = MQTTPublishProps()
         # If the request includes correlation data, send it back in the response.
-        response_props = MQTTPublishProps(CorrelationData=msg.properties.CorrelationData)
+        if msg.properties.CorrelationData is not None:
+            response_props.CorrelationData = msg.properties.CorrelationData
 
         # Simulate some processing.
         response = f"This is a good day for {msg.payload.decode()}"
