@@ -20,7 +20,7 @@ def is_ipv6(hostname: str) -> bool:
         return False
 
 
-def get_family(parsed: ParseResult) -> socket.AddressFamily:
+def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     """Get the address family based on the parsed URL scheme."""
     if parsed.scheme == "unix":
         return socket.AF_UNIX
@@ -53,7 +53,7 @@ class Address:
             address = "//" + address
         parsed = urlparse(address, scheme="mqtt")
         object.__setattr__(self, "scheme", parsed.scheme)
-        object.__setattr__(self, "family", get_family(parsed))
+        object.__setattr__(self, "family", _get_family(parsed))
         object.__setattr__(self, "host", parsed.hostname or parsed.path)
         if not self.host:
             raise ValueError("No path in address")
