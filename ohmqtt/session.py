@@ -223,6 +223,11 @@ class Session:
     def _handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
         if self.message_callback is not None:
+            if packet.properties.TopicAlias is not None:
+                if packet.topic:
+                    self.topic_alias.add_inbound(packet.properties.TopicAlias, packet.topic)
+                else:
+                    packet.topic = self.topic_alias.lookup_inbound(packet.properties.TopicAlias)
             self.message_callback(packet)
         if packet.qos == 1:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
@@ -247,6 +252,10 @@ class Session:
     def connect(self, params: ConnectParams) -> None:
         """Connect to the broker."""
         self.params = params
+        if params.connect_properties.TopicAliasMaximum is not None:
+            self.topic_alias.max_in_alias = params.connect_properties.TopicAliasMaximum
+        else:
+            self.topic_alias.max_in_alias = 0
         self.connection.connect(params)
 
     def disconnect(self) -> None:
