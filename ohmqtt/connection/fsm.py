@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import threading
 from typing import ClassVar, Final, Sequence, Type
 
 from .types import ConnectParams, StateData, StateEnvironment
 from ..logger import get_logger
+from ..threading_lite import ConditionLite
 
 logger: Final = get_logger("connection.fsm")
 
@@ -16,7 +16,7 @@ class FSM:
         self.previous_state = init_state
         self.requested_state = init_state
         self.state = init_state
-        self.cond = threading.Condition()
+        self.cond = ConditionLite()
         self.params = ConnectParams()
 
         self._state_changed = True

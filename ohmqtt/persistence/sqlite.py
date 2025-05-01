@@ -1,5 +1,4 @@
 import sqlite3
-import threading
 from typing import Final
 import weakref
 
@@ -7,6 +6,7 @@ from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
+from ..threading_lite import ConditionLite
 from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.sqlite")
@@ -20,7 +20,7 @@ class SQLitePersistence(Persistence):
     """
     __slots__ = ("_cond", "_handles", "_db_path", "_conn", "_cursor")
     def __init__(self, db_path: str, *, db_fast: bool = False) -> None:
-        self._cond = threading.Condition()
+        self._cond = ConditionLite()
         self._handles: weakref.WeakValueDictionary[int, ReliablePublishHandle] = weakref.WeakValueDictionary({})
         self._db_path = db_path
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
