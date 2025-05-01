@@ -155,7 +155,7 @@ class Session:
                 client_id = self.params.client_id
             if not client_id:
                 raise MQTTError("No client ID provided", MQTTReasonCode.ProtocolError)
-            clear_persistence = self.params.clean_start or not packet.session_present
+            clear_persistence = not packet.session_present
             self.persistence.open(client_id, clear=clear_persistence)
             if self.open_callback is not None:
                 self.open_callback(packet)
