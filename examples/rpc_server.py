@@ -8,8 +8,7 @@ The ResponseTopic property is used by the requestor to specify the topic to whic
 See the "rpc_caller" example for the request side of this RPC implementation."""
 
 from ohmqtt.client import Client
-from ohmqtt.message import MQTTMessage
-from ohmqtt.property import MQTTProperties
+from ohmqtt.message import MQTTMessage, MQTTMessageProps
 
 
 class RPCServer:
@@ -25,7 +24,7 @@ class RPCServer:
         response_topic = msg.properties.ResponseTopic
         
         # If the request includes correlation data, send it back in the response.
-        response_props = MQTTProperties(CorrelationData=msg.properties.CorrelationData)
+        response_props = MQTTMessageProps(CorrelationData=msg.properties.CorrelationData)
 
         # Simulate some processing.
         response = f"This is a good day for {msg.payload.decode()}"

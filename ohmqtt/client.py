@@ -7,10 +7,10 @@ import weakref
 
 from .connection import Address, ConnectParams
 from .logger import get_logger
-from .message import MQTTMessage
+from .message import MQTTMessage, MQTTMessageProps
 from .mqtt_spec import MQTTReasonCode
 from .packet import MQTTPublishPacket
-from .property import MQTTPropertyDict, MQTTProperties
+from .property import MQTTPropertyDict
 from .persistence.base import PublishHandle
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback, SubscriptionHandle
@@ -73,8 +73,8 @@ class Client:
         will_payload: bytes = b"",
         will_qos: int = 0,
         will_retain: bool = False,
-        will_properties: MQTTProperties | None = None,
-        connect_properties: MQTTProperties | None = None,
+        will_properties: MQTTMessageProps | None = None,
+        connect_properties: MQTTMessageProps | None = None,
     ) -> None:
         """Connect to the broker."""
         self.session.connect(ConnectParams(
@@ -123,7 +123,7 @@ class Client:
         *,
         qos: int = 0,
         retain: bool = False,
-        properties: MQTTProperties | None = None,
+        properties: MQTTMessageProps | None = None,
     ) -> PublishHandle:
         """Publish a message to a topic."""
         property_dict = properties.to_dict() if properties is not None else None
@@ -195,7 +195,7 @@ class Client:
             packet_id=packet.packet_id,
             retain=packet.retain,
             dup=packet.dup,
-            properties=MQTTProperties.from_dict(packet.properties),
+            properties=MQTTMessageProps.from_dict(packet.properties),
         )
         for callback in callbacks:
             try:

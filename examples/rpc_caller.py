@@ -10,8 +10,7 @@ import uuid
 from typing import Callable
 
 from ohmqtt.client import Client
-from ohmqtt.message import MQTTMessage
-from ohmqtt.property import MQTTProperties
+from ohmqtt.message import MQTTMessage, MQTTMessageProps
 
 
 RPCCallback = Callable[[bytes], None]
@@ -39,7 +38,7 @@ class RPCCaller:
             "ohmqtt/examples/rpc/request",
             payload,
             qos=2,
-            properties=MQTTProperties(ResponseTopic=response_topic),
+            properties=MQTTMessageProps(ResponseTopic=response_topic),
         ).wait_for_ack()
 
         print(f"Sent RPC request with response topic: {response_topic}")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Callable, dataclass_transform, Final, Mapping, Sequence, TypedDict
+from typing import Callable, dataclass_transform, Final, Mapping, Sequence, TypedDict, TypeVar
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTPropertyIdStrings, MQTTPropertyIdReverse, MQTTReasonCode
@@ -56,57 +56,24 @@ class MQTTPropertyDict(TypedDict, total=False):
     SharedSubscriptionAvailable: bool
 
 
+MQTTPropertiesBaseT = TypeVar("MQTTPropertiesBaseT", bound="MQTTPropertiesBase")
 @dataclass_transform()
-class _DataclassNamespace(SimpleNamespace):
-    pass  # pragma: no cover
-
-
-class MQTTProperties(_DataclassNamespace):
-    """User interface for reading and writing MQTT properties."""
-    PayloadFormatIndicator: int | None = None
-    MessageExpiryInterval: int | None = None
-    ContentType: str | None = None
-    ResponseTopic: str | None = None
-    CorrelationData: bytes | None = None
-    SubscriptionIdentifier: set[int] | None = None
-    SessionExpiryInterval: int | None = None
-    AssignedClientIdentifier: str | None = None
-    ServerKeepAlive: int | None = None
-    AuthenticationMethod: str | None = None
-    AuthenticationData: bytes | None = None
-    RequestProblemInformation: bool | None = None
-    WillDelayInterval: int | None = None
-    RequestResponseInformation: bool | None = None
-    ResponseInformation: str | None = None
-    ServerReference: str | None = None
-    ReasonString: str | None = None
-    ReceiveMaximum: int | None = None
-    TopicAliasMaximum: int | None = None
-    TopicAlias: int | None = None
-    MaximumQoS: int | None = None
-    RetainAvailable: bool | None = None
-    UserProperty: Sequence[tuple[str, str]] | None = None
-    MaximumPacketSize: int | None = None
-    WildcardSubscriptionAvailable: bool | None = None
-    SubscriptionIdentifierAvailable: bool | None = None
-    SharedSubscriptionAvailable: bool | None = None
-
+class MQTTPropertiesBase(SimpleNamespace):
+    """Represents MQTT packet properties."""
     def to_dict(self) -> MQTTPropertyDict:
         """Convert the properties to a dictionary."""
         # Type ignore required at this conversion point.
         return self.__dict__  # type: ignore
 
     @classmethod
-    def from_dict(cls, properties: MQTTPropertyDict) -> MQTTProperties:
+    def from_dict(cls: type[MQTTPropertiesBaseT], properties: MQTTPropertyDict) -> MQTTPropertiesBaseT:
         """Create a properties object from a dictionary."""
         return cls(**properties)
 
     def __repr__(self) -> str:
-        """Return a string representation of the properties."""
         return f"{self.__class__.__name__}({', '.join(f'{key}={value}' for key, value in self.__dict__.items())})"
     
     def __str__(self) -> str:
-        """Return a string representation of the properties."""
         return self.__repr__()
 
 
