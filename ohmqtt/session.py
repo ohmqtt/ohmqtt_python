@@ -40,7 +40,7 @@ SessionAuthCallback = Callable[
     None,
 ]
 SessionCloseCallback = Callable[[], None]
-SessionOpenCallback = Callable[[], None]
+SessionOpenCallback = Callable[[MQTTConnAckPacket], None]
 SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 
 
@@ -139,7 +139,7 @@ class Session:
             clear_persistence = self.params.clean_start or not packet.session_present
             self.persistence.open(client_id, clear=clear_persistence)
             if self.open_callback is not None:
-                self.open_callback()
+                self.open_callback(packet)
             self._flush()
 
     def _connection_close_callback(self) -> None:

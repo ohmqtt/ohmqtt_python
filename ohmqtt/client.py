@@ -9,7 +9,7 @@ from .connection import Address, ConnectParams
 from .logger import get_logger
 from .message import MQTTMessage, MQTTMessageProps
 from .mqtt_spec import MQTTReasonCode
-from .packet import MQTTPublishPacket
+from .packet import MQTTConnAckPacket, MQTTPublishPacket
 from .property import MQTTPropertyDict
 from .persistence.base import PublishHandle
 from .session import Session
@@ -203,7 +203,7 @@ class Client:
             except Exception:
                 logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {message.topic}")
 
-    def _handle_open(self) -> None:
+    def _handle_open(self, connack: MQTTConnAckPacket) -> None:
         """Callback for when the connection is opened."""
         for sub_id, qos in self.subscriptions.get_topics().items():
             self.session.subscribe(sub_id.topic_filter, sub_id.share_name, qos=qos)
