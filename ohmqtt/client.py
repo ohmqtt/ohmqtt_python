@@ -5,6 +5,7 @@ from types import TracebackType
 from typing import Final, Sequence
 import weakref
 
+from .topic_alias import AliasPolicy
 from .connection import Address, ConnectParams
 from .logger import get_logger
 from .message import MQTTMessage, MQTTMessageProps
@@ -124,10 +125,18 @@ class Client:
         qos: int = 0,
         retain: bool = False,
         properties: MQTTMessageProps | None = None,
+        alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
         """Publish a message to a topic."""
         property_dict = properties.to_dict() if properties is not None else None
-        return self.session.publish(topic, payload, qos=qos, retain=retain, properties=property_dict)
+        return self.session.publish(
+            topic,
+            payload,
+            qos=qos,
+            retain=retain,
+            properties=property_dict,
+            alias_policy=alias_policy,
+        )
     
     def subscribe(
         self,

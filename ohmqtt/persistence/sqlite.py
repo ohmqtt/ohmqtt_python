@@ -3,10 +3,11 @@ import threading
 from typing import Final
 import weakref
 
-from .base import Persistence, ReliablePublishHandle
+from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPropertyDict, decode_properties, encode_properties
+from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.sqlite")
 
@@ -59,6 +60,7 @@ class SQLitePersistence(Persistence):
                     qos INTEGER NOT NULL,
                     retain INTEGER NOT NULL,
                     properties BLOB,
+                    alias_policy INTEGER NOT NULL,
                     dup INTEGER DEFAULT 0,
                     received INTEGER DEFAULT 0,
                     packet_id INTEGER UNIQUE DEFAULT NULL,
@@ -103,16 +105,18 @@ class SQLitePersistence(Persistence):
         payload: bytes,
         qos: int,
         retain: bool,
-        properties: MQTTPropertyDict | None = None,
+        properties: MQTTPropertyDict | None,
+        alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
+        assert alias_policy != AliasPolicy.ALWAYS, "AliasPolicy must not be ALWAYS for retained messages."
         with self._cond:
             properties_blob = encode_properties(properties) if properties else None
             self._cursor.execute(
                 """
-                INSERT INTO messages (topic, payload, qos, retain, properties)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO messages (topic, payload, qos, retain, properties, alias_policy)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (topic, payload, qos, int(retain), properties_blob),
+                (topic, payload, qos, int(retain), properties_blob, alias_policy.value),
             )
             self._conn.commit()
             message_id = self._cursor.lastrowid
@@ -185,11 +189,11 @@ class SQLitePersistence(Persistence):
                 packet_id = packet_id + 1 if packet_id < 65535 else 1
             return packet_id
 
-    def render(self, message_id: int) -> MQTTPublishPacket | MQTTPubRelPacket:
+    def render(self, message_id: int) -> RenderedPacket:
         with self._cond:
             self._cursor.execute(
                 """
-                SELECT topic, payload, qos, retain, properties, dup, received, packet_id
+                SELECT topic, payload, qos, retain, properties, dup, received, packet_id, alias_policy
                 FROM messages
                 WHERE id = ?
                 """,
@@ -198,7 +202,7 @@ class SQLitePersistence(Persistence):
             row = self._cursor.fetchone()
             if row is None:
                 raise ValueError(f"Message ID {message_id} not found in persistence store.")
-            topic, payload, qos, retain, properties_blob, dup, received, packet_id = row
+            topic, payload, qos, retain, properties_blob, dup, received, packet_id, alias_policy = row
             if properties_blob is not None:
                 properties_view = memoryview(properties_blob)
                 properties, _ = decode_properties(properties_view)
@@ -208,8 +212,10 @@ class SQLitePersistence(Persistence):
                 packet_id = self._generate_packet_id()
             packet: MQTTPublishPacket | MQTTPubRelPacket
             if received:
+                alias_policy = AliasPolicy.NEVER
                 packet = MQTTPubRelPacket(packet_id=packet_id)
             else:
+                alias_policy = AliasPolicy(alias_policy)
                 packet = MQTTPublishPacket(
                     topic=topic,
                     payload=payload,
@@ -226,7 +232,7 @@ class SQLitePersistence(Persistence):
                 (packet_id, message_id),
             )
             self._conn.commit()
-            return packet
+            return RenderedPacket(packet, alias_policy)
 
     def _reset_inflight(self) -> None:
         """Clear inflight status of all messages."""

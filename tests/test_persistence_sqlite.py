@@ -5,6 +5,7 @@ import pytest
 
 from ohmqtt.packet import MQTTPublishPacket, MQTTPubRelPacket
 from ohmqtt.persistence.sqlite import SQLitePersistence
+from ohmqtt.topic_alias import AliasPolicy
 
 
 @pytest.fixture
@@ -27,6 +28,7 @@ def test_persistence_sqlite_happy_path_qos1(tempdbpath):
         qos=1,
         retain=False,
         properties={"ResponseTopic": "response/topic"},
+        alias_policy=AliasPolicy.TRY,
     )
     assert len(persistence) == 1
 
@@ -43,7 +45,9 @@ def test_persistence_sqlite_happy_path_qos1(tempdbpath):
     )
 
     # Render the message, marking it as inflight.
-    assert persistence.render(message_ids[0]) == expected_packet
+    rendered = persistence.render(message_ids[0])
+    assert rendered.packet == expected_packet
+    assert rendered.alias_policy == AliasPolicy.TRY
     assert len(persistence) == 1
 
     # We should not be able to retrieve the message again.
@@ -67,6 +71,7 @@ def test_persistence_sqlite_happy_path_qos2(tempdbpath):
         qos=2,
         retain=False,
         properties={"ResponseTopic": "response/topic"},
+        alias_policy=AliasPolicy.TRY,
     )
     assert len(persistence) == 1
 
@@ -83,7 +88,9 @@ def test_persistence_sqlite_happy_path_qos2(tempdbpath):
     )
 
     # Render the message, marking it as inflight.
-    assert persistence.render(message_ids[0]) == expected_packet
+    rendered = persistence.render(message_ids[0])
+    assert rendered.packet == expected_packet
+    assert rendered.alias_policy == AliasPolicy.TRY
     assert len(persistence) == 1
 
     # We should not be able to retrieve the message again.
@@ -99,7 +106,9 @@ def test_persistence_sqlite_happy_path_qos2(tempdbpath):
     expected_packet = MQTTPubRelPacket(packet_id=1)
 
     # Render the message, marking it as inflight.
-    assert persistence.render(message_ids[0]) == expected_packet
+    rendered = persistence.render(message_ids[0])
+    assert rendered.packet == expected_packet
+    assert rendered.alias_policy == AliasPolicy.NEVER
     assert len(persistence) == 1
 
     # We should not be able to retrieve the message again.
@@ -129,6 +138,7 @@ def test_persistence_sqlite_open(tempdbpath):
         qos=packet.qos,
         retain=packet.retain,
         properties=packet.properties,
+        alias_policy=AliasPolicy.TRY,
     )
     assert len(persistence) == 1
 
@@ -148,7 +158,9 @@ def test_persistence_sqlite_open(tempdbpath):
     # When rendering a second time, the packet should have the dup flag set.
     packet.dup = True
     packet.packet_id = 1
-    assert packet == persistence.render(message_ids[0])
+    rendered = persistence.render(message_ids[0])
+    assert rendered.packet == packet
+    assert rendered.alias_policy == AliasPolicy.TRY
 
     # Now open with a different client ID.
     persistence = SQLitePersistence(tempdbpath)
@@ -181,10 +193,36 @@ def test_persistence_sqlite_properties():
         qos=packet.qos,
         retain=packet.retain,
         properties=packet.properties,
+        alias_policy=AliasPolicy.TRY,
     )
     assert len(persistence) == 1
 
     # Retrieve the PUBLISH from the store.
     message_ids = persistence.get(10)
     rendered = persistence.render(message_ids[0])
-    assert rendered == packet
+    assert rendered.packet == packet
+
+def test_persistence_sqlite_loose_alias():
+    """We should not bbe able to add a message with an alias policy of ALWAYS."""
+    persistence = SQLitePersistence(":memory:")
+    persistence.open("test_client")
+
+    # Add a message with all the properties.
+    packet = MQTTPublishPacket(
+        packet_id=1,
+        topic="test/topic",
+        payload=b"test payload",
+        qos=1,
+        retain=False,
+        properties={},
+    )
+    with pytest.raises(AssertionError):
+        persistence.add(
+            topic=packet.topic,
+            payload=packet.payload,
+            qos=packet.qos,
+            retain=packet.retain,
+            properties=packet.properties,
+            alias_policy=AliasPolicy.ALWAYS,
+        )
+    assert len(persistence) == 0

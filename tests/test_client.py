@@ -3,6 +3,7 @@ import pytest
 from ohmqtt.client import Client
 from ohmqtt.packet import MQTTPublishPacket
 from ohmqtt.session import Session
+from ohmqtt.topic_alias import AliasPolicy
 
 
 @pytest.fixture
@@ -125,6 +126,7 @@ def test_client_happy_path(MockSession, mock_session):
             qos=0,
             retain=False,
             properties=None,
+            alias_policy=AliasPolicy.NEVER,
         )
         mock_session.publish.reset_mock()
 

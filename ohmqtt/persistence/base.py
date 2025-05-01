@@ -1,9 +1,10 @@
 from abc import ABCMeta, abstractmethod
 import threading
-from typing import ClassVar, Sequence
+from typing import ClassVar, NamedTuple, Sequence
 
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPropertyDict
+from ..topic_alias import AliasPolicy
 
 
 class PublishHandle(metaclass=ABCMeta):
@@ -56,6 +57,12 @@ class ReliablePublishHandle(PublishHandle):
         with self._cond:
             self._cond.wait_for(self.is_acked, timeout)
         return self.acked
+    
+
+class RenderedPacket(NamedTuple):
+    """Represents a rendered packet."""
+    packet: MQTTPublishPacket | MQTTPubRelPacket
+    alias_policy: AliasPolicy
 
 
 class Persistence(metaclass=ABCMeta):
@@ -75,6 +82,7 @@ class Persistence(metaclass=ABCMeta):
         qos: int,
         retain: bool,
         properties: MQTTPropertyDict | None,
+        alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
         """Add a PUBLISH message to the persistence store."""
         ...  # pragma: no cover
@@ -90,7 +98,7 @@ class Persistence(metaclass=ABCMeta):
         ...  # pragma: no cover
 
     @abstractmethod
-    def render(self, packet_id: int) -> MQTTPublishPacket | MQTTPubRelPacket:
+    def render(self, packet_id: int) -> RenderedPacket:
         """Render a PUBLISH message from the persistence store.
         
         This also indicates to the persistence store that the message is inflight."""

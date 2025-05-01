@@ -25,6 +25,7 @@ from .property import MQTTPropertyDict
 from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
 from .persistence.in_memory import InMemoryPersistence
 from .persistence.sqlite import SQLitePersistence
+from .topic_alias import AliasPolicy, TopicAlias
 from .topic_filter import join_share
 
 logger: Final = get_logger("session")
@@ -54,7 +55,6 @@ class Session:
     __slots__ = (
         "params",
         "server_receive_maximum",
-        "server_topic_alias_maximum",
         "_lock",
         "_inflight",
         "_next_packet_ids",
@@ -65,6 +65,7 @@ class Session:
         "message_callback",
         "connection",
         "persistence",
+        "topic_alias",
     )
     connection: Connection
     persistence: Persistence
@@ -84,7 +85,7 @@ class Session:
         self.open_callback = open_callback
         self.message_callback = message_callback
         self.server_receive_maximum = 0
-        self.server_topic_alias_maximum = 0
+        self.topic_alias = TopicAlias()
         self.connection = Connection(
             close_callback=self._connection_close_callback,
             open_callback=self._connection_open_callback,
@@ -118,18 +119,36 @@ class Session:
             logger.debug(f"---> {packet}")
         self.connection.send(packet.encode())
 
+    def _send_aliased(
+        self,
+        packet: MQTTPublishPacket,
+        alias_policy: AliasPolicy,
+    ) -> None:
+        """Send a potentially topic aliased PUBLISH packet to the server.
+
+        This will handle topic aliasing if the server supports it."""
+        lookup = self.topic_alias.lookup_outbound(packet.topic, alias_policy)
+        if lookup.alias > 0:
+            packet.properties["TopicAlias"] = lookup.alias
+            if lookup.existed:
+                packet.topic = ""
+        self._send_packet(packet)
+
     def _connection_open_callback(self, packet: MQTTConnAckPacket) -> None:
         """Handle a connection open event."""
         if packet.reason_code >= 0x80:
             logger.error(f"Connection failed: {packet.reason_code}")
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
         with self._lock:
+            self.topic_alias.reset()
             if "ReceiveMaximum" in packet.properties:
                 self.server_receive_maximum = packet.properties["ReceiveMaximum"]
             else:
                 self.server_receive_maximum = MAX_PACKET_ID - 1
             if "TopicAliasMaximum" in packet.properties:
-                self.server_topic_alias_maximum = packet.properties["TopicAliasMaximum"]
+                self.topic_alias.max_out_alias = packet.properties["TopicAliasMaximum"]
+            else:
+                self.topic_alias.max_out_alias = 0
             if "AssignedClientIdentifier" in packet.properties:
                 client_id = packet.properties["AssignedClientIdentifier"]
             else:
@@ -146,7 +165,6 @@ class Session:
         """Handle a connection close event."""
         with self._lock:
             self.server_receive_maximum = 0
-            self.server_topic_alias_maximum = 0
             self._inflight = 0
         if self.close_callback is not None:
             self.close_callback()
@@ -246,9 +264,12 @@ class Session:
         qos: int = 0,
         retain: bool = False,
         properties: MQTTPropertyDict | None = None,
+        alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
         """Publish a message to a topic."""
         if qos > 0:
+            if alias_policy == AliasPolicy.ALWAYS:
+                raise ValueError("AliasPolicy.ALWAYS is not allowed for QoS > 0")
             with self._lock:
                 handle: ReliablePublishHandle = self.persistence.add(
                     topic=topic,
@@ -256,6 +277,7 @@ class Session:
                     qos=qos,
                     retain=retain,
                     properties=properties,
+                    alias_policy=alias_policy,
                 )
                 self._flush()
                 return handle
@@ -267,7 +289,7 @@ class Session:
                 retain=retain,
                 properties=properties if properties is not None else {},
             )
-            self._send_packet(packet)
+            self._send_aliased(packet, alias_policy)
             return UnreliablePublishHandle()
 
     def _next_packet_id(self, packet_type: int) -> int:
@@ -338,10 +360,13 @@ class Session:
             allowed_count = self.server_receive_maximum - self._inflight
             pending_message_ids = self.persistence.get(allowed_count)
             for message_id in pending_message_ids:
-                packet = self.persistence.render(message_id)
+                packet, alias_policy = self.persistence.render(message_id)
                 self._inflight += 1
                 try:
-                    self._send_packet(packet)
+                    if type(packet) is MQTTPublishPacket:
+                        self._send_aliased(packet, alias_policy)
+                    else:
+                        self._send_packet(packet)
                 except Exception:
                     logger.exception("Unhandled exception while flushing pending packets")
                     self.disconnect()

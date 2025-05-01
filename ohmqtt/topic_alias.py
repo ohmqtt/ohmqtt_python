@@ -75,7 +75,7 @@ class TopicAlias:
             return OutboundLookupResult(self.out_aliases[topic], True)
         if self.next_out_alias > self.max_out_alias:
             if policy == AliasPolicy.ALWAYS:
-                raise MaxOutboundAliasError("Out of topic aliases")
+                raise MaxOutboundAliasError("Out of topic aliases and policy is ALWAYS")
             else:
                 return OutboundLookupResult(0, False)
         alias = self.next_out_alias

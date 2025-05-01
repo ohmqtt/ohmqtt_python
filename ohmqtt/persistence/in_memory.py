@@ -4,11 +4,12 @@ import threading
 from typing import Final, Sequence
 import weakref
 
-from .base import Persistence, ReliablePublishHandle
+from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
 from ..mqtt_spec import MQTTReasonCode, MAX_PACKET_ID
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPropertyDict
+from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.in_memory")
 
@@ -25,6 +26,7 @@ class RetainedMessage:
     dup: bool
     received: bool
     handle: weakref.ReferenceType[ReliablePublishHandle]
+    alias_policy: AliasPolicy
 
 
 @dataclass(slots=True)
@@ -49,7 +51,9 @@ class InMemoryPersistence(Persistence):
         qos: int,
         retain: bool,
         properties: MQTTPropertyDict | None,
+        alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
+        assert alias_policy != AliasPolicy.ALWAYS, "AliasPolicy must not be ALWAYS for retained messages."
         packet_id = self._next_packet_id
         self._next_packet_id += 1
         if self._next_packet_id > MAX_PACKET_ID:
@@ -70,6 +74,7 @@ class InMemoryPersistence(Persistence):
             dup=False,
             received=False,
             handle=weakref.ref(handle),
+            alias_policy=alias_policy,
         )
         self._messages[packet_id] = message
         self._pending.append(packet_id)
@@ -95,15 +100,17 @@ class InMemoryPersistence(Persistence):
             self._pending.appendleft(packet_id)
             message.received = True
 
-    def render(self, packet_id: int) -> MQTTPublishPacket | MQTTPubRelPacket:
+    def render(self, packet_id: int) -> RenderedPacket:
         packet: MQTTPublishPacket | MQTTPubRelPacket
         msg = self._messages[packet_id]
         if msg.received:
+            alias_policy = AliasPolicy.NEVER
             packet = MQTTPubRelPacket(
                 packet_id=msg.packet_id,
                 reason_code=MQTTReasonCode.Success,
             )
         else:
+            alias_policy = msg.alias_policy
             packet = MQTTPublishPacket(
                 topic=msg.topic,
                 payload=msg.payload,
@@ -115,7 +122,7 @@ class InMemoryPersistence(Persistence):
             )
         if self._pending.popleft() != msg.packet_id:
             raise RuntimeError(f"Packet ID {msg.packet_id} was not first in pending list")
-        return packet
+        return RenderedPacket(packet, alias_policy)
 
     def _reset_inflight(self) -> None:
         """Clear inflight status of all messages."""
