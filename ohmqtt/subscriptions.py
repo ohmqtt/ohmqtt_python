@@ -4,14 +4,14 @@ from dataclasses import dataclass, field
 from typing import Callable, NamedTuple, TYPE_CHECKING
 import weakref
 
-from .message import MQTTMessage
+from .packet import MQTTPublishPacket
 from .topic_filter import match_topic_filter, validate_topic_filter, validate_share_name, join_share
 
 if TYPE_CHECKING:
     from .client import Client  # pragma: no cover
 
 
-SubscribeCallback = Callable[["Client", MQTTMessage], None]
+SubscribeCallback = Callable[["Client", MQTTPublishPacket], None]
 
 
 @dataclass(match_args=True, slots=True, frozen=True)

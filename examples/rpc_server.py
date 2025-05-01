@@ -8,23 +8,24 @@ The ResponseTopic property is used by the requestor to specify the topic to whic
 See the "rpc_caller" example for the request side of this RPC implementation."""
 
 from ohmqtt.client import Client
-from ohmqtt.message import MQTTMessage, MQTTMessageProps
+from ohmqtt.packet import MQTTPublishPacket
+from ohmqtt.property import MQTTPublishProps
 
 
 class RPCServer:
     """A simple stateless RPC server."""
-    def handle_request(self, client: Client, msg: MQTTMessage) -> None:
+    def handle_request(self, client: Client, msg: MQTTPublishPacket) -> None:
         """Handle incoming RPC requests."""
         print(f"*** Received RPC request: {str(msg)}")
 
         # Find the response topic in the message properties.
-        if msg.properties.ResponseTopic is None:
+        if not msg.properties.ResponseTopic:
             print("Request was missing required response topic property")
             return
         response_topic = msg.properties.ResponseTopic
         
         # If the request includes correlation data, send it back in the response.
-        response_props = MQTTMessageProps(CorrelationData=msg.properties.CorrelationData)
+        response_props = MQTTPublishProps(CorrelationData=msg.properties.CorrelationData)
 
         # Simulate some processing.
         response = f"This is a good day for {msg.payload.decode()}"

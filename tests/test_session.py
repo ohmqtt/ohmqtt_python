@@ -17,6 +17,7 @@ from ohmqtt.packet import (
     MQTTPubCompPacket,
     MQTTAuthPacket,
 )
+from ohmqtt.property import MQTTAuthProps, MQTTConnAckProps
 from ohmqtt.session import Session, SessionConnectParams
 
 
@@ -65,7 +66,7 @@ def test_session_happy_path(callbacks, mocker):
     assert MockConnection.call_count == 1
 
     # Send back a CONNACK packet.
-    connack_packet = MQTTConnAckPacket(properties={"AssignedClientIdentifier": "test_client"})
+    connack_packet = MQTTConnAckPacket(properties=MQTTConnAckProps(AssignedClientIdentifier="test_client"))
     MockConnection.call_args.kwargs["open_callback"](connack_packet)
     callbacks["open"].assert_called_once_with(connack_packet)
     callbacks["open"].reset_mock()
@@ -73,7 +74,7 @@ def test_session_happy_path(callbacks, mocker):
     # Server sends an AUTH packet to the Session.
     auth_packet = MQTTAuthPacket(
         reason_code=MQTTReasonCode.ContinueAuthentication,
-        properties={"AuthenticationMethod": "test_auth"},
+        properties=MQTTAuthProps(AuthenticationMethod="test_auth"),
     )
     send_to_session(MockConnection, mock_connection, auth_packet)
     callbacks["auth"].assert_called_once_with(auth_packet.reason_code, "test_auth", None, None, None)
@@ -87,8 +88,8 @@ def test_session_happy_path(callbacks, mocker):
     )
     auth_packet = expect_from_session(MockConnection, mock_connection, MQTTAuthPacket)
     assert auth_packet.reason_code == MQTTReasonCode.Success
-    assert auth_packet.properties["AuthenticationMethod"] == "test_auth"
-    assert auth_packet.properties["AuthenticationData"] == b"test_auth_data"
+    assert auth_packet.properties.AuthenticationMethod == "test_auth"
+    assert auth_packet.properties.AuthenticationData == b"test_auth_data"
 
     # SUBSCRIBE to a topic.
     session.subscribe("topic", None, 2)

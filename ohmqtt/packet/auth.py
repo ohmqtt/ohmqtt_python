@@ -8,10 +8,7 @@ from .base import MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 from ..property import (
-    MQTTPropertyDict,
-    encode_properties,
-    decode_properties,
-    validate_properties,
+    MQTTAuthProps,
 )
 from ..serialization import (
     encode_varint,
@@ -24,8 +21,9 @@ HEAD_AUTH = MQTTPacketType.AUTH << 4
 @dataclass(match_args=True, slots=True)
 class MQTTAuthPacket(MQTTPacket):
     packet_type = MQTTPacketType.AUTH
+    props_type = MQTTAuthProps
     reason_code: int = MQTTReasonCode.Success
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTAuthProps = field(default_factory=MQTTAuthProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -40,7 +38,7 @@ class MQTTAuthPacket(MQTTPacket):
             return HEAD_AUTH.to_bytes(1, "big") + b"\x00"
         encoded = bytearray()
         encoded.append(HEAD_AUTH)
-        props = encode_properties(self.properties)
+        props = self.properties.encode()
         encoded.extend(encode_varint(len(props) + 1))
         encoded.append(self.reason_code)
         encoded.extend(props)
@@ -54,7 +52,5 @@ class MQTTAuthPacket(MQTTPacket):
             # An empty packet means success with no properties.
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
-        props, props_sz = decode_properties(data[sz:])
-        if props:
-            validate_properties(props, MQTTPacketType.AUTH)
+        props, props_sz = MQTTAuthProps.decode(data[sz:])
         return MQTTAuthPacket(reason_code, properties=props)

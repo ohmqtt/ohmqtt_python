@@ -10,7 +10,8 @@ import uuid
 from typing import Callable
 
 from ohmqtt.client import Client
-from ohmqtt.message import MQTTMessage, MQTTMessageProps
+from ohmqtt.packet import MQTTPublishPacket
+from ohmqtt.property import MQTTPublishProps
 
 
 RPCCallback = Callable[[bytes], None]
@@ -38,12 +39,12 @@ class RPCCaller:
             "ohmqtt/examples/rpc/request",
             payload,
             qos=2,
-            properties=MQTTMessageProps(ResponseTopic=response_topic),
+            properties=MQTTPublishProps(ResponseTopic=response_topic),
         ).wait_for_ack()
 
         print(f"Sent RPC request with response topic: {response_topic}")
 
-    def handle_response(self, client: Client, msg: MQTTMessage) -> None:
+    def handle_response(self, client: Client, msg: MQTTPublishPacket) -> None:
         """Handle incoming RPC responses."""
         try:
             callback = self.callbacks.pop(msg.topic.split("/")[-1])

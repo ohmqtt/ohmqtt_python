@@ -6,7 +6,7 @@ import weakref
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
-from ..property import MQTTPropertyDict, decode_properties, encode_properties
+from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.sqlite")
@@ -105,12 +105,12 @@ class SQLitePersistence(Persistence):
         payload: bytes,
         qos: int,
         retain: bool,
-        properties: MQTTPropertyDict | None,
+        properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
         assert alias_policy != AliasPolicy.ALWAYS, "AliasPolicy must not be ALWAYS for retained messages."
         with self._cond:
-            properties_blob = encode_properties(properties) if properties else None
+            properties_blob = properties.encode() if len(properties) > 0 else None
             self._cursor.execute(
                 """
                 INSERT INTO messages (topic, payload, qos, retain, properties, alias_policy)
@@ -205,9 +205,9 @@ class SQLitePersistence(Persistence):
             topic, payload, qos, retain, properties_blob, dup, received, packet_id, alias_policy = row
             if properties_blob is not None:
                 properties_view = memoryview(properties_blob)
-                properties, _ = decode_properties(properties_view)
+                properties, _ = MQTTPublishProps.decode(properties_view)
             else:
-                properties = {}
+                properties = MQTTPublishProps()
             if packet_id is None:
                 packet_id = self._generate_packet_id()
             packet: MQTTPublishPacket | MQTTPubRelPacket

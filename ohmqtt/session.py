@@ -21,7 +21,7 @@ from .packet import (
     MQTTUnsubAckPacket,
     MQTTAuthPacket,
 )
-from .property import MQTTPropertyDict
+from .property import MQTTConnectProps, MQTTPublishProps, MQTTSubscribeProps, MQTTUnsubscribeProps, MQTTAuthProps
 from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
 from .persistence.in_memory import InMemoryPersistence
 from .persistence.sqlite import SQLitePersistence
@@ -48,7 +48,7 @@ SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 @dataclass(slots=True, match_args=True, frozen=True)
 class SessionConnectParams(ConnectParams):
     clean_start: bool = False
-    connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    connect_properties: MQTTConnectProps = field(default_factory=MQTTConnectProps)
 
 
 class Session:
@@ -129,7 +129,7 @@ class Session:
         This will handle topic aliasing if the server supports it."""
         lookup = self.topic_alias.lookup_outbound(packet.topic, alias_policy)
         if lookup.alias > 0:
-            packet.properties["TopicAlias"] = lookup.alias
+            packet.properties.TopicAlias = lookup.alias
             if lookup.existed:
                 packet.topic = ""
         self._send_packet(packet)
@@ -141,16 +141,16 @@ class Session:
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
         with self._lock:
             self.topic_alias.reset()
-            if "ReceiveMaximum" in packet.properties:
-                self.server_receive_maximum = packet.properties["ReceiveMaximum"]
+            if packet.properties.ReceiveMaximum is not None:
+                self.server_receive_maximum = packet.properties.ReceiveMaximum
             else:
                 self.server_receive_maximum = MAX_PACKET_ID - 1
-            if "TopicAliasMaximum" in packet.properties:
-                self.topic_alias.max_out_alias = packet.properties["TopicAliasMaximum"]
+            if packet.properties.TopicAliasMaximum is not None:
+                self.topic_alias.max_out_alias = packet.properties.TopicAliasMaximum
             else:
                 self.topic_alias.max_out_alias = 0
-            if "AssignedClientIdentifier" in packet.properties:
-                client_id = packet.properties["AssignedClientIdentifier"]
+            if packet.properties.AssignedClientIdentifier:
+                client_id = packet.properties.AssignedClientIdentifier
             else:
                 client_id = self.params.client_id
             if not client_id:
@@ -238,10 +238,10 @@ class Session:
         if self.auth_callback is not None:
             self.auth_callback(
                 packet.reason_code,
-                packet.properties.get("AuthenticationMethod"),
-                packet.properties.get("AuthenticationData"),
-                packet.properties.get("ReasonString"),
-                packet.properties.get("UserProperty"),
+                packet.properties.AuthenticationMethod,
+                packet.properties.AuthenticationData,
+                packet.properties.ReasonString,
+                packet.properties.UserProperty,
             )
 
     def connect(self, params: ConnectParams) -> None:
@@ -263,10 +263,11 @@ class Session:
         *,
         qos: int = 0,
         retain: bool = False,
-        properties: MQTTPropertyDict | None = None,
+        properties: MQTTPublishProps | None = None,
         alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
         """Publish a message to a topic."""
+        properties = properties if properties is not None else MQTTPublishProps()
         if qos > 0:
             if alias_policy == AliasPolicy.ALWAYS:
                 raise ValueError("AliasPolicy.ALWAYS is not allowed for QoS > 0")
@@ -303,7 +304,7 @@ class Session:
                 self._next_packet_ids[packet_type] = 1
             return packet_id
 
-    def subscribe(self, topic: str, share_name: str | None, qos: int = 2, properties: MQTTPropertyDict | None = None) -> None:
+    def subscribe(self, topic: str, share_name: str | None, qos: int = 2, properties: MQTTSubscribeProps | None = None) -> None:
         """Subscribe to a single topic."""
         if share_name is not None:
             topic = join_share(topic, share_name)
@@ -312,11 +313,11 @@ class Session:
         packet = MQTTSubscribePacket(
             packet_id=packet_id,
             topics=topics,
-            properties=properties if properties is not None else {},
+            properties=properties if properties is not None else MQTTSubscribeProps(),
         )
         self._send_packet(packet)
 
-    def unsubscribe(self, topic: str, share_name: str | None, properties: MQTTPropertyDict | None = None) -> None:
+    def unsubscribe(self, topic: str, share_name: str | None, properties: MQTTUnsubscribeProps | None = None) -> None:
         """Unsubscribe from a single topic."""
         if share_name is not None:
             topic = join_share(topic, share_name)
@@ -325,7 +326,7 @@ class Session:
         packet = MQTTUnsubscribePacket(
             packet_id=packet_id,
             topics=topics,
-            properties=properties if properties is not None else {},
+            properties=properties if properties is not None else MQTTUnsubscribeProps(),
         )
         self._send_packet(packet)
 
@@ -339,15 +340,15 @@ class Session:
         reason_code: int = MQTTReasonCode.Success,
     ) -> None:
         """Send an AUTH packet to the server."""
-        properties: MQTTPropertyDict = {}
+        properties = MQTTAuthProps()
         if authentication_method is not None:
-            properties["AuthenticationMethod"] = authentication_method
+            properties.AuthenticationMethod = authentication_method
         if authentication_data is not None:
-            properties["AuthenticationData"] = authentication_data
+            properties.AuthenticationData = authentication_data
         if reason_string is not None:
-            properties["ReasonString"] = reason_string
+            properties.ReasonString = reason_string
         if user_properties is not None:
-            properties["UserProperty"] = user_properties
+            properties.UserProperty = user_properties
         packet = MQTTAuthPacket(
             reason_code=reason_code,
             properties=properties,

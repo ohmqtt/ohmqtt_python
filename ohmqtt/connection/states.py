@@ -184,8 +184,8 @@ class MQTTHandshakeConnAckState(FSMState):
             packet = cast(MQTTConnAckPacket, packet)
             logger.debug(f"<--- {str(packet)}")
             env.open_callback(packet)
-            if "ServerKeepAlive" in packet.properties:
-                state_data.keepalive.keepalive_interval = packet.properties["ServerKeepAlive"]
+            if packet.properties.ServerKeepAlive is not None:
+                state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
             fsm.change_state(ConnectedState)
             return True
         else:

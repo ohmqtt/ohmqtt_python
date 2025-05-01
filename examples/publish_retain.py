@@ -4,7 +4,7 @@
 from queue import Queue
 
 from ohmqtt.client import Client
-from ohmqtt.message import MQTTMessage
+from ohmqtt.packet import MQTTPublishPacket
 
 
 def main() -> None:
@@ -17,8 +17,8 @@ def main() -> None:
         pub = client.publish("ohmqtt/examples/publish_retain", b"test_payload", qos=1, retain=True)
         assert pub.wait_for_ack()
 
-        q: Queue[MQTTMessage] = Queue()
-        def callback(_: Client, msg: MQTTMessage) -> None:
+        q: Queue[MQTTPublishPacket] = Queue()
+        def callback(_: Client, msg: MQTTPublishPacket) -> None:
             q.put(msg)
         client.subscribe("ohmqtt/examples/publish_retain", qos=1, callback=callback)
         msg = q.get(timeout=5.0)

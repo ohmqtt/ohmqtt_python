@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Final, Mapping
+import sys
+from typing import ClassVar, Final, Mapping, Type, TypeAlias
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 from .base import MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import MQTTPacketType, MQTTPacketTypeReverse, MQTTReasonCode
 from ..property import (
-    MQTTPropertyDict,
-    decode_properties,
-    encode_properties,
-    validate_properties,
+    MQTTProperties,
+    MQTTPublishProps,
+    MQTTPubAckProps,
+    MQTTPubRecProps,
+    MQTTPubRelProps,
+    MQTTPubCompProps,
 )
 from ..serialization import (
     encode_string,
@@ -42,12 +50,13 @@ FLAGS_PUBACKS: Final[Mapping[int, int]] = {
 @dataclass(match_args=True, slots=True)
 class MQTTPublishPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBLISH
+    props_type = MQTTPublishProps
     topic: str = ""
     payload: bytes = b""
     qos: int = 0
     retain: bool = False
     packet_id: int = 0
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTPublishProps = field(default_factory=MQTTPublishProps)
     dup: bool = False
 
     def __str__(self) -> str:
@@ -67,7 +76,7 @@ class MQTTPublishPacket(MQTTPacket):
         if self.qos > 0:
             encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
         if self.properties:
-            encoded.extend(encode_properties(self.properties))
+            encoded.extend(self.properties.encode())
         else:
             encoded.append(0)
         encoded.extend(self.payload)
@@ -90,9 +99,7 @@ class MQTTPublishPacket(MQTTPacket):
             offset += 2
         else:
             packet_id = 0
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.PUBLISH)
+        props, props_length = MQTTPublishProps.decode(data[offset:])
         offset += props_length
         payload = data[offset:].tobytes("A")
         return MQTTPublishPacket(
@@ -106,12 +113,60 @@ class MQTTPublishPacket(MQTTPacket):
         )
 
 
+def _encode_pubacklike(packet: PubAckLikeT) -> bytes:
+    """Encode a PUBACK-like packet."""
+    head = HEAD_PUBACKS[packet.packet_type]
+    encoded = bytearray(packet.packet_id.to_bytes(2, byteorder="big"))
+    if packet.reason_code != MQTTReasonCode.Success:
+        encoded.append(packet.reason_code)
+    if packet.properties:
+        encoded.extend(packet.properties.encode())
+    encoded[0:0] = encode_varint(len(encoded))
+    encoded.insert(0, head)
+    return bytes(encoded)
+
+
+def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> tuple[int, int, PubAckLikePropsT]:
+    """Decode a PUBACK, PUBREC, PUBREL, or PUBCOMP packet."""
+    if flags != FLAGS_PUBACKS[cls.packet_type]:
+        raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode.MalformedPacket)
+    # We will be kludging some types to make this work.
+    PropsT = cls.props_type
+
+    offset = 0
+    packet_id, packet_id_length = decode_uint16(data[offset:])
+    offset += packet_id_length
+    if offset == len(data):
+        # Reason code and properties are optional.
+        return cls(
+            packet_id,
+            MQTTReasonCode.Success,
+            PropsT(),  # type: ignore
+        )
+    reason_code, reason_code_length = decode_uint8(data[offset:])
+    offset += reason_code_length
+    if offset == len(data):
+        # Properties alone may be omitted.
+        return cls(
+            packet_id,
+            reason_code,
+            PropsT(),  # type: ignore
+        )
+    props, _ = PropsT.decode(data[offset:])
+    return cls(
+        packet_id,
+        reason_code,
+        props,  # type: ignore
+    )
+
+
 @dataclass(match_args=True, slots=True)
 class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBACK
+    props_type: ClassVar[Type[MQTTProperties]] = MQTTPubAckProps
     packet_id: int
     reason_code: int = MQTTReasonCode.Success
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTPubAckProps = field(default_factory=MQTTPubAckProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -122,48 +177,84 @@ class MQTTPubAckPacket(MQTTPacket):
         return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
-        head = HEAD_PUBACKS[self.packet_type]
-        encoded = bytearray(self.packet_id.to_bytes(2, byteorder="big"))
-        if self.reason_code != MQTTReasonCode.Success:
-            encoded.append(self.reason_code)
-        if self.properties:
-            encoded.extend(encode_properties(self.properties))
-        encoded[0:0] = encode_varint(len(encoded))
-        encoded.insert(0, head)
-        return bytes(encoded)
-    
+        return _encode_pubacklike(self)
+
     @classmethod
-    def decode(cls, flags: int, data: memoryview) -> MQTTPubAckPacket:
-        if flags != FLAGS_PUBACKS[cls.packet_type]:
-            raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode.MalformedPacket)
-
-        offset = 0
-        packet_id, packet_id_length = decode_uint16(data[offset:])
-        offset += packet_id_length
-        if offset == len(data):
-            # Reason code and properties are optional.
-            return cls(packet_id, MQTTReasonCode.Success, {})
-        reason_code, reason_code_length = decode_uint8(data[offset:])
-        offset += reason_code_length
-        if offset == len(data):
-            # Properties alone may be omitted.
-            return cls(packet_id, reason_code, {})
-        props, _ = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, cls.packet_type)
-        return cls(packet_id, reason_code, props)
+    def decode(cls, flags: int, data: memoryview) -> Self:
+        return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
 @dataclass(match_args=True, slots=True)
-class MQTTPubRecPacket(MQTTPubAckPacket):
+class MQTTPubRecPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBREC
+    props_type = MQTTPubRecProps
+    packet_id: int
+    reason_code: int = MQTTReasonCode.Success
+    properties: MQTTPubRecProps = field(default_factory=MQTTPubRecProps)
+
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={hex(self.reason_code)}",
+            f"properties={self.properties}",
+        ]
+        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+
+    def encode(self) -> bytes:
+        return _encode_pubacklike(self)
+
+    @classmethod
+    def decode(cls, flags: int, data: memoryview) -> Self:
+        return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
 @dataclass(match_args=True, slots=True)
-class MQTTPubRelPacket(MQTTPubAckPacket):
+class MQTTPubRelPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBREL
+    props_type = MQTTPubRelProps
+    packet_id: int
+    reason_code: int = MQTTReasonCode.Success
+    properties: MQTTPubRelProps = field(default_factory=MQTTPubRelProps)
+
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={hex(self.reason_code)}",
+            f"properties={self.properties}",
+        ]
+        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+
+    def encode(self) -> bytes:
+        return _encode_pubacklike(self)
+
+    @classmethod
+    def decode(cls, flags: int, data: memoryview) -> Self:
+        return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
 @dataclass(match_args=True, slots=True)
-class MQTTPubCompPacket(MQTTPubAckPacket):
+class MQTTPubCompPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBCOMP
+    props_type = MQTTPubCompProps
+    packet_id: int
+    reason_code: int = MQTTReasonCode.Success
+    properties: MQTTPubCompProps = field(default_factory=MQTTPubCompProps)
+
+    def __str__(self) -> str:
+        attrs = [
+            f"packet_id={self.packet_id}",
+            f"reason_code={hex(self.reason_code)}",
+            f"properties={self.properties}",
+        ]
+        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+
+    def encode(self) -> bytes:
+        return _encode_pubacklike(self)
+
+    @classmethod
+    def decode(cls, flags: int, data: memoryview) -> Self:
+        return _decode_pubacklike(cls, flags, data)  # type: ignore
+
+
+PubAckLikeT: TypeAlias = MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubRelPacket | MQTTPubCompPacket
+PubAckLikePropsT: TypeAlias = MQTTPubAckProps | MQTTPubRecProps | MQTTPubRelProps | MQTTPubCompProps

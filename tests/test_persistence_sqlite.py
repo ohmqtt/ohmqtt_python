@@ -5,6 +5,7 @@ import pytest
 
 from ohmqtt.packet import MQTTPublishPacket, MQTTPubRelPacket
 from ohmqtt.persistence.sqlite import SQLitePersistence
+from ohmqtt.property import MQTTPublishProps
 from ohmqtt.topic_alias import AliasPolicy
 
 
@@ -27,7 +28,7 @@ def test_persistence_sqlite_happy_path_qos1(tempdbpath):
         b"test payload",
         qos=1,
         retain=False,
-        properties={"ResponseTopic": "response/topic"},
+        properties=MQTTPublishProps(ResponseTopic="response/topic"),
         alias_policy=AliasPolicy.TRY,
     )
     assert len(persistence) == 1
@@ -41,7 +42,7 @@ def test_persistence_sqlite_happy_path_qos1(tempdbpath):
         payload=b"test payload",
         qos=1,
         retain=False,
-        properties={"ResponseTopic": "response/topic"},
+        properties=MQTTPublishProps(ResponseTopic="response/topic"),
     )
 
     # Render the message, marking it as inflight.
@@ -70,7 +71,7 @@ def test_persistence_sqlite_happy_path_qos2(tempdbpath):
         b"test payload",
         qos=2,
         retain=False,
-        properties={"ResponseTopic": "response/topic"},
+        properties=MQTTPublishProps(ResponseTopic="response/topic"),
         alias_policy=AliasPolicy.TRY,
     )
     assert len(persistence) == 1
@@ -84,7 +85,7 @@ def test_persistence_sqlite_happy_path_qos2(tempdbpath):
         payload=b"test payload",
         qos=2,
         retain=False,
-        properties={"ResponseTopic": "response/topic"},
+        properties=MQTTPublishProps(ResponseTopic="response/topic"),
     )
 
     # Render the message, marking it as inflight.
@@ -130,7 +131,7 @@ def test_persistence_sqlite_open(tempdbpath):
         payload=b"test payload",
         qos=1,
         retain=False,
-        properties={"ResponseTopic": "response/topic"},
+        properties=MQTTPublishProps(ResponseTopic="response/topic"),
     )
     persistence.add(
         topic=packet.topic,
@@ -179,13 +180,13 @@ def test_persistence_sqlite_properties():
         payload=b"test payload",
         qos=1,
         retain=False,
-        properties={
-            "ResponseTopic": "response/topic",
-            "CorrelationData": b"correlation data",
-            "MessageExpiryInterval": 60,
-            "UserProperty": [("key", "value")],
-            "SubscriptionIdentifier": {123},
-        },
+        properties=MQTTPublishProps(
+            ResponseTopic="response/topic",
+            CorrelationData=b"correlation data",
+            MessageExpiryInterval=60,
+            UserProperty=[("key", "value")],
+            SubscriptionIdentifier={123},
+        ),
     )
     persistence.add(
         topic=packet.topic,
@@ -214,7 +215,7 @@ def test_persistence_sqlite_loose_alias():
         payload=b"test payload",
         qos=1,
         retain=False,
-        properties={},
+        properties=MQTTPublishProps(),
     )
     with pytest.raises(AssertionError):
         persistence.add(

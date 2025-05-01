@@ -8,10 +8,10 @@ from .base import MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import MQTTReasonCode, MQTTPacketType
 from ..property import (
-    MQTTPropertyDict,
-    decode_properties,
-    encode_properties,
-    validate_properties,
+    MQTTConnectProps,
+    MQTTConnAckProps,
+    MQTTDisconnectProps,
+    MQTTWillProps,
 )
 from ..serialization import (
     encode_string,
@@ -36,18 +36,19 @@ HEAD_DISCONNECT = MQTTPacketType.DISCONNECT << 4
 @dataclass(match_args=True, slots=True)
 class MQTTConnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNECT
+    props_type = MQTTConnectProps
     client_id: str = ""
     keep_alive: int = 0
     protocol_version: int = 5
     clean_start: bool = False
-    will_props: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    will_props: MQTTWillProps = field(default_factory=MQTTWillProps)
     will_topic: str = ""
     will_payload: bytes = b""
     will_qos: int = 0
     will_retain: bool = False
     username: str | None = None
     password: bytes | None = None
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTConnectProps = field(default_factory=MQTTConnectProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -76,7 +77,7 @@ class MQTTConnectPacket(MQTTPacket):
         payload = bytearray()
         payload.extend(encode_string(self.client_id))
         if self.will_topic:
-            payload.extend(encode_properties(self.will_props) + encode_string(self.will_topic) + encode_binary(self.will_payload))
+            payload.extend(self.will_props.encode() + encode_string(self.will_topic) + encode_binary(self.will_payload))
             connect_flags += 0x04
         if self.username is not None:
             payload.extend(encode_string(self.username))
@@ -90,7 +91,7 @@ class MQTTConnectPacket(MQTTPacket):
             encode_uint8(self.protocol_version),
             encode_uint8(connect_flags),
             encode_uint16(self.keep_alive),
-            encode_properties(self.properties),
+            self.properties.encode(),
             payload,
         ))
         head = HEAD_CONNECT
@@ -132,25 +133,21 @@ class MQTTConnectPacket(MQTTPacket):
         keep_alive, sz = decode_uint16(data[offset:])
         offset += sz
 
-        props, sz = decode_properties(data[offset:])
+        props, sz = MQTTConnectProps.decode(data[offset:])
         offset += sz
-        if props:
-            validate_properties(props, MQTTPacketType.CONNECT)
 
         client_id, sz = decode_string(data[offset:])
         offset += sz
 
         if will_flag:
-            will_props, sz = decode_properties(data[offset:])
+            will_props, sz = MQTTWillProps.decode(data[offset:])
             offset += sz
-            if will_props:
-                validate_properties(will_props, is_will=True)
             will_topic, sz = decode_string(data[offset:])
             offset += sz
             will_payload, sz = decode_binary(data[offset:])
             offset += sz
         else:
-            will_props = {}
+            will_props = MQTTWillProps()
             will_topic = ""
             will_payload = b""
         
@@ -185,9 +182,10 @@ class MQTTConnectPacket(MQTTPacket):
 @dataclass(match_args=True, slots=True)
 class MQTTConnAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNACK
+    props_type = MQTTConnAckProps
     reason_code: int = MQTTReasonCode.Success
     session_present: bool = False
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTConnAckProps = field(default_factory=MQTTConnAckProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -199,7 +197,7 @@ class MQTTConnAckPacket(MQTTPacket):
     
     def encode(self) -> bytes:
         head = HEAD_CONNACK
-        data = encode_bool(self.session_present) + encode_uint8(self.reason_code) + encode_properties(self.properties)
+        data = encode_bool(self.session_present) + encode_uint8(self.reason_code) + self.properties.encode()
         length = encode_varint(len(data))
         return b"".join((bytes([head]), length, data))
 
@@ -210,15 +208,16 @@ class MQTTConnAckPacket(MQTTPacket):
 
         session_present, _ = decode_bool(data[0:])
         reason_code, _ = decode_uint8(data[1:])
-        props, props_sz = decode_properties(data[2:])
+        props, props_sz = MQTTConnAckProps.decode(data[2:])
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
 
 @dataclass(match_args=True, slots=True)
 class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.DISCONNECT
+    props_type = MQTTDisconnectProps
     reason_code: int = MQTTReasonCode.Success
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTDisconnectProps = field(default_factory=MQTTDisconnectProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -233,7 +232,7 @@ class MQTTDisconnectPacket(MQTTPacket):
             return HEAD_DISCONNECT.to_bytes(1, "big") + b"\x00"
         encoded = bytearray()
         encoded.append(HEAD_DISCONNECT)
-        props = encode_properties(self.properties)
+        props = self.properties.encode()
         length = 1 + len(props)
         encoded.extend(encode_varint(length))
         encoded.append(self.reason_code)
@@ -248,7 +247,5 @@ class MQTTDisconnectPacket(MQTTPacket):
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
         reason_code, sz = decode_uint8(data)
-        props, props_sz = decode_properties(data[sz:])
-        if props:
-            validate_properties(props, MQTTPacketType.DISCONNECT)
+        props, props_sz = MQTTDisconnectProps.decode(data[sz:])
         return MQTTDisconnectPacket(reason_code, properties=props)

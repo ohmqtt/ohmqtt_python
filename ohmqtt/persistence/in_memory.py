@@ -6,9 +6,9 @@ import weakref
 
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
-from ..mqtt_spec import MQTTReasonCode, MAX_PACKET_ID
+from ..mqtt_spec import MAX_PACKET_ID
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
-from ..property import MQTTPropertyDict
+from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.in_memory")
@@ -22,7 +22,7 @@ class RetainedMessage:
     packet_id: int
     qos: int
     retain: bool
-    properties: MQTTPropertyDict
+    properties: MQTTPublishProps
     dup: bool
     received: bool
     handle: weakref.ReferenceType[ReliablePublishHandle]
@@ -50,7 +50,7 @@ class InMemoryPersistence(Persistence):
         payload: bytes,
         qos: int,
         retain: bool,
-        properties: MQTTPropertyDict | None,
+        properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
         assert alias_policy != AliasPolicy.ALWAYS, "AliasPolicy must not be ALWAYS for retained messages."
@@ -105,10 +105,7 @@ class InMemoryPersistence(Persistence):
         msg = self._messages[packet_id]
         if msg.received:
             alias_policy = AliasPolicy.NEVER
-            packet = MQTTPubRelPacket(
-                packet_id=msg.packet_id,
-                reason_code=MQTTReasonCode.Success,
-            )
+            packet = MQTTPubRelPacket(packet_id=msg.packet_id)
         else:
             alias_policy = msg.alias_policy
             packet = MQTTPublishPacket(

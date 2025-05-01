@@ -8,10 +8,9 @@ import weakref
 from .topic_alias import AliasPolicy
 from .connection import Address, ConnectParams
 from .logger import get_logger
-from .message import MQTTMessage, MQTTMessageProps
 from .mqtt_spec import MQTTReasonCode
 from .packet import MQTTConnAckPacket, MQTTPublishPacket
-from .property import MQTTPropertyDict
+from .property import MQTTConnectProps, MQTTPublishProps, MQTTSubscribeProps, MQTTWillProps
 from .persistence.base import PublishHandle
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback, SubscriptionHandle
@@ -74,8 +73,8 @@ class Client:
         will_payload: bytes = b"",
         will_qos: int = 0,
         will_retain: bool = False,
-        will_properties: MQTTMessageProps | None = None,
-        connect_properties: MQTTMessageProps | None = None,
+        will_properties: MQTTWillProps | None = None,
+        connect_properties: MQTTConnectProps | None = None,
     ) -> None:
         """Connect to the broker."""
         self.session.connect(ConnectParams(
@@ -91,8 +90,8 @@ class Client:
             will_payload=will_payload,
             will_qos=will_qos,
             will_retain=will_retain,
-            will_properties=will_properties.to_dict() if will_properties is not None else MQTTPropertyDict(),
-            connect_properties=connect_properties.to_dict() if connect_properties is not None else MQTTPropertyDict(),
+            will_properties=will_properties if will_properties is not None else MQTTWillProps(),
+            connect_properties=connect_properties if connect_properties is not None else MQTTConnectProps(),
         ))
 
     def disconnect(self) -> None:
@@ -124,17 +123,17 @@ class Client:
         *,
         qos: int = 0,
         retain: bool = False,
-        properties: MQTTMessageProps | None = None,
+        properties: MQTTPublishProps | None = None,
         alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
         """Publish a message to a topic."""
-        property_dict = properties.to_dict() if properties is not None else None
+        properties = properties if properties is not None else None
         return self.session.publish(
             topic,
             payload,
             qos=qos,
             retain=retain,
-            properties=property_dict,
+            properties=properties,
             alias_policy=alias_policy,
         )
     
@@ -143,7 +142,7 @@ class Client:
         topic_filter: str,
         callback: SubscribeCallback,
         qos: int = 2,
-        properties: MQTTPropertyDict | None = None,
+        properties: MQTTSubscribeProps | None = None,
         share_name: str | None = None,
     ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
@@ -197,20 +196,11 @@ class Client:
         if not callbacks:
             logger.debug(f"No callbacks for topic: {packet.topic}")
             return
-        message = MQTTMessage(
-            topic=packet.topic,
-            payload=packet.payload,
-            qos=packet.qos,
-            packet_id=packet.packet_id,
-            retain=packet.retain,
-            dup=packet.dup,
-            properties=MQTTMessageProps.from_dict(packet.properties),
-        )
         for callback in callbacks:
             try:
-                callback(self, message)
+                callback(self, packet)
             except Exception:
-                logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {message.topic}")
+                logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {packet.topic}")
 
     def _handle_open(self, connack: MQTTConnAckPacket) -> None:
         """Callback for when the connection is opened."""

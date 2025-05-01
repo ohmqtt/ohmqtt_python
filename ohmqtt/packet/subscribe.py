@@ -9,10 +9,10 @@ from .base import MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 from ..property import (
-    MQTTPropertyDict,
-    encode_properties,
-    decode_properties,
-    validate_properties,
+    MQTTSubscribeProps,
+    MQTTSubAckProps,
+    MQTTUnsubscribeProps,
+    MQTTUnsubAckProps,
 )
 from ..serialization import (
     encode_uint8,
@@ -33,9 +33,10 @@ HEAD_UNSUBACK = MQTTPacketType.UNSUBACK << 4
 @dataclass(match_args=True, slots=True)
 class MQTTSubscribePacket(MQTTPacket):
     packet_type = MQTTPacketType.SUBSCRIBE
+    props_type = MQTTSubscribeProps
     topics: Sequence[tuple[str, int]] = field(default_factory=tuple)
     packet_id: int = 0
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTSubscribeProps = field(default_factory=MQTTSubscribeProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -49,7 +50,7 @@ class MQTTSubscribePacket(MQTTPacket):
         encoded = bytearray()
         encoded.append(HEAD_SUBSCRIBE)
         data = encode_uint16(self.packet_id)
-        data += encode_properties(self.properties)
+        data += self.properties.encode()
         for topic, subscribe_opts in self.topics:
             data += encode_string(topic) + encode_uint8(subscribe_opts)
         encoded.extend(encode_varint(len(data)))
@@ -63,9 +64,7 @@ class MQTTSubscribePacket(MQTTPacket):
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.SUBSCRIBE)
+        props, props_length = MQTTSubscribeProps.decode(data[offset:])
         offset += props_length
         topics = []
         while offset < len(data):
@@ -80,9 +79,10 @@ class MQTTSubscribePacket(MQTTPacket):
 @dataclass(match_args=True, slots=True)
 class MQTTSubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.SUBACK
+    props_type = MQTTSubAckProps
     packet_id: int
     reason_codes: Sequence[int] = field(default_factory=tuple)
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTSubAckProps = field(default_factory=MQTTSubAckProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -96,7 +96,7 @@ class MQTTSubAckPacket(MQTTPacket):
         encoded = bytearray()
         encoded.append(HEAD_SUBACK)
         length = 2 + len(self.reason_codes)
-        props = encode_properties(self.properties)
+        props = self.properties.encode()
         length += len(props)
         encoded.extend(encode_varint(length))
         encoded.extend(encode_uint16(self.packet_id))
@@ -112,9 +112,7 @@ class MQTTSubAckPacket(MQTTPacket):
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.SUBACK)
+        props, props_length = MQTTSubAckProps.decode(data[offset:])
         offset += props_length
         reason_codes = [b for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
@@ -123,9 +121,10 @@ class MQTTSubAckPacket(MQTTPacket):
 @dataclass(match_args=True, slots=True)
 class MQTTUnsubscribePacket(MQTTPacket):
     packet_type = MQTTPacketType.UNSUBSCRIBE
+    props_type = MQTTUnsubscribeProps
     topics: Sequence[str] = field(default_factory=tuple)
     packet_id: int = 0
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTUnsubscribeProps = field(default_factory=MQTTUnsubscribeProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -138,7 +137,7 @@ class MQTTUnsubscribePacket(MQTTPacket):
     def encode(self) -> bytes:
         encoded = bytearray()
         encoded.append(HEAD_UNSUBSCRIBE)
-        data = encode_uint16(self.packet_id) + encode_properties(self.properties)
+        data = encode_uint16(self.packet_id) + self.properties.encode()
         for topic in self.topics:
             data += encode_string(topic)
         encoded.extend(encode_varint(len(data)))
@@ -152,9 +151,7 @@ class MQTTUnsubscribePacket(MQTTPacket):
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.UNSUBSCRIBE)
+        props, props_length = MQTTUnsubscribeProps.decode(data[offset:])
         offset += props_length
         topics = []
         while offset < len(data):
@@ -167,9 +164,10 @@ class MQTTUnsubscribePacket(MQTTPacket):
 @dataclass(match_args=True, slots=True)
 class MQTTUnsubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.UNSUBACK
+    props_type = MQTTUnsubAckProps
     packet_id: int
     reason_codes: Sequence[int] = field(default_factory=tuple)
-    properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    properties: MQTTUnsubAckProps = field(default_factory=MQTTUnsubAckProps)
 
     def __str__(self) -> str:
         attrs = [
@@ -182,7 +180,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
     def encode(self) -> bytes:
         encoded = bytearray()
         encoded.append(HEAD_UNSUBACK)
-        data = encode_uint16(self.packet_id) + encode_properties(self.properties)
+        data = encode_uint16(self.packet_id) + self.properties.encode()
         for reason_code in self.reason_codes:
             data += encode_uint8(reason_code)
         encoded.extend(encode_varint(len(data)))
@@ -196,9 +194,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
         offset = 0
         packet_id, packet_id_length = decode_uint16(data[offset:])
         offset += packet_id_length
-        props, props_length = decode_properties(data[offset:])
-        if props:
-            validate_properties(props, MQTTPacketType.UNSUBACK)
+        props, props_length = MQTTUnsubAckProps.decode(data[offset:])
         offset += props_length
         reason_codes = [b for b in data[offset:]]
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)

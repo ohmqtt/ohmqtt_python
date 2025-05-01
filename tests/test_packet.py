@@ -1,10 +1,11 @@
 import pytest
 
 from ohmqtt.error import MQTTError
-from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTPropertyId, MQTTPropertyIdStrings
+from ohmqtt.mqtt_spec import MQTTPacketType, MQTTReasonCode, MQTTPropertyId, MQTTPropertyIdStrings
 from ohmqtt.packet import (
     decode_packet,
     decode_packet_from_parts,
+    MQTTPacket,
     MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTPublishPacket,
@@ -21,12 +22,48 @@ from ohmqtt.packet import (
     MQTTDisconnectPacket,
     MQTTAuthPacket,
 )
-from ohmqtt.property import MQTTPropertyDict
+from ohmqtt.property import (
+    MQTTProperties,
+    MQTTConnectProps,
+    MQTTConnAckProps,
+    MQTTPublishProps,
+    MQTTPubAckProps,
+    MQTTPubRecProps,
+    MQTTPubRelProps,
+    MQTTPubCompProps,
+    MQTTSubscribeProps,
+    MQTTSubAckProps,
+    MQTTUnsubscribeProps,
+    MQTTUnsubAckProps,
+    MQTTDisconnectProps,
+    MQTTAuthProps,
+    MQTTWillProps,
+)
 
 
-def extract_props(data) -> MQTTPropertyDict:
+PacketToProps = {
+    MQTTPacketType.CONNECT: MQTTConnectProps,
+    MQTTPacketType.CONNACK: MQTTConnAckProps,
+    MQTTPacketType.PUBLISH: MQTTPublishProps,
+    MQTTPacketType.PUBACK: MQTTPubAckProps,
+    MQTTPacketType.PUBREC: MQTTPubRecProps,
+    MQTTPacketType.PUBREL: MQTTPubRelProps,
+    MQTTPacketType.PUBCOMP: MQTTPubCompProps,
+    MQTTPacketType.SUBSCRIBE: MQTTSubscribeProps,
+    MQTTPacketType.SUBACK: MQTTSubAckProps,
+    MQTTPacketType.UNSUBSCRIBE: MQTTUnsubscribeProps,
+    MQTTPacketType.UNSUBACK: MQTTUnsubAckProps,
+    MQTTPacketType.DISCONNECT: MQTTDisconnectProps,
+    MQTTPacketType.AUTH: MQTTAuthProps,
+}
+
+
+def extract_props(cls: MQTTPacket, data, props_t=None) -> MQTTProperties:
     """Helper for extracting properties from test data."""
-    props: MQTTPropertyDict = {}
+    if props_t is None:
+        props = cls.props_type()
+    else:
+        props = props_t()
     for prop in data:
         k = prop[0]
         prop_key = MQTTPropertyIdStrings[k]
@@ -38,18 +75,20 @@ def extract_props(data) -> MQTTPropertyDict:
             prop_value = [tuple([pk, pv]) for pk, pv in prop[1:]]
         else:
             prop_value = prop[1]
-        props[k] = prop_value
+        setattr(props, k, prop_value)
     return props
 
 
-def extract_args(data, binary_args):
+def extract_args(cls, data, binary_args):
     """Helper for extracting arguments from test data."""
     args = {}
     for k, v in data.items():
         if k in binary_args:
             args[k] = bytes.fromhex(v)
-        elif k in ("properties", "will_props"):
-            args[k] = extract_props(v)
+        elif k == "properties":
+            args[k] = extract_props(cls, v)
+        elif k == "will_props":
+            args[k] = extract_props(cls, v, MQTTWillProps)
         else:
             args[k] = v
     return args
@@ -57,7 +96,7 @@ def extract_args(data, binary_args):
 
 def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
     for case in test_data:
-        args = extract_args(case["args"], binary_args)
+        args = extract_args(cls, case["args"], binary_args)
         if transform_args is not None:
             transform_args(args)
         packet = cls(**args)
@@ -73,6 +112,7 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
         assert packet == decoded
         assert packet != b"not a packet"
         assert str(packet) == str(decoded)
+        assert repr(packet) == repr(decoded)
         assert not hasattr(packet, "__dict__")
         assert all(hasattr(packet, attr) for attr in packet.__slots__)
         with pytest.raises(TypeError):

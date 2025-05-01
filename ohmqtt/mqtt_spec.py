@@ -59,10 +59,43 @@ class MQTTPropertyId:
     SubscriptionIdentifierAvailable = 0x29
     SharedSubscriptionAvailable = 0x2a
 
+
+class MQTTPropertyName:
+    PayloadFormatIndicator = "PayloadFormatIndicator"
+    MessageExpiryInterval = "MessageExpiryInterval"
+    ContentType = "ContentType"
+    ResponseTopic = "ResponseTopic"
+    CorrelationData = "CorrelationData"
+    SubscriptionIdentifier = "SubscriptionIdentifier"
+    SessionExpiryInterval = "SessionExpiryInterval"
+    AssignedClientIdentifier = "AssignedClientIdentifier"
+    ServerKeepAlive = "ServerKeepAlive"
+    AuthenticationMethod = "AuthenticationMethod"
+    AuthenticationData = "AuthenticationData"
+    RequestProblemInformation = "RequestProblemInformation"
+    WillDelayInterval = "WillDelayInterval"
+    RequestResponseInformation = "RequestResponseInformation"
+    ResponseInformation = "ResponseInformation"
+    ServerReference = "ServerReference"
+    ReasonString = "ReasonString"
+    ReceiveMaximum = "ReceiveMaximum"
+    TopicAliasMaximum = "TopicAliasMaximum"
+    TopicAlias = "TopicAlias"
+    MaximumQoS = "MaximumQoS"
+    RetainAvailable = "RetainAvailable"
+    UserProperty = "UserProperty"
+    MaximumPacketSize = "MaximumPacketSize"
+    WildcardSubscriptionAvailable = "WildcardSubscriptionAvailable"
+    SubscriptionIdentifierAvailable = "SubscriptionIdentifierAvailable"
+    SharedSubscriptionAvailable = "SharedSubscriptionAvailable"
+
+
 MQTTPropertyIdStrings: Final[Mapping[str, int]] = {
     k: int(getattr(MQTTPropertyId, k)) for k in MQTTPropertyId.__dict__ if not k.startswith("__")
 }
-MQTTPropertyIdReverse: Final[Mapping[int, str]] = {v: k for k, v in MQTTPropertyIdStrings.items()}
+MQTTPropertyIdReverse: Final[Mapping[int, str]] = {
+    int(getattr(MQTTPropertyId, k)): k for k in MQTTPropertyId.__dict__ if not k.startswith("__")
+}
 
 
 # Indicates the result of an operation.

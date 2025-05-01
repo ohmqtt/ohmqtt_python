@@ -12,7 +12,7 @@ from .keepalive import KeepAlive
 from .selector import InterruptibleSelector
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import MQTTPacket, MQTTConnAckPacket
-from ..property import MQTTPropertyDict
+from ..property import MQTTConnectProps, MQTTWillProps
 
 
 ConnectionCloseCallback = Callable[[], None]
@@ -42,8 +42,8 @@ class ConnectParams:
     will_payload: bytes = b""
     will_qos: int = 0
     will_retain: bool = False
-    will_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
-    connect_properties: MQTTPropertyDict = field(default_factory=lambda: MQTTPropertyDict())
+    will_properties: MQTTWillProps = field(default_factory=MQTTWillProps)
+    connect_properties: MQTTConnectProps = field(default_factory=MQTTConnectProps)
 
 
 @dataclass(kw_only=True, slots=True)

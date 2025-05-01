@@ -3,7 +3,7 @@ import threading
 from typing import ClassVar, NamedTuple, Sequence
 
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
-from ..property import MQTTPropertyDict
+from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
 
 
@@ -81,7 +81,7 @@ class Persistence(metaclass=ABCMeta):
         payload: bytes,
         qos: int,
         retain: bool,
-        properties: MQTTPropertyDict | None,
+        properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
         """Add a PUBLISH message to the persistence store."""

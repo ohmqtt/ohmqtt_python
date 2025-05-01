@@ -20,6 +20,7 @@ from ohmqtt.packet import (
     PING,
     PONG,
 )
+from ohmqtt.property import MQTTConnAckProps
 
 
 class Callbacks:
@@ -203,7 +204,7 @@ def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
         connack_packet = MQTTConnAckPacket(
             session_present=False,
             reason_code=MQTTReasonCode.Success,
-            properties={"ServerKeepAlive": 1},
+            properties=MQTTConnAckProps(ServerKeepAlive=1),
         )
         loopback_socket.test_sendall(connack_packet.encode())
         connection.wait_for_connect(timeout=0.1)
