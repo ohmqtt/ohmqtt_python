@@ -194,7 +194,7 @@ class Client:
         """Callback for when a message is received."""
         callbacks = self.subscriptions.get_callbacks(packet.topic)
         if not callbacks:
-            logger.debug(f"No callbacks for topic: {packet.topic}")
+            logger.error(f"No callbacks for topic: {packet.topic}")
             return
         for callback in callbacks:
             try:
