@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 import select
 import socket
 import ssl
@@ -10,12 +12,16 @@ logger: Final = get_logger("connection.selector")
 SocketLike = socket.socket | ssl.SSLSocket
 
 
+@dataclass(slots=True)
 class InterruptibleSelector:
-    def __init__(self) -> None:
+    interrupt_r: socket.socket = field(init=False)
+    interrupt_w: socket.socket = field(init=False)
+    _in_select: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
         self.interrupt_r, self.interrupt_w = socket.socketpair()
         self.interrupt_r.setblocking(False)
         self.interrupt_w.setblocking(False)
-        self._in_select = False
 
     def drain(self) -> None:
         """Drain the interrupt socket.

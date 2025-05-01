@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import ClassVar, Final, Sequence, Type
 
 from .types import ConnectParams, StateData, StateEnvironment
@@ -9,8 +10,19 @@ from ..threading_lite import ConditionLite
 logger: Final = get_logger("connection.fsm")
 
 
+@dataclass(slots=True, init=False)
 class FSM:
     """Threadsafe Finite State Machine."""
+    env: StateEnvironment
+    previous_state: Type[FSMState]
+    requested_state: Type[FSMState]
+    state: Type[FSMState]
+    cond: ConditionLite
+    params: ConnectParams
+    _state_changed: bool
+    _state_requested: bool
+    _state_data: StateData
+
     def __init__(self, env: StateEnvironment, init_state: Type[FSMState]) -> None:
         self.env = env
         self.previous_state = init_state
@@ -18,7 +30,6 @@ class FSM:
         self.state = init_state
         self.cond = ConditionLite()
         self.params = ConnectParams()
-
         self._state_changed = True
         self._state_requested = False
         self._state_data = StateData()

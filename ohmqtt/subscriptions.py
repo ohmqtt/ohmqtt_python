@@ -45,13 +45,10 @@ class SubscriptionData:
     callbacks: set[SubscribeCallback] = field(init=False, default_factory=set)
 
 
+@dataclass(slots=True)
 class Subscriptions:
     """Container for MQTT subscriptions and their callbacks."""
-    __slots__ = ("_subscriptions",)
-    _subscriptions: dict[SubscriptionId, SubscriptionData]
-
-    def __init__(self) -> None:
-        self._subscriptions = {}
+    _subscriptions: dict[SubscriptionId, SubscriptionData] = field(init=False, default_factory=dict)
 
     def add(self, topic_filter: str, share_name: str | None, qos: int, callback: SubscribeCallback) -> None:
         """Add a subscription with a callback."""
