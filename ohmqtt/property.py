@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Final, Mapping, Sequence, TypedDict
+from types import SimpleNamespace
+from typing import Callable, dataclass_transform, Final, Mapping, Sequence, TypedDict
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTPropertyIdStrings, MQTTPropertyIdReverse, MQTTReasonCode
@@ -56,8 +56,12 @@ class MQTTPropertyDict(TypedDict, total=False):
     SharedSubscriptionAvailable: bool
 
 
-@dataclass(match_args=True, kw_only=True)
-class MQTTProperties:
+@dataclass_transform()
+class _DataclassNamespace(SimpleNamespace):
+    pass  # pragma: no cover
+
+
+class MQTTProperties(_DataclassNamespace):
     """User interface for reading and writing MQTT properties."""
     PayloadFormatIndicator: int | None = None
     MessageExpiryInterval: int | None = None
@@ -90,7 +94,7 @@ class MQTTProperties:
     def to_dict(self) -> MQTTPropertyDict:
         """Convert the properties to a dictionary."""
         # Type ignore required at this conversion point.
-        return {key: value for key, value in self.__dict__.items() if value is not None}  # type: ignore
+        return self.__dict__  # type: ignore
 
     @classmethod
     def from_dict(cls, properties: MQTTPropertyDict) -> MQTTProperties:
@@ -99,7 +103,7 @@ class MQTTProperties:
 
     def __repr__(self) -> str:
         """Return a string representation of the properties."""
-        return f"{self.__class__.__name__}({', '.join(f'{key}={value}' for key, value in self.__dict__.items() if value is not None)})"
+        return f"{self.__class__.__name__}({', '.join(f'{key}={value}' for key, value in self.__dict__.items())})"
     
     def __str__(self) -> str:
         """Return a string representation of the properties."""
