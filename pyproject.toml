@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "MQTT Client"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "typing-extensions>=4.12.2",
+]
 
 [dependency-groups]
 dev = [

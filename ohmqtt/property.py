@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Callable, dataclass_transform, Final, Mapping, Sequence, TypedDict, TypeVar
+from typing import Callable, Final, Mapping, Sequence, TypedDict
+
+from typing_extensions import dataclass_transform, Self
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTPropertyIdStrings, MQTTPropertyIdReverse, MQTTReasonCode
@@ -56,7 +58,6 @@ class MQTTPropertyDict(TypedDict, total=False):
     SharedSubscriptionAvailable: bool
 
 
-MQTTPropertiesBaseT = TypeVar("MQTTPropertiesBaseT", bound="MQTTPropertiesBase")
 @dataclass_transform()
 class MQTTPropertiesBase(SimpleNamespace):
     """Represents MQTT packet properties."""
@@ -66,7 +67,7 @@ class MQTTPropertiesBase(SimpleNamespace):
         return self.__dict__  # type: ignore
 
     @classmethod
-    def from_dict(cls: type[MQTTPropertiesBaseT], properties: MQTTPropertyDict) -> MQTTPropertiesBaseT:
+    def from_dict(cls, properties: MQTTPropertyDict) -> Self:
         """Create a properties object from a dictionary."""
         return cls(**properties)
 
