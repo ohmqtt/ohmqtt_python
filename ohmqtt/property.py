@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 from typing import Callable, Final, Mapping, Sequence, TypedDict
 
-from typing_extensions import dataclass_transform, Self
+if sys.version_info >= (3, 11):
+    from typing import dataclass_transform, Self
+else:
+    from typing_extensions import dataclass_transform, Self
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPacketType, MQTTPropertyIdStrings, MQTTPropertyIdReverse, MQTTReasonCode

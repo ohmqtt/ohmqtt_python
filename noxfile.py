@@ -16,6 +16,7 @@ def tests(session):
         "pytest-mock",
         "pyyaml",
         "ruff",
+        "typing_extensions",
         "typos",
     )
     session.run("ruff", "check")
