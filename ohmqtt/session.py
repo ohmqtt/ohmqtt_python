@@ -277,8 +277,6 @@ class Session:
     ) -> PublishHandle:
         """Publish a message to a topic."""
         properties = properties if properties is not None else MQTTPublishProps()
-        if properties.TopicAlias is not None:
-            raise ValueError("TopicAlias is not allowed in publish properties, use alias_policy instead")
         if qos > 0:
             if alias_policy == AliasPolicy.ALWAYS:
                 raise ValueError("AliasPolicy.ALWAYS is not allowed for QoS > 0")
