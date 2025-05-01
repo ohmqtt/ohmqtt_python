@@ -225,7 +225,7 @@ class Session:
         if self.message_callback is not None:
             if packet.properties.TopicAlias is not None:
                 if packet.topic:
-                    self.topic_alias.add_inbound(packet.properties.TopicAlias, packet.topic)
+                    self.topic_alias.store_inbound(packet.properties.TopicAlias, packet.topic)
                 else:
                     packet.topic = self.topic_alias.lookup_inbound(packet.properties.TopicAlias)
             self.message_callback(packet)
