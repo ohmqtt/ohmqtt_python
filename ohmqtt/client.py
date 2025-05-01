@@ -66,7 +66,6 @@ class Client:
         reconnect_delay: int = 0,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = True,
-        use_tls: bool = False,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
         will_topic: str = "",
@@ -77,13 +76,13 @@ class Client:
         connect_properties: MQTTConnectProps | None = None,
     ) -> None:
         """Connect to the broker."""
+        _address = Address(address)
         self.session.connect(ConnectParams(
-            address=Address(address),
+            address=_address,
             client_id=client_id,
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
             tcp_nodelay=tcp_nodelay,
-            use_tls=use_tls,
             tls_context=tls_context if tls_context is not None else ssl.create_default_context(),
             tls_hostname=tls_hostname,
             will_topic=will_topic,

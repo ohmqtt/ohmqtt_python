@@ -47,11 +47,14 @@ def wait_for(callback, timeout=1.0):
 
 
 @pytest.mark.parametrize(
-    "use_tls, tls_hostname", [(False, ""), (True, "localhost")]
-)
-def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_socket, ssl_client_context, use_tls, tls_hostname):
+    "address, tls_hostname", [
+    ("mqtt://localhost", ""),
+    ("mqtts://localhost", "localhost")
+])
+def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_socket, ssl_client_context, address, tls_hostname):
     """Test the happy path of the Connection class."""
-    if use_tls:
+    addr = Address(address)
+    if addr.use_tls:
         tls_context = ssl_client_context(loopback_tls_socket.cert_pem)
         loopback_tls_socket.test_do_handshake()
         loop = loopback_tls_socket
@@ -65,8 +68,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
         callbacks.read_callback,
     ) as connection:
         connection.connect(ConnectParams(
-            Address("localhost"),
-            use_tls=use_tls,
+            addr,
             tls_hostname=tls_hostname,
             tls_context=tls_context,
             tcp_nodelay=False,
@@ -75,7 +77,7 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
         time.sleep(0.1)  # Wait for potential TLS handshake.
         connect_packet = MQTTConnectPacket()
         assert loop.test_recv(512) == connect_packet.encode()
-        assert loop.connect_calls == [("localhost", 1883)]
+        assert loop.connect_calls == [(addr.host, addr.port)]
 
         connack_packet = MQTTConnAckPacket()
         loop.test_sendall(connack_packet.encode())

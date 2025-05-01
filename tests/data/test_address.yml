@@ -2,15 +2,18 @@ test_address_valid:
   ### IPV4
   # Bare ipv4 hostname
   - address: "localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
   - address: "user@localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
     username: "user"
   - address: "user:pw@localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
@@ -19,15 +22,18 @@ test_address_valid:
 
   # Bare ipv4 hostname with port
   - address: "localhost:1234"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1234
   - address: "user@localhost:1234"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1234
     username: "user"
   - address: "user:pw@localhost:1234"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1234
@@ -36,19 +42,23 @@ test_address_valid:
 
   # Implied scheme ipv4 hostname
   - address: "//localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
   - address: "//localhost:1234"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1234
   - address: "//user@localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
     username: "user"
   - address: "//user:pw@localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
@@ -57,19 +67,23 @@ test_address_valid:
 
   # Explicit mqtt scheme ipv4 hostname
   - address: "mqtt://localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
   - address: "mqtt://localhost:1234"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1234
   - address: "mqtt://user@localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
     username: "user"
   - address: "mqtt://user:pw@localhost"
+    scheme: "mqtt"
     family: "AF_INET"
     host: "localhost"
     port: 1883
@@ -78,37 +92,48 @@ test_address_valid:
 
   # Explicit mqtts scheme ipv4 hostname
   - address: "mqtts://localhost"
+    scheme: "mqtts"
     family: "AF_INET"
     host: "localhost"
     port: 8883
+    use_tls: true
   - address: "mqtts://localhost:1234"
+    scheme: "mqtts"
     family: "AF_INET"
     host: "localhost"
     port: 1234
+    use_tls: true
   - address: "mqtts://user@localhost"
+    scheme: "mqtts"
     family: "AF_INET"
     host: "localhost"
     port: 8883
     username: "user"
+    use_tls: true
   - address: "mqtts://user:pw@localhost"
+    scheme: "mqtts"
     family: "AF_INET"
     host: "localhost"
     port: 8883
     username: "user"
     password: "pw"
+    use_tls: true
 
   ### IPV6
   # Bare ipv6 hostname
   - address: "[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
   - address: "user@[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
     username: "user"
   - address: "user:pw@[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
@@ -117,15 +142,18 @@ test_address_valid:
 
   # Bare ipv6 hostname with port
   - address: "[::1]:1234"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1234
   - address: "user@[::1]:1234"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1234
     username: "user"
   - address: "user:pw@[::1]:1234"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1234
@@ -134,19 +162,23 @@ test_address_valid:
 
   # Implied scheme ipv6 hostname
   - address: "//[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
   - address: "//[::1]:1234"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1234
   - address: "//user@[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
     username: "user"
   - address: "//user:pw@[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
@@ -155,19 +187,23 @@ test_address_valid:
 
   # Explicit mqtt scheme ipv6 hostname
   - address: "mqtt://[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
   - address: "mqtt://[::1]:1234"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1234
   - address: "mqtt://user@[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
     username: "user"
   - address: "mqtt://user:pw@[::1]"
+    scheme: "mqtt"
     family: "AF_INET6"
     host: "::1"
     port: 1883
@@ -176,41 +212,53 @@ test_address_valid:
 
   # Explicit mqtts scheme ipv6 hostname
   - address: "mqtts://[::1]"
+    scheme: "mqtts"
     family: "AF_INET6"
     host: "::1"
     port: 8883
+    use_tls: true
   - address: "mqtts://[::1]:1234"
+    scheme: "mqtts"
     family: "AF_INET6"
     host: "::1"
     port: 1234
+    use_tls: true
   - address: "mqtts://user@[::1]"
+    scheme: "mqtts"
     family: "AF_INET6"
     host: "::1"
     port: 8883
     username: "user"
+    use_tls: true
   - address: "mqtts://user:pw@[::1]"
+    scheme: "mqtts"
     family: "AF_INET6"
     host: "::1"
     port: 8883
     username: "user"
     password: "pw"
+    use_tls: true
 
   ### UNIX
   # Unix domain sockets
   - address: "unix:/tmp/mqtt.sock"
+    scheme: "unix"
     family: "AF_UNIX"
     host: "/tmp/mqtt.sock"
     port: 0
   - address: "unix:///tmp/mqtt.sock"
+    scheme: "unix"
     family: "AF_UNIX"
     host: "/tmp/mqtt.sock"
     port: 0
   - address: "unix://user@/tmp/mqtt.sock"
+    scheme: "unix"
     family: "AF_UNIX"
     host: "/tmp/mqtt.sock"
     port: 0
     username: "user"
   - address: "unix://user:pw@/tmp/mqtt.sock"
+    scheme: "unix"
     family: "AF_UNIX"
     host: "/tmp/mqtt.sock"
     port: 0

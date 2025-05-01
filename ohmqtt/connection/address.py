@@ -36,6 +36,7 @@ def get_family(parsed: ParseResult) -> socket.AddressFamily:
 
 @dataclass(slots=True, init=False, frozen=True)
 class Address:
+    scheme: str
     family: socket.AddressFamily
     host: str
     port: int
@@ -51,6 +52,7 @@ class Address:
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
             address = "//" + address
         parsed = urlparse(address, scheme="mqtt")
+        object.__setattr__(self, "scheme", parsed.scheme)
         object.__setattr__(self, "family", get_family(parsed))
         object.__setattr__(self, "host", parsed.hostname or parsed.path)
         if not self.host:
@@ -60,3 +62,8 @@ class Address:
         object.__setattr__(self, "port", parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme])
         object.__setattr__(self, "username", parsed.username)
         object.__setattr__(self, "password", parsed.password)
+
+    @property
+    def use_tls(self) -> bool:
+        """Check if the address uses TLS."""
+        return self.scheme == "mqtts"

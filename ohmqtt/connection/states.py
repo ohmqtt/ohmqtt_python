@@ -56,7 +56,7 @@ class ConnectingState(FSMState):
             return False
 
         state_data.sock.setblocking(False)
-        if params.use_tls:
+        if params.address.use_tls:
             fsm.change_state(TLSHandshakeState)
             return True
         else:
@@ -71,7 +71,7 @@ class TLSHandshakeState(FSMState):
         state_data.keepalive.mark_init()
         state_data.sock = params.tls_context.wrap_socket(
             state_data.sock,
-            server_hostname=params.tls_hostname,
+            server_hostname=params.tls_hostname if params.tls_hostname else params.address.host,
             do_handshake_on_connect=False,
         )
 

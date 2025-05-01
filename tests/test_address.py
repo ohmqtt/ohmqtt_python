@@ -20,18 +20,15 @@ def lookup_family(family: str) -> int:
 def test_address_valid(test_data):
     """Test the Address class with a Unix socket address."""
     for case in test_data:
-        address = Address(case["address"])
-        assert address.family == lookup_family(case["family"]), case["address"]
-        assert address.host == case["host"], case["address"]
-        assert address.port == case["port"], case["address"]
-        if "username" in case:
-            assert address.username == case["username"], case["address"]
-        else:
-            assert address.username is None, case["address"]
-        if "password" in case:
-            assert address.password == case["password"], case["address"]
-        else:
-            assert address.password is None, case["address"]
+        case_addr = case["address"]
+        address = Address(case_addr)
+        assert address.scheme == case["scheme"], f"scheme for {case_addr}"
+        assert address.family == lookup_family(case["family"]), f"family for {case_addr}"
+        assert address.host == case["host"], f"host for {case_addr}"
+        assert address.port == case["port"], f"port for {case_addr}"
+        assert address.username == case.get("username", None), f"username for {case_addr}"
+        assert address.password == case.get("password", None), f"password for {case_addr}"
+        assert address.use_tls is case.get("use_tls", False), f"use_tls for {case_addr}"
 
 def test_address_invalid(test_data):
     """Test the Address class with invalid addresses."""
