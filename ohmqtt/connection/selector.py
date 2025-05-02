@@ -7,7 +7,8 @@ import threading
 from typing import Final, TypeAlias
 
 from ..logger import get_logger
-from ..protected import LockLike, Protected, protect
+from ..protected import Protected, protect
+from ..threading_lite import LockLike
 
 logger: Final = get_logger("connection.selector")
 

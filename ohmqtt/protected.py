@@ -3,15 +3,16 @@ from __future__ import annotations
 from functools import wraps
 import sys
 import threading
-from typing import Any, Callable, TypeAlias, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
 
+from .threading_lite import LockLike
 
-LockLike: TypeAlias = Union[threading.Lock, threading.RLock]
+
 ProtectR = TypeVar("ProtectR")
 
 

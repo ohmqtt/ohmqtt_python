@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, TypeVar
+from typing import Callable, TypeAlias, TypeVar, Union
 
 
 _time = time.monotonic
 
 
+LockLike: TypeAlias = Union[threading.Lock, threading.RLock]
 WaitForT = TypeVar("WaitForT")
 
 
@@ -18,48 +19,29 @@ class ConditionLite:
         "acquire",
         "release",
         "_is_owned",
-        "_acquire_restore",
-        "_release_save",
         "_lock",
         "_waiters",
-        "_owner",
         "__weakref__",
     )
     _lock: threading.Lock | threading.RLock
     _waiters: list[threading.Lock]
-    _owner: threading.Thread | None
 
-    def __init__(self, lock: threading.Lock | threading.RLock | None = None) -> None:
+    def __init__(self, lock: LockLike | None = None) -> None:
         self._lock = lock if lock is not None else threading.RLock()
         self.acquire = self._lock.acquire
         self.release = self._lock.release
         self._waiters = []
-        self._owner = None
 
         if hasattr(self._lock, "_is_owned"):
             self._is_owned = self._lock._is_owned
         else:
             def _is_owned(self: ConditionLite) -> bool:
                 """Check if the current thread owns the lock."""
-                return self._owner == threading.current_thread()
+                if self._lock.acquire(False):
+                    self._lock.release()
+                    return False
+                return True
             self._is_owned = _is_owned
-
-        if hasattr(self._lock, "_acquire_restore"):
-            self._acquire_restore = self._lock._acquire_restore
-        else:
-            def _acquire_restore(self: ConditionLite, _: Any) -> None:
-                """Restore the lock state after acquiring."""
-                self._lock.acquire()
-            self._acquire_restore = _acquire_restore
-
-        if hasattr(self._lock, "_release_save"):
-            self._release_save = self._lock._release_save
-        else:
-            def _release_save(self: ConditionLite) -> None:
-                """Save the lock state before releasing."""
-                self._lock.release()
-            self._release_save = _release_save
-
 
     def __enter__(self) -> ConditionLite:
         self.acquire()
@@ -79,7 +61,7 @@ class ConditionLite:
         waiter = threading.Lock()
         waiter.acquire()
         self._waiters.append(waiter)
-        saved_state = self._release_save()
+        self.release()
         success = False
         try:
             if timeout is None:
@@ -92,7 +74,7 @@ class ConditionLite:
                     success = waiter.acquire(False)
             return success
         finally:
-            self._acquire_restore(saved_state)
+            self.acquire()
             if not success:
                 try:
                     self._waiters.remove(waiter)
