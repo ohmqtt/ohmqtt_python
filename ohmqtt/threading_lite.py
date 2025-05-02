@@ -4,52 +4,25 @@ import threading
 import time
 from typing import Callable, TypeAlias, TypeVar, Union
 
+from .protected import Protected, protect
 
 _time = time.monotonic
-
 
 LockLike: TypeAlias = Union[threading.Lock, threading.RLock]
 WaitForT = TypeVar("WaitForT")
 
 
-class ConditionLite:
+class ConditionLite(Protected):
     """A lightweight condition variable implementation."""
     # This implementation is a memory-reduced version of threading.Condition.
-    __slots__ = (
-        "acquire",
-        "release",
-        "_is_owned",
-        "_lock",
-        "_waiters",
-        "__weakref__",
-    )
-    _lock: threading.Lock | threading.RLock
+    __slots__ = ("_waiters",)
     _waiters: list[threading.Lock]
 
     def __init__(self, lock: LockLike | None = None) -> None:
-        self._lock = lock if lock is not None else threading.RLock()
-        self.acquire = self._lock.acquire
-        self.release = self._lock.release
+        super().__init__(lock if lock is not None else threading.RLock())
         self._waiters = []
 
-        if hasattr(self._lock, "_is_owned"):
-            self._is_owned = self._lock._is_owned
-        else:
-            def _is_owned(self: ConditionLite) -> bool:
-                """Check if the current thread owns the lock."""
-                if self._lock.acquire(False):
-                    self._lock.release()
-                    return False
-                return True
-            self._is_owned = _is_owned
-
-    def __enter__(self) -> ConditionLite:
-        self.acquire()
-        return self
-    
-    def __exit__(self, *args: object) -> None:
-        self.release()
-    
+    @protect
     def wait(self, timeout: float | None = None) -> bool:
         """Wait until notified or until a timeout occurs.
 
@@ -98,7 +71,9 @@ class ConditionLite:
             result = predicate()
         return result
 
-    def _notify(self, n: int) -> None:
+    @protect
+    def notify(self, n: int = 1) -> None:
+        """Wake up one or more threads waiting on this condition, if any."""
         if not self._is_owned():
             raise RuntimeError("cannot notify on un-acquired lock")
         waiters = self._waiters
@@ -115,10 +90,7 @@ class ConditionLite:
             except ValueError:
                 pass
 
-    def notify(self, n: int = 1) -> None:
-        """Wake up one or more threads waiting on this condition, if any."""
-        self._notify(n)
-
+    @protect
     def notify_all(self) -> None:
         """Wake up all threads waiting on this condition."""
-        self._notify(len(self._waiters))
+        self.notify(len(self._waiters))

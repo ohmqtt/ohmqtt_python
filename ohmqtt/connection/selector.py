@@ -4,11 +4,13 @@ import select
 import socket
 import ssl
 import threading
-from typing import Final, TypeAlias
+from typing import Final, TypeAlias, TYPE_CHECKING
 
 from ..logger import get_logger
 from ..protected import Protected, protect
-from ..threading_lite import LockLike
+
+if TYPE_CHECKING:
+    from ..threading_lite import LockLike
 
 logger: Final = get_logger("connection.selector")
 
@@ -22,13 +24,12 @@ class InterruptibleSelector(Protected):
     __slots__ = ("_in_select", "_interrupted", "_interrupt_r", "_interrupt_w")
 
     def __init__(self, lock: LockLike | None = None) -> None:
+        super().__init__(lock if lock is not None else threading.RLock())
         self._in_select = False
         self._interrupted = False
         self._interrupt_r, self._interrupt_w = socket.socketpair()
         self._interrupt_r.setblocking(False)
         self._interrupt_w.setblocking(False)
-        lock = threading.RLock() if lock is None else lock
-        super().__init__(lock)
 
     def _drain(self) -> None:
         """Drain the interrupt socket."""
