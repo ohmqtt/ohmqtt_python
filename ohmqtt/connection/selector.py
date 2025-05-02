@@ -24,9 +24,7 @@ class InterruptibleSelector:
         self.interrupt_w.setblocking(False)
 
     def drain(self) -> None:
-        """Drain the interrupt socket.
-
-        Returns True if there were interrupts in the socket, False if it was empty."""
+        """Drain the interrupt socket."""
         while True:
             try:
                 self.interrupt_r.recv(1024)
