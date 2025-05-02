@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import threading
-from types import TracebackType
-from typing import Type
 
 import select
 import socket
@@ -39,7 +37,7 @@ class InterruptibleSelector:
         self.acquire()
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+    def __exit__(self, *args: object) -> None:
         """Exit the context manager and release the lock."""
         self.release()
 

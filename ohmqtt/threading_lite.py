@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, Type, TypeVar
-from types import TracebackType
+from typing import Any, Callable, TypeVar
 
 
 _time = time.monotonic
@@ -66,7 +65,7 @@ class ConditionLite:
         self.acquire()
         return self
     
-    def __exit__(self, exc_type: Type[BaseException], exc_value: BaseException, exc_tb: TracebackType) -> None:
+    def __exit__(self, *args: object) -> None:
         self.release()
     
     def wait(self, timeout: float | None = None) -> bool:

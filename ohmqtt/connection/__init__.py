@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-from types import TracebackType
 from typing import Final
 
 from .address import Address as Address
@@ -48,7 +47,7 @@ class Connection:
         self.start_loop()
         return self
 
-    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, tb: TracebackType) -> None:
+    def __exit__(self, *args: object) -> None:
         """Shutdown the connection."""
         self.shutdown()
 

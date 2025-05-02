@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ssl
-from types import TracebackType
 from typing import Final, Sequence
 import weakref
 
@@ -37,7 +36,7 @@ class Client:
         self.start_loop()
         return self
 
-    def __exit__(self, exc_type: type[BaseException], exc_val: BaseException, tb: TracebackType) -> None:
+    def __exit__(self, *args: object) -> None:
         self.shutdown()
 
     def start_loop(self) -> None:
