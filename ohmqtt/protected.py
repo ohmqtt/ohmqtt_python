@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import wraps
 import sys
 import threading
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeAlias, TypeVar, Union
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -11,6 +11,7 @@ else:
     from typing_extensions import Self
 
 
+LockLike: TypeAlias = Union[threading.Lock, threading.RLock]
 ProtectR = TypeVar("ProtectR")
 
 
@@ -25,11 +26,13 @@ def protect(func: Callable[..., ProtectR]) -> Callable[..., ProtectR]:
 
 
 class Protected:
-    """A wrapper to protect a resource or resources."""
+    """A wrapper to protect a resource or resources.
+
+    Combine with the `@protect` decorator to protect methods of this class."""
     __slots__ = ("_lock", "acquire", "release", "_is_owned")
 
-    def __init__(self) -> None:
-        self._lock = threading.RLock()
+    def __init__(self, lock: LockLike | None = None) -> None:
+        self._lock = threading.RLock() if lock is None else lock
         self.acquire = self._lock.acquire
         self.release = self._lock.release
 
