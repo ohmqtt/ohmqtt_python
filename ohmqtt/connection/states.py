@@ -55,6 +55,10 @@ class ConnectingState(FSMState):
                 state_data.sock.connect((address.host, address.port))
         except BlockingIOError:
             return False
+        except ConnectionError as exc:
+            logger.error(f"Failed to connect to broker: {exc}")
+            fsm.change_state(ClosedState)
+            return True
 
         state_data.sock.setblocking(False)
         if params.address.use_tls:
