@@ -1,6 +1,6 @@
 import pytest
 
-from ohmqtt.connection import Address, Connection
+from ohmqtt.connection import Address, Connection, ConnectParams
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
     decode_packet,
@@ -18,7 +18,7 @@ from ohmqtt.packet import (
     MQTTAuthPacket,
 )
 from ohmqtt.property import MQTTAuthProps, MQTTConnAckProps
-from ohmqtt.session import Session, SessionConnectParams
+from ohmqtt.session import Session
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def test_session_happy_path(callbacks, mocker):
         open_callback=callbacks["open"],
         message_callback=callbacks["message"],
     )
-    session.connect(SessionConnectParams(Address("localhost")))
+    session.connect(ConnectParams(Address("localhost")))
     mock_connection.connect.assert_called_once()
     assert mock_connection.connect.call_args[0][0].address.host == "localhost"
     assert mock_connection.connect.call_args[0][0].address.port == 1883

@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
+from __future__ import annotations
+
 import logging
-import threading
 from typing import Any, Callable, Final, Mapping, Sequence
 
 from .connection import Connection, ConnectParams
@@ -21,7 +21,8 @@ from .packet import (
     MQTTUnsubAckPacket,
     MQTTAuthPacket,
 )
-from .property import MQTTConnectProps, MQTTPublishProps, MQTTSubscribeProps, MQTTUnsubscribeProps, MQTTAuthProps
+from .property import MQTTPublishProps, MQTTSubscribeProps, MQTTUnsubscribeProps, MQTTAuthProps
+from .protected import Protected, protect
 from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
 from .persistence.in_memory import InMemoryPersistence
 from .persistence.sqlite import SQLitePersistence
@@ -45,30 +46,78 @@ SessionOpenCallback = Callable[[MQTTConnAckPacket], None]
 SessionMessageCallback = Callable[[MQTTPublishPacket], None]
 
 
-@dataclass(slots=True, match_args=True, frozen=True)
-class SessionConnectParams(ConnectParams):
-    clean_start: bool = False
-    connect_properties: MQTTConnectProps = field(default_factory=MQTTConnectProps)
+class SessionProtected(Protected):
+    """Represents the thread-protected state of the session."""
+    __slots__ = (
+        "_inflight",
+        "_next_packet_ids",
+        "_params",
+        "_persistence",
+        "_topic_alias",
+    )
+
+    def __init__(self, persistence: Persistence) -> None:
+        super().__init__()
+        self._persistence = persistence
+        self._topic_alias = TopicAlias()
+        self._inflight = 0
+        self._next_packet_ids = {
+            MQTTPacketType.SUBSCRIBE: 1,
+            MQTTPacketType.UNSUBSCRIBE: 1,
+        }
+        # _params intentionally left blank.
+
+    @property
+    @protect
+    def params(self) -> ConnectParams:
+        return self._params
+    @params.setter
+    @protect
+    def params(self, value: ConnectParams) -> None:
+        self._params = value
+
+    @property
+    @protect
+    def persistence(self) -> Persistence:
+        return self._persistence
+
+    @property
+    @protect
+    def topic_alias(self) -> TopicAlias:
+        return self._topic_alias
+
+    @property
+    @protect
+    def inflight(self) -> int:
+        return self._inflight
+    @inflight.setter
+    @protect
+    def inflight(self, value: int) -> None:
+        self._inflight = value
+
+    @protect
+    def get_next_packet_id(self, packet_type: int) -> int:
+        """Get the next packet ID for a given packet type.
+
+        Should only be used for SUBSCRIBE and UNSUBSCRIBE packets. Get PUBLISH IDs from the persistence store."""
+        packet_id = self._next_packet_ids[packet_type]
+        self._next_packet_ids[packet_type] += 1
+        if self._next_packet_ids[packet_type] > MAX_PACKET_ID:
+            self._next_packet_ids[packet_type] = 1
+        return packet_id
 
 
 class Session:
     __slots__ = (
-        "params",
         "server_receive_maximum",
-        "_lock",
-        "_inflight",
-        "_next_packet_ids",
         "_read_handlers",
         "auth_callback",
         "close_callback",
         "open_callback",
         "message_callback",
         "connection",
-        "persistence",
-        "topic_alias",
+        "protected",
     )
-    connection: Connection
-    persistence: Persistence
 
     def __init__(
         self,
@@ -85,7 +134,6 @@ class Session:
         self.open_callback = open_callback
         self.message_callback = message_callback
         self.server_receive_maximum = 0
-        self.topic_alias = TopicAlias()
         self.connection = Connection(
             close_callback=self._connection_close_callback,
             open_callback=self._connection_open_callback,
@@ -101,17 +149,12 @@ class Session:
             MQTTPacketType.UNSUBACK: self._handle_unsuback,
             MQTTPacketType.AUTH: self._handle_auth,
         }
-        # This lock protects _persistence, _inflight and _next_packet_ids.
-        self._lock = threading.RLock()
-        self._inflight: int = 0
-        self._next_packet_ids = {
-            MQTTPacketType.SUBSCRIBE: 1,
-            MQTTPacketType.UNSUBSCRIBE: 1,
-        }
+        persistence: Persistence
         if db_path:
-            self.persistence = SQLitePersistence(db_path, db_fast=db_fast)
+            persistence = SQLitePersistence(db_path, db_fast=db_fast)
         else:
-            self.persistence = InMemoryPersistence()
+            persistence = InMemoryPersistence()
+        self.protected = SessionProtected(persistence)
 
     def _send_packet(self, packet: MQTTPacket) -> None:
         """Try to send a packet to the server."""
@@ -127,11 +170,12 @@ class Session:
         """Send a potentially topic aliased PUBLISH packet to the server.
 
         This will handle topic aliasing if the server supports it."""
-        lookup = self.topic_alias.lookup_outbound(packet.topic, alias_policy)
-        if lookup.alias > 0:
-            packet.properties.TopicAlias = lookup.alias
-            if lookup.existed:
-                packet.topic = ""
+        with self.protected as protected:
+            lookup = protected.topic_alias.lookup_outbound(packet.topic, alias_policy)
+            if lookup.alias > 0:
+                packet.properties.TopicAlias = lookup.alias
+                if lookup.existed:
+                    packet.topic = ""
         self._send_packet(packet)
 
     def _connection_open_callback(self, packet: MQTTConnAckPacket) -> None:
@@ -139,35 +183,37 @@ class Session:
         if packet.reason_code >= 0x80:
             logger.error(f"Connection failed: {packet.reason_code}")
             raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
-        with self._lock:
-            self.topic_alias.reset()
+        with self.protected as protected:
+            protected.inflight = 0
+            protected.topic_alias.reset()
             if packet.properties.ReceiveMaximum is not None:
                 self.server_receive_maximum = packet.properties.ReceiveMaximum
             else:
                 self.server_receive_maximum = MAX_PACKET_ID - 1
             if packet.properties.TopicAliasMaximum is not None:
-                self.topic_alias.max_out_alias = packet.properties.TopicAliasMaximum
+                protected.topic_alias.max_out_alias = packet.properties.TopicAliasMaximum
             else:
-                self.topic_alias.max_out_alias = 0
+                protected.topic_alias.max_out_alias = 0
             if packet.properties.AssignedClientIdentifier:
                 client_id = packet.properties.AssignedClientIdentifier
             else:
-                client_id = self.params.client_id
+                client_id = protected.params.client_id
             if not client_id:
                 raise MQTTError("No client ID provided", MQTTReasonCode.ProtocolError)
             clear_persistence = not packet.session_present
-            self.persistence.open(client_id, clear=clear_persistence)
+            protected.persistence.open(client_id, clear=clear_persistence)
             if self.open_callback is not None:
                 self.open_callback(packet)
             self._flush()
 
     def _connection_close_callback(self) -> None:
         """Handle a connection close event."""
-        with self._lock:
+        with self.protected as protected:
+            protected.inflight = 0
+            protected.topic_alias.reset()
             self.server_receive_maximum = 0
-            self._inflight = 0
-        if self.close_callback is not None:
-            self.close_callback()
+            if self.close_callback is not None:
+                self.close_callback()
 
     def _connection_read_callback(self, packet: MQTTPacket) -> None:
         """Handle a packet read from the connection."""
@@ -180,18 +226,18 @@ class Session:
         """Handle a PUBACK packet from the server."""
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBACK with error code: {packet.reason_code}")
-        with self._lock:
-            self.persistence.ack(packet.packet_id)
-            self._inflight -= 1
+        with self.protected as protected:
+            protected.persistence.ack(packet.packet_id)
+            protected.inflight -= 1
             self._flush()
 
     def _handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBREC with error code: {packet.reason_code}")
-        with self._lock:
-            self.persistence.ack(packet.packet_id)
-            self._inflight -= 1
+        with self.protected as protected:
+            protected.persistence.ack(packet.packet_id)
+            protected.inflight -= 1
             self._flush()
 
     def _handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
@@ -205,9 +251,9 @@ class Session:
         """Handle a PUBCOMP packet from the server."""
         if packet.reason_code >= 0x80:
             logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
-        with self._lock:
-            self.persistence.ack(packet.packet_id)
-            self._inflight -= 1
+        with self.protected as protected:
+            protected.persistence.ack(packet.packet_id)
+            protected.inflight -= 1
             self._flush()
 
     def _handle_suback(self, packet: MQTTSubAckPacket) -> None:
@@ -224,10 +270,11 @@ class Session:
         """Handle a PUBLISH packet from the server."""
         if self.message_callback is not None:
             if packet.properties.TopicAlias is not None:
-                if packet.topic:
-                    self.topic_alias.store_inbound(packet.properties.TopicAlias, packet.topic)
-                else:
-                    packet.topic = self.topic_alias.lookup_inbound(packet.properties.TopicAlias)
+                with self.protected as protected:
+                    if packet.topic:
+                        protected.topic_alias.store_inbound(packet.properties.TopicAlias, packet.topic)
+                    else:
+                        packet.topic = protected.topic_alias.lookup_inbound(packet.properties.TopicAlias)
             self.message_callback(packet)
         if packet.qos == 1:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
@@ -251,12 +298,13 @@ class Session:
 
     def connect(self, params: ConnectParams) -> None:
         """Connect to the broker."""
-        self.params = params
-        if params.connect_properties.TopicAliasMaximum is not None:
-            self.topic_alias.max_in_alias = params.connect_properties.TopicAliasMaximum
-        else:
-            self.topic_alias.max_in_alias = 0
-        self.connection.connect(params)
+        with self.protected as protected:
+            protected.params = params
+            if params.connect_properties.TopicAliasMaximum is not None:
+                protected.topic_alias.max_in_alias = params.connect_properties.TopicAliasMaximum
+            else:
+                protected.topic_alias.max_in_alias = 0
+            self.connection.connect(params)
 
     def disconnect(self) -> None:
         """Disconnect from the server."""
@@ -280,8 +328,8 @@ class Session:
         if qos > 0:
             if alias_policy == AliasPolicy.ALWAYS:
                 raise ValueError("AliasPolicy.ALWAYS is not allowed for QoS > 0")
-            with self._lock:
-                handle: ReliablePublishHandle = self.persistence.add(
+            with self.protected as protected:
+                handle: ReliablePublishHandle = protected.persistence.add(
                     topic=topic,
                     payload=payload,
                     qos=qos,
@@ -302,23 +350,13 @@ class Session:
             self._send_aliased(packet, alias_policy)
             return UnreliablePublishHandle()
 
-    def _next_packet_id(self, packet_type: int) -> int:
-        """Get the next packet ID for a given packet type.
-        
-        Should only be used for SUBSCRIBE and UNSUBSCRIBE packets. Get PUBLISH IDs from the persistence store."""
-        with self._lock:
-            packet_id = self._next_packet_ids[packet_type]
-            self._next_packet_ids[packet_type] += 1
-            if self._next_packet_ids[packet_type] > MAX_PACKET_ID:
-                self._next_packet_ids[packet_type] = 1
-            return packet_id
-
     def subscribe(self, topic: str, share_name: str | None, qos: int = 2, properties: MQTTSubscribeProps | None = None) -> None:
         """Subscribe to a single topic."""
         if share_name is not None:
             topic = join_share(topic, share_name)
         topics = ((topic, qos),)
-        packet_id = self._next_packet_id(MQTTPacketType.SUBSCRIBE)
+        with self.protected as protected:
+            packet_id = protected.get_next_packet_id(MQTTPacketType.SUBSCRIBE)
         packet = MQTTSubscribePacket(
             packet_id=packet_id,
             topics=topics,
@@ -331,7 +369,8 @@ class Session:
         if share_name is not None:
             topic = join_share(topic, share_name)
         topics = [topic]
-        packet_id = self._next_packet_id(MQTTPacketType.UNSUBSCRIBE)
+        with self.protected as protected:
+            packet_id = protected.get_next_packet_id(MQTTPacketType.UNSUBSCRIBE)
         packet = MQTTUnsubscribePacket(
             packet_id=packet_id,
             topics=topics,
@@ -366,12 +405,12 @@ class Session:
 
     def _flush(self) -> None:
         """Send queued packets up to the server's receive maximum."""
-        with self._lock:
-            allowed_count = self.server_receive_maximum - self._inflight
-            pending_message_ids = self.persistence.get(allowed_count)
+        with self.protected as protected:
+            allowed_count = self.server_receive_maximum - protected.inflight
+            pending_message_ids = protected.persistence.get(allowed_count)
             for message_id in pending_message_ids:
-                packet, alias_policy = self.persistence.render(message_id)
-                self._inflight += 1
+                packet, alias_policy = protected.persistence.render(message_id)
+                protected.inflight += 1
                 try:
                     if type(packet) is MQTTPublishPacket:
                         self._send_aliased(packet, alias_policy)
