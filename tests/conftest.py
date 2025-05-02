@@ -1,3 +1,4 @@
+import logging
 import os
 import pytest
 import socket
@@ -7,6 +8,8 @@ import threading
 import yaml
 
 from tests.util.selfsigned import generate_selfsigned_cert
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -101,8 +104,14 @@ class LoopbackSocket:
     def setblocking(self, *args, **kwargs) -> None:
         self.mocksock.setblocking(*args, **kwargs)
 
-    def setsockopt(self, *args, **kwargs) -> None:
-        self.mocksock.setsockopt(*args, **kwargs)
+    def setsockopt(self, level, optname, value) -> None:
+        if optname == socket.TCP_NODELAY:
+            # Where AF_UNIX exists, do not set TCP_NODELAY on either side of the socket.
+            # We are spoofing TCP but the socketpair is a Unix domain socket.
+            if hasattr(socket, "AF_UNIX"):
+                logger.info("Not setting TCP_NODELAY on Unix domain socket")
+                return
+        self.mocksock.setsockopt(level, optname, value)
 
     def shutdown(self, *args, **kwargs) -> None:
         self.mocksock.shutdown(*args, **kwargs)

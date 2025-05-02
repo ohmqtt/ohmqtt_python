@@ -30,8 +30,8 @@ class ConnectingState(FSMState):
         state_data.keepalive.mark_init()
         state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
         state_data.sock = _get_socket(params.address.family)
-        if params.tcp_nodelay and params.address.family != socket.AF_UNIX:
-            state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if params.address.family in (socket.AF_INET, socket.AF_INET6):
+            state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
 
     @classmethod

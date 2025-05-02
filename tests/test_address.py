@@ -11,7 +11,7 @@ def lookup_family(family: str) -> int:
         return socket.AF_INET
     elif family == "AF_INET6":
         return socket.AF_INET6
-    elif family == "AF_UNIX":
+    elif family == "AF_UNIX" and hasattr(socket, "AF_UNIX"):
         return socket.AF_UNIX
     else:
         raise ValueError(f"Unsupported address family: {family}")
@@ -30,6 +30,15 @@ def test_address_valid(test_data):
         assert address.password == case.get("password", None), f"password for {case_addr}"
         assert address.use_tls is case.get("use_tls", False), f"use_tls for {case_addr}"
 
+
+@pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"),
+    reason="Unix domain sockets are not available on this platform",
+)
+def test_address_unix(test_data):
+    test_address_valid(test_data)
+
+
 def test_address_invalid(test_data):
     """Test the Address class with invalid addresses."""
     for case in test_data:
@@ -39,6 +48,7 @@ def test_address_invalid(test_data):
             pass
         else:
             pytest.fail(f"Expected ValueError for address: {case['address']}")
+
 
 def test_address_empty():
     """Test the Address class with an empty address.
