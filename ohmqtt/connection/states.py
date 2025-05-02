@@ -336,6 +336,7 @@ class ShutdownState(FSMState):
         state_data.decoder.reset()
         with env.selector:
             env.write_buffer.clear()
+            env.selector.close()
 
 
 # Hook up transitions.

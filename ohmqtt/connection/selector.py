@@ -55,6 +55,11 @@ class InterruptibleSelector:
             except BlockingIOError:
                 break
 
+    def close(self) -> None:
+        """Finalize this instance."""
+        self._interrupt_r.close()
+        self._interrupt_w.close()
+
     def acquire(self) -> None:
         """Acquire the lock and set the owner."""
         self._lock.acquire()
