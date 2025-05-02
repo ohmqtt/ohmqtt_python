@@ -20,9 +20,9 @@ class InterruptibleSelector:
     """A select() method which can be interrupted by a call to interrupt().
 
     This can be used to interrupt a blocking select() call from another thread."""
+    lock: threading.RLock = field(default_factory=threading.RLock)
     _interrupt_r: socket.socket = field(init=False)
     _interrupt_w: socket.socket = field(init=False)
-    _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
     _in_select: bool = field(default=False, init=False)
     _interrupted: bool = field(default=False, init=False)
     _owner: threading.Thread | None = field(default=None, init=False)
@@ -60,13 +60,13 @@ class InterruptibleSelector:
 
     def acquire(self) -> None:
         """Acquire the lock and set the owner."""
-        self._lock.acquire()
+        self.lock.acquire()
         self._owner = threading.current_thread()
 
     def release(self) -> None:
         """Release the lock and clear the owner."""
         self._owner = None
-        self._lock.release()
+        self.lock.release()
 
     def interrupt(self) -> None:
         """Interrupt the select call, if we are in select."""
@@ -90,11 +90,11 @@ class InterruptibleSelector:
             raise RuntimeError("Cannot call select without the lock")
         self._in_select = True
         _rlist = [self._interrupt_r] + rlist
-        self._lock.release()
+        self.lock.release()
         try:
             readable, writable, exc = select.select(_rlist, wlist, xlist, timeout)
         finally:
-            self._lock.acquire()
+            self.lock.acquire()
             self._in_select = False
         if self._interrupt_r in readable:
             readable.remove(self._interrupt_r)

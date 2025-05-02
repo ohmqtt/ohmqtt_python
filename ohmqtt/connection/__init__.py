@@ -25,7 +25,7 @@ logger: Final = get_logger("connection")
 
 class Connection:
     """Interface for the MQTT connection."""
-    __slots__ = ("state_env", "fsm", "_thread")
+    __slots__ = ("fsm", "_thread")
 
     def __init__(
         self,
@@ -33,12 +33,12 @@ class Connection:
         open_callback: ConnectionOpenCallback,
         read_callback: ConnectionReadCallback,
     ) -> None:
-        self.state_env = StateEnvironment(
+        state_env = StateEnvironment(
             close_callback=close_callback,
             open_callback=open_callback,
             read_callback=read_callback,
         )
-        self.fsm = FSM(env=self.state_env, init_state=ClosedState)
+        self.fsm = FSM(env=state_env, init_state=ClosedState)
 
         self._thread: threading.Thread | None = None
 
@@ -54,25 +54,28 @@ class Connection:
     def send(self, data: bytes) -> None:
         """Send data to the connection."""
         logger.debug(f"Sending {len(data)} bytes")
-        with self.state_env.selector:
-            self.state_env.write_buffer.extend(data)
-            self.state_env.selector.interrupt()
+        with self.fsm.lock:
+            self.fsm.env.write_buffer.extend(data)
+            self.fsm.selector.interrupt()
 
     def connect(self, params: ConnectParams) -> None:
         """Connect to the MQTT broker."""
-        self.fsm.set_params(params)
-        self.fsm.request_state(ConnectingState)
-        self.state_env.selector.interrupt()
+        with self.fsm.lock:
+            self.fsm.set_params(params)
+            self.fsm.request_state(ConnectingState)
+            self.fsm.selector.interrupt()
 
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker."""
-        self.fsm.request_state(ClosedState)
-        self.state_env.selector.interrupt()
+        with self.fsm.lock:
+            self.fsm.request_state(ClosedState)
+            self.fsm.selector.interrupt()
 
     def shutdown(self) -> None:
         """Shutdown the connection."""
-        self.fsm.request_state(ShutdownState)
-        self.state_env.selector.interrupt()
+        with self.fsm.lock:
+            self.fsm.request_state(ShutdownState)
+            self.fsm.selector.interrupt()
 
     def is_connected(self) -> bool:
         """Check if the connection is established."""

@@ -43,8 +43,8 @@ class ConnectingState(FSMState):
             else:
                 state_data.sock.connect((address.host, address.port))
         except BlockingIOError:
-            with env.selector:
-                rlist, wlist, _ = env.selector.select([state_data.sock], [state_data.sock], [])
+            with fsm.selector:
+                rlist, wlist, _ = fsm.selector.select([state_data.sock], [state_data.sock], [])
             if state_data.sock not in wlist:
                 logger.error("Failed to connect to broker")
                 fsm.change_state(ClosedState)
@@ -86,12 +86,12 @@ class TLSHandshakeState(FSMState):
             return True
         except ssl.SSLWantReadError:
             logger.debug("TLS handshake wants read")
-            with env.selector:
-                env.selector.select([sock], [], [], state_data.keepalive.get_next_timeout())
+            with fsm.selector:
+                fsm.selector.select([sock], [], [], state_data.keepalive.get_next_timeout())
         except ssl.SSLWantWriteError:
             logger.debug("TLS handshake wants write")
-            with env.selector:
-                env.selector.select([], [sock], [], state_data.keepalive.get_next_timeout())
+            with fsm.selector:
+                fsm.selector.select([], [sock], [], state_data.keepalive.get_next_timeout())
         return False
 
 
@@ -113,7 +113,7 @@ class MQTTHandshakeConnectState(FSMState):
             will_props=params.will_properties,
         )
         logger.debug(f"---> {str(connect_packet)}")
-        with env.selector:
+        with fsm.selector:
             env.write_buffer.clear()
             env.write_buffer.extend(connect_packet.encode())
 
@@ -124,7 +124,7 @@ class MQTTHandshakeConnectState(FSMState):
             fsm.change_state(ClosedState)
             return True
         try:
-            with env.selector:
+            with fsm.selector:
                 num_sent = state_data.sock.send(env.write_buffer)
                 state_data.keepalive.mark_send()
                 if num_sent == 0:
@@ -143,8 +143,8 @@ class MQTTHandshakeConnectState(FSMState):
         except (BlockingIOError, ssl.SSLWantWriteError):
             # The write was blocked, wait for the socket to be writable.
             timeout = state_data.keepalive.get_next_timeout()
-            with env.selector:
-                env.selector.select([], [state_data.sock], [], timeout)
+            with fsm.selector:
+                fsm.selector.select([], [state_data.sock], [], timeout)
         return False
 
 
@@ -176,8 +176,8 @@ class MQTTHandshakeConnAckState(FSMState):
         if want_read:
             # Incomplete packet, wait for more data.
             timeout = state_data.keepalive.get_next_timeout()
-            with env.selector:
-                env.selector.select([state_data.sock], [], [], timeout)
+            with fsm.selector:
+                fsm.selector.select([state_data.sock], [], [], timeout)
             return False
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
@@ -199,7 +199,7 @@ class ConnectedState(FSMState):
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.keepalive.mark_init()
-        with env.selector:
+        with fsm.selector:
             env.write_buffer.clear()
 
     @classmethod
@@ -212,18 +212,18 @@ class ConnectedState(FSMState):
 
         if state_data.keepalive.should_send_ping():
             logger.debug("---> PING")
-            with env.selector:
+            with fsm.selector:
                 env.write_buffer.extend(PING)
             state_data.keepalive.mark_ping()
 
         next_timeout = state_data.keepalive.get_next_timeout()
-        with env.selector:
+        with fsm.selector:
             write_check = [state_data.sock] if env.write_buffer else []
-            rlist, wlist, _ = env.selector.select([state_data.sock], write_check, [], next_timeout)
+            rlist, wlist, _ = fsm.selector.select([state_data.sock], write_check, [], next_timeout)
 
         if state_data.sock in wlist:
             try:
-                with env.selector:
+                with fsm.selector:
                     sent = state_data.sock.send(env.write_buffer)
                     del env.write_buffer[:sent]
                 state_data.keepalive.mark_send()
@@ -270,7 +270,7 @@ class ConnectedState(FSMState):
             state_data.keepalive.mark_pong()
         elif packet.packet_type == MQTTPacketType.PINGREQ:
             logger.debug("<--- PING PONG --->")
-            with env.selector:
+            with fsm.selector:
                 env.write_buffer.extend(PONG)
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
             logger.debug(f"<--- {str(packet)}")
@@ -306,7 +306,7 @@ class ClosedState(FSMState):
         if fsm.previous_state == ConnectedState:
             logger.debug("Clean disconnect from connected")
             env.close_callback()
-            with env.selector:
+            with fsm.selector:
                 if state_data.disconnect_rc >= 0 and not env.write_buffer:
                     disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
                     # Try to send a DISCONNECT packet, but no problem if we can't.
@@ -322,7 +322,7 @@ class ClosedState(FSMState):
         except OSError as exc:
             logger.debug(f"Error while closing socket: {exc}")
         state_data.decoder.reset()
-        with env.selector:
+        with fsm.selector:
             env.write_buffer.clear()
 
 
@@ -334,9 +334,9 @@ class ShutdownState(FSMState):
         # Free up as many resources as possible.
         state_data.sock.close()
         state_data.decoder.reset()
-        with env.selector:
+        with fsm.selector:
             env.write_buffer.clear()
-            env.selector.close()
+            fsm.selector.close()
 
 
 # Hook up transitions.

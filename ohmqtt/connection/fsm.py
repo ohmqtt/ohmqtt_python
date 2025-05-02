@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import threading
 from typing import ClassVar, Final, Sequence, Type
 
+from .selector import InterruptibleSelector
 from .types import ConnectParams, StateData, StateEnvironment
 from ..logger import get_logger
 from ..threading_lite import ConditionLite
@@ -17,7 +19,9 @@ class FSM:
     previous_state: Type[FSMState]
     requested_state: Type[FSMState]
     state: Type[FSMState]
+    lock: threading.RLock
     cond: ConditionLite
+    selector: InterruptibleSelector
     params: ConnectParams
     _state_changed: bool
     _state_requested: bool
@@ -28,7 +32,9 @@ class FSM:
         self.previous_state = init_state
         self.requested_state = init_state
         self.state = init_state
-        self.cond = ConditionLite()
+        self.lock = threading.RLock()
+        self.cond = ConditionLite(self.lock)
+        self.selector = InterruptibleSelector(self.lock)
         self.params = ConnectParams()
         self._state_changed = True
         self._state_requested = False
@@ -40,7 +46,7 @@ class FSM:
 
     def get_state(self) -> Type[FSMState]:
         """Get the current state."""
-        with self.cond:
+        with self.lock:
             return self.state
 
     def wait(self, timeout: float | None = None) -> bool:
@@ -83,7 +89,7 @@ class FSM:
             self._state_requested = True
             self.cond.notify_all()
 
-    def handle(self) -> bool:
+    def loop_once(self) -> bool:
         """Do the current state.
 
         State transition will be run if needed.
@@ -118,7 +124,7 @@ class FSM:
         It will call the appropriate state methods based on the current state."""
         while True:
             try:
-                state_done = self.handle()
+                state_done = self.loop_once()
                 with self.cond:
                     if state_done and not self._state_changed and not self._state_requested:
                         if not self.state.transitions_to:
@@ -130,7 +136,7 @@ class FSM:
                             self.cond.wait()
             except Exception:
                 logger.exception("Unhandled exception in FSM loop, breaking the loop")
-                return
+                raise
 
 
 class FSMState:
