@@ -79,7 +79,7 @@ class Connection:
 
     def is_connected(self) -> bool:
         """Check if the connection is established."""
-        return isinstance(self.fsm.get_state(), ConnectedState)
+        return self.fsm.get_state() == ConnectedState
 
     def wait_for_connect(self, timeout: float | None = None) -> bool:
         """Wait for the connection to be established.
@@ -93,12 +93,16 @@ class Connection:
         Returns True if the connection is closed, False if the timeout is reached."""
         return self.fsm.wait_for_state((ClosedState, ShutdownState, ReconnectWaitState), timeout)
 
+    def loop_once(self) -> None:
+        """Run a single iteration of the state machine, without blocking."""
+        self.fsm.loop_once()
+
     def loop_forever(self) -> None:
-        """Run the connection loop until the connection is closed."""
+        """Run the state machine until the connection is closed."""
         self.fsm.loop_forever()
 
     def start_loop(self) -> None:
-        """Start the connection loop in a separate thread."""
+        """Start the state machine in a separate thread."""
         if self._thread is not None:
             raise RuntimeError("Connection loop already started")
         self._thread = threading.Thread(target=self.fsm.loop_forever, daemon=True)

@@ -89,7 +89,7 @@ class FSM:
             self._state_requested = True
             self.cond.notify_all()
 
-    def loop_once(self) -> bool:
+    def loop_once(self, block: bool = False) -> bool:
         """Do the current state.
 
         State transition will be run if needed.
@@ -115,7 +115,7 @@ class FSM:
                 return False  # Run the state on the next loop, unless it has changed.
             state = self.state
         # Do not hold the condition while in handle.
-        return state.handle(self, self._state_data, self.env, self.params)
+        return state.handle(self, self._state_data, self.env, self.params, block)
 
     def loop_forever(self) -> None:
         """Run the state machine.
@@ -124,7 +124,7 @@ class FSM:
         It will call the appropriate state methods based on the current state."""
         while True:
             try:
-                state_done = self.loop_once()
+                state_done = self.loop_once(block=True)
                 with self.cond:
                     if state_done and not self._state_changed and not self._state_requested:
                         if not self.state.transitions_to:
@@ -155,10 +155,10 @@ class FSMState:
         pass
 
     @classmethod
-    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
+    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
         """Called when handling the state.
 
-        This method may block.
+        This method may block if block=True.
 
         Returns True if the state is finished."""
         return True

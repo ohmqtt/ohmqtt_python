@@ -46,6 +46,10 @@ class Client:
         """
         self.session.connection.start_loop()
 
+    def loop_once(self) -> None:
+        """Run a single iteration of the MQTT client loop, without blocking."""
+        self.session.connection.loop_once()
+
     def loop_forever(self) -> None:
         """Run the MQTT client loop.
 
