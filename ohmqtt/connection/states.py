@@ -33,8 +33,6 @@ class ConnectingState(FSMState):
         if params.tcp_nodelay and params.address.family != socket.AF_UNIX:
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         state_data.decoder.reset()
-        with env.selector:
-            env.write_buffer.clear()
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
@@ -201,6 +199,8 @@ class ConnectedState(FSMState):
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.keepalive.mark_init()
+        with env.selector:
+            env.write_buffer.clear()
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
