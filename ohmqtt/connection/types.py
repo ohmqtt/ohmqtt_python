@@ -57,20 +57,6 @@ class StateData:
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
 
 
-class InterruptGuard:
-    """Prevent unnecessary interrupts in the connection loop by wrapping calls to select with this guard."""
-    __slots__ = ("should_interrupt",)
-
-    def __init__(self) -> None:
-        self.should_interrupt = False
-
-    def __enter__(self) -> None:
-        self.should_interrupt = True
-
-    def __exit__(self, *args: object) -> None:
-        self.should_interrupt = False
-
-
 @dataclass(slots=True, kw_only=True)
 class StateEnvironment:
     """State environment for the connection.
