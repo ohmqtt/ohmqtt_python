@@ -55,7 +55,7 @@ class Connection:
     def send(self, data: bytes) -> None:
         """Send data to the connection."""
         logger.debug(f"Sending {len(data)} bytes")
-        with self.state_env.write_buffer_lock:
+        with self.state_env.selector:
             self.state_env.write_buffer.extend(data)
             self.state_env.selector.interrupt()
 

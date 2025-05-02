@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import socket
 import ssl
-import threading
 from typing import Callable
 
 from .address import Address
@@ -80,6 +79,5 @@ class StateEnvironment:
     close_callback: ConnectionCloseCallback
     open_callback: ConnectionOpenCallback
     read_callback: ConnectionReadCallback
-    write_buffer_lock: threading.Lock = field(init=False, default_factory=threading.Lock)
     write_buffer: bytearray = field(init=False, default_factory=bytearray)
     selector: InterruptibleSelector = field(init=False, default_factory=InterruptibleSelector)
