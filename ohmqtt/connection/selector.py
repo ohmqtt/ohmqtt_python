@@ -22,17 +22,17 @@ class InterruptibleSelector:
     """A select() method which can be interrupted by a call to interrupt().
 
     This can be used to interrupt a blocking select() call from another thread."""
-    interrupt_r: socket.socket = field(init=False)
-    interrupt_w: socket.socket = field(init=False)
+    _interrupt_r: socket.socket = field(init=False)
+    _interrupt_w: socket.socket = field(init=False)
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
     _in_select: bool = field(default=False, init=False)
     _interrupted: bool = field(default=False, init=False)
     _owner: threading.Thread | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
-        self.interrupt_r, self.interrupt_w = socket.socketpair()
-        self.interrupt_r.setblocking(False)
-        self.interrupt_w.setblocking(False)
+        self._interrupt_r, self._interrupt_w = socket.socketpair()
+        self._interrupt_r.setblocking(False)
+        self._interrupt_w.setblocking(False)
 
     def __enter__(self) -> InterruptibleSelector:
         """Enter the context manager and acquire the lock."""
@@ -50,7 +50,7 @@ class InterruptibleSelector:
         """Drain the interrupt socket."""
         while True:
             try:
-                data = self.interrupt_r.recv(16)
+                data = self._interrupt_r.recv(16)
                 assert len(data) == 1, "Expected 1 interrupt per select"
             except BlockingIOError:
                 break
@@ -70,7 +70,7 @@ class InterruptibleSelector:
         with self:
             if self._in_select and not self._interrupted:
                 # We are in select, send an interrupt.
-                self.interrupt_w.send(b"\x00")
+                self._interrupt_w.send(b"\x00")
                 self._interrupted = True
 
     def select(
@@ -86,15 +86,15 @@ class InterruptibleSelector:
         if not self._is_owner():
             raise RuntimeError("Cannot call select without the lock")
         self._in_select = True
-        _rlist = [self.interrupt_r] + rlist
+        _rlist = [self._interrupt_r] + rlist
         self._lock.release()
         try:
             readable, writable, exc = select.select(_rlist, wlist, xlist, timeout)
         finally:
             self._lock.acquire()
             self._in_select = False
-        if self.interrupt_r in readable:
-            readable.remove(self.interrupt_r)
+        if self._interrupt_r in readable:
+            readable.remove(self._interrupt_r)
         if self._interrupted:
             self._interrupted = False
             self._drain()
