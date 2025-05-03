@@ -280,7 +280,7 @@ class ConnectedState(FSMState):
                 env.write_buffer.extend(PONG)
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
             logger.debug(f"<--- {str(packet)}")
-            #fsm.change_state(ClosedState)
+            fsm.change_state(ClosingState)
         else:
             # All other packets are passed to the read callback.
             env.read_callback(packet)

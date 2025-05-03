@@ -6,6 +6,7 @@ import pytest
 from ohmqtt.connection import Address
 from ohmqtt.connection.decoder import IncrementalDecoder, ClosedSocketError
 from ohmqtt.connection.fsm import FSM
+from ohmqtt.connection.keepalive import KeepAlive
 from ohmqtt.connection.selector import InterruptibleSelector
 from ohmqtt.connection.states import (
     ConnectingState,
@@ -13,13 +14,25 @@ from ohmqtt.connection.states import (
     MQTTHandshakeConnectState,
     MQTTHandshakeConnAckState,
     ConnectedState,
-    #ClosingState,
+    ClosingState,
     ClosedState,
     #ShutdownState,
 )
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
-from ohmqtt.packet import decode_packet, MQTTConnectPacket, MQTTConnAckPacket, MQTTPublishPacket
+from ohmqtt.error import MQTTError
+from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.packet import (
+    decode_packet,
+    MQTTConnectPacket,
+    MQTTConnAckPacket,
+    MQTTDisconnectPacket,
+    MQTTPublishPacket,
+    MQTTPingReqPacket,
+    MQTTPingRespPacket,
+    PING,
+    PONG,
+)
 from ohmqtt.property import MQTTConnectProps, MQTTConnAckProps, MQTTWillProps
 
 
@@ -41,9 +54,7 @@ def callbacks(mocker):
             self.close.assert_not_called()
             self.open.assert_not_called()
             self.read.assert_not_called()
-
     return EnvironmentCallbacks(mocker)
-
 
 @pytest.fixture
 def env(callbacks):
@@ -53,18 +64,23 @@ def env(callbacks):
         read_callback=callbacks.read,
     )
 
-
 @pytest.fixture
 def mock_socket(mocker):
     mock_socket = mocker.Mock(spec=ssl.SSLSocket)
     mocker.patch("ohmqtt.connection.states._get_socket", return_value=mock_socket)
     yield mock_socket
 
-
 @pytest.fixture
 def decoder(mocker):
     return mocker.Mock(spec=IncrementalDecoder)
 
+@pytest.fixture
+def mock_keepalive(mocker):
+    mock_keepalive = mocker.Mock(spec=KeepAlive)
+    mock_keepalive.get_next_timeout.return_value = 1
+    mock_keepalive.should_close.return_value = False
+    mock_keepalive.should_send_ping.return_value = False
+    return mock_keepalive
 
 @pytest.fixture
 def mock_timeout(mocker):
@@ -73,20 +89,19 @@ def mock_timeout(mocker):
     mock_timeout.exceeded.return_value = False
     return mock_timeout
 
-
 @pytest.fixture
-def state_data(decoder, mock_socket, mock_timeout):
+def state_data(decoder, mock_socket, mock_keepalive, mock_timeout):
     data = StateData()
     data.decoder = decoder
+    data.keepalive = mock_keepalive
     data.sock = mock_socket
     data.timeout = mock_timeout
+    data.connack = MQTTConnAckPacket()
     return data
-
 
 @pytest.fixture
 def params():
     return ConnectParams(address=Address("mqtt://testhost"))
-
 
 @pytest.fixture
 def mock_select(mocker):
@@ -94,6 +109,12 @@ def mock_select(mocker):
     mock_select.return_value = ([], [], [])
     mocker.patch("ohmqtt.connection.selector.InterruptibleSelector.select", mock_select)
     yield mock_select
+
+@pytest.fixture
+def mock_read(mocker):
+    mock_read = mocker.Mock(spec=ConnectedState.read_packet)
+    mocker.patch("ohmqtt.connection.states.ConnectedState.read_packet", mock_read)
+    yield mock_read
 
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
@@ -445,3 +466,202 @@ def test_states_mqtt_connack_unexpected(block, callbacks, decoder, state_data, e
     assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_connected_happy_path(block, callbacks, state_data, env, mock_select, mock_socket, mock_read):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState)
+
+    # Enter state.
+    ConnectedState.enter(fsm, state_data, env, params)
+    state_data.keepalive.mark_init.assert_called_once()
+    callbacks.open.assert_called_once_with(state_data.connack)
+    callbacks.reset()
+    assert fsm.state is ConnectedState
+
+    # First handle, nothing to read.
+    mock_select.return_value = ([], [], [])
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    mock_select.assert_called_once_with([mock_socket], [], [], 1 if block else 0)
+    mock_select.reset_mock()
+    assert fsm.state is ConnectedState
+
+    # Second handle, send data in write buffer.
+    env.write_buffer.extend(b"test_data")
+    mock_select.return_value = ([], [mock_socket], [])
+    mock_socket.send.return_value = len(env.write_buffer)
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    mock_select.assert_called_once_with([mock_socket], [mock_socket], [], 1 if block else 0)
+    mock_select.reset_mock()
+    mock_socket.send.assert_called_once_with(env.write_buffer)
+    mock_socket.reset_mock()
+    assert len(env.write_buffer) == 0
+    state_data.keepalive.mark_send.assert_called_once()
+    assert fsm.state is ConnectedState
+
+    # Third handle, read data.
+    mock_select.return_value = ([mock_socket], [], [])
+    mock_read.side_effect = [True, False]
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    mock_select.assert_called_once_with([mock_socket], [], [], 1 if block else 0)
+    mock_select.reset_mock()
+    assert mock_read.call_count == 2
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_connected_keepalive(block, callbacks, state_data, env, mock_keepalive, mock_select, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState)
+
+    ConnectedState.enter(fsm, state_data, env, params)
+    callbacks.reset()
+
+    # First handle, send a PINGREQ.
+    mock_keepalive.should_send_ping.return_value = True
+    mock_select.return_value = ([], [mock_socket], [])
+    mock_socket.send.return_value = len(PING)
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    mock_keepalive.should_send_ping.assert_called_once()
+    mock_keepalive.mark_ping.assert_called_once()
+    mock_keepalive.reset_mock()
+    mock_socket.send.assert_called_once_with(env.write_buffer)
+    mock_socket.reset_mock()
+    assert len(env.write_buffer) == 0
+
+    # Second handle, keepalive timeout.
+    mock_keepalive.should_send_ping.return_value = False
+    mock_keepalive.should_close.return_value = True
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("block", [True, False])
+def test_states_connected_send_errors(block, exc, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState)
+
+    ConnectedState.enter(fsm, state_data, env, params)
+    callbacks.reset()
+
+    env.write_buffer.extend(b"test_data")
+    mock_read.return_value = False
+    mock_select.return_value = ([mock_socket], [mock_socket], [])
+
+    mock_socket.send.side_effect = exc("TEST")
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    mock_read.assert_called_once()
+    mock_read.reset_mock()
+    assert fsm.state is ConnectedState
+
+    mock_select.return_value = ([mock_socket], [mock_socket], [])
+    mock_socket.send.side_effect = BrokenPipeError("TEST")
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    mock_read.assert_not_called()
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_connected_read_closed(block, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState)
+
+    ConnectedState.enter(fsm, state_data, env, params)
+    callbacks.reset()
+
+    mock_select.return_value = ([mock_socket], [], [])
+    mock_read.side_effect = ClosedSocketError("TEST")
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_connected_read_mqtt_error(block, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState)
+
+    ConnectedState.enter(fsm, state_data, env, params)
+    callbacks.reset()
+
+    mock_select.return_value = ([mock_socket], [], [])
+    mock_read.side_effect = MQTTError("TEST", reason_code=MQTTReasonCode.ProtocolError)
+    ret = ConnectedState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    assert state_data.disconnect_rc == MQTTReasonCode.ProtocolError
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_keepalive):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState)
+
+    # Handle incomplete packet.
+    decoder.decode.return_value = None
+    ret = ConnectedState.read_packet(fsm, state_data, env, params)
+    assert ret is False
+    decoder.decode.assert_called_once()
+    decoder.reset_mock()
+    assert fsm.state is ConnectedState
+
+    # Handle complete PUBLISH packet.
+    packet = MQTTPublishPacket(topic="test/topic", payload=b"test_payload")
+    decoder.decode.return_value = packet
+    ret = ConnectedState.read_packet(fsm, state_data, env, params)
+    assert ret is True
+    decoder.decode.assert_called_once()
+    decoder.reset_mock()
+    callbacks.read.assert_called_once_with(packet)
+    callbacks.reset()
+    assert fsm.state is ConnectedState
+
+    # Handle complete PINGRESP packet.
+    packet = MQTTPingRespPacket()
+    decoder.decode.return_value = packet
+    ret = ConnectedState.read_packet(fsm, state_data, env, params)
+    assert ret is True
+    decoder.decode.assert_called_once()
+    decoder.reset_mock()
+    mock_keepalive.mark_pong.assert_called_once()
+    callbacks.assert_not_called()
+    assert fsm.state is ConnectedState
+
+    # Handle complete PINGREQ packet.
+    packet = MQTTPingReqPacket()
+    decoder.decode.return_value = packet
+    ret = ConnectedState.read_packet(fsm, state_data, env, params)
+    assert ret is True
+    decoder.decode.assert_called_once()
+    decoder.reset_mock()
+    assert env.write_buffer == PONG
+    env.write_buffer.clear()
+    callbacks.assert_not_called()
+    assert fsm.state is ConnectedState
+
+    # Handle complete DISCONNECT packet.
+    packet = MQTTDisconnectPacket()
+    decoder.decode.return_value = packet
+    ret = ConnectedState.read_packet(fsm, state_data, env, params)
+    assert ret is True
+    decoder.decode.assert_called_once()
+    decoder.reset_mock()
+    callbacks.assert_not_called()
+    assert fsm.state is ClosingState
