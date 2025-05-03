@@ -136,6 +136,8 @@ def test_states_connecting_happy_path(address, block, callbacks, state_data, env
     decoder.reset_mock()
     assert mock_timeout.interval == params.connect_timeout
     mock_timeout.mark.assert_called_once()
+    mock_timeout.reset_mock()
+    assert state_data.disconnect_rc == -1
     assert fsm.state is ConnectingState
 
     # First handle, begin non-blocking connect.
