@@ -144,6 +144,24 @@ class FSM:
                 logger.exception("Unhandled exception in FSM loop, breaking the loop")
                 raise
 
+    def loop_until_state(self, state: Type[FSMState]) -> bool:
+        """Run the state machine until a specific state has been entered.
+
+        Return True if the state is reached, False if another final state was finished."""
+        while True:
+            state_done = self.loop_once(block=True)
+            with self.cond:
+                if not self._state_changed:
+                    if self.state == state:
+                        return True
+                    elif state_done and not self._state_requested:
+                        if not self.state.transitions_to:
+                            # The state is final and finished, we are done.
+                            return False
+                        else:
+                            # State is finished, wait for a change.
+                            self.cond.wait()
+
 
 class FSMState:
     """A finite state in the FSM."""

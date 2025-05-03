@@ -63,6 +63,7 @@ def main() -> None:
     with Client() as client:
         rpc_caller = RPCCaller(client)
         client.connect("localhost")
+        print("*** Waiting for connection...")
         client.wait_for_connect(timeout=5.0)
 
         while True:

@@ -57,6 +57,10 @@ class Client:
         """
         self.session.connection.loop_forever()
 
+    def loop_until_connected(self) -> None:
+        """Run the MQTT client loop until the client is connected to the broker."""
+        self.session.connection.loop_until_connected()
+
     def is_connected(self) -> bool:
         """Check if the client is connected to the broker."""
         return self.session.connection.is_connected()

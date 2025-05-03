@@ -5,7 +5,9 @@ It listens for incoming RPC requests on a specific topic and responds with the r
 
 The ResponseTopic property is used by the requestor to specify the topic to which the response should be sent.
 
-See the "rpc_caller" example for the request side of this RPC implementation."""
+See the "rpc_caller" example for the request side of this RPC implementation.
+
+This also demonstrates running the client loop in the main thread."""
 
 from ohmqtt.client import Client
 from ohmqtt.packet import MQTTPublishPacket
@@ -40,9 +42,12 @@ def main() -> None:
     rpc_server = RPCServer()
     client = Client()
     client.connect("localhost")
-    client.subscribe("ohmqtt/examples/rpc/request", qos=2, callback=rpc_server.handle_request)
+    print("*** Waiting for connection...")
+    client.loop_until_connected()
 
+    client.subscribe("ohmqtt/examples/rpc/request", qos=2, callback=rpc_server.handle_request)
     print("*** Waiting for RPC requests...")
+
     try:
         client.loop_forever()  # Wait indefinitely for incoming messages.
     except KeyboardInterrupt:
