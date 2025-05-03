@@ -323,6 +323,14 @@ class ClosingState(FSMState):
             fsm.change_state(ClosedState)
             return
 
+        # Shutdown only the read side of the socket, so we can still send data.
+        # We don't want to shutdown the socket if we're using TLS, as it will cause the protocol to fail.
+        if not params.address.use_tls:
+            try:
+                state_data.sock.shutdown(socket.SHUT_RD)
+            except OSError as exc:
+                logger.debug(f"Error while shutting down socket reading: {exc}")
+
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
         # Wait for the socket to be writable.

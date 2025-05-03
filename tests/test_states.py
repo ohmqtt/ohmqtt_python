@@ -704,9 +704,10 @@ def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, moc
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost"])
 @pytest.mark.parametrize("block", [True, False])
-def test_states_closing_state(block, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
-    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+def test_states_closing_state(address, block, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
+    params = ConnectParams(address=Address(address), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState)
 
     # Start from ConnectedState to test transition through ClosingState to ClosedState.
@@ -716,6 +717,11 @@ def test_states_closing_state(block, callbacks, state_data, env, mock_select, mo
     mock_timeout.mark.assert_called_once()
     mock_timeout.reset_mock()
     assert state_data.disconnect_rc == MQTTReasonCode.NormalDisconnection
+    if not params.address.use_tls:
+        mock_socket.shutdown.assert_called_once_with(socket.SHUT_RD)
+    else:
+        mock_socket.shutdown.assert_not_called()
+    mock_socket.reset_mock()
     assert fsm.state is ClosingState
 
     # First handle, write all.
