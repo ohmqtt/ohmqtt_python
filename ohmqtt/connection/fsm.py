@@ -87,8 +87,6 @@ class FSM:
     def request_state(self, state: Type[FSMState]) -> None:
         """Request a state change from outside the FSM."""
         with self.cond:
-            if self.state not in state.can_request_from:
-                logger.debug(f"Ignoring request to change from {self.state.__name__} to {state.__name__}")
             logger.debug(f"Requesting state change from {self.state.__name__} to {state.__name__}")
             self.requested_state = state
             self._state_requested = True
