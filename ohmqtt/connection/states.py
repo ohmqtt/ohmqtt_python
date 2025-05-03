@@ -28,7 +28,7 @@ class ConnectingState(FSMState):
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.keepalive.keepalive_interval = params.keepalive_interval
         state_data.keepalive.mark_init()
-        state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+        state_data.disconnect_rc = -1
         state_data.sock = _get_socket(params.address.family)
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
@@ -40,33 +40,32 @@ class ConnectingState(FSMState):
             logger.debug("Connect timeout")
             fsm.change_state(ClosedState)
             return True
-        with fsm.selector:
-            timeout = state_data.keepalive.get_next_timeout() if block else 0
-            _, wlist, _ = fsm.selector.select([state_data.sock], [state_data.sock], [], timeout)
-        if state_data.sock not in wlist:
-            logger.error("Failed to connect to broker")
-            fsm.change_state(ClosedState)
-            return False
+
         try:
             address = params.address
             if address.family == socket.AF_UNIX:
                 state_data.sock.connect(address.host)
             else:
                 state_data.sock.connect((address.host, address.port))
-        except BlockingIOError:
-            return False
+        except (BlockingIOError, OSError):
+            pass  # Either in progress or already connected, select will reveal which.
         except ConnectionError as exc:
             logger.error(f"Failed to connect to broker: {exc}")
             fsm.change_state(ClosedState)
             return True
 
-        state_data.sock.setblocking(False)
-        if params.address.use_tls:
-            fsm.change_state(TLSHandshakeState)
+        with fsm.selector:
+            timeout = state_data.keepalive.get_next_timeout() if block else 0
+            _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
+        if state_data.sock in wlist:
+            logger.debug("Socket connected to broker")
+            if params.address.use_tls:
+                fsm.change_state(TLSHandshakeState)
+            else:
+                fsm.change_state(MQTTHandshakeConnectState)
+            state_data.sock.setblocking(False)
             return True
-        else:
-            fsm.change_state(MQTTHandshakeConnectState)
-            return True
+        return False
 
 
 class TLSHandshakeState(FSMState):
@@ -216,7 +215,6 @@ class ConnectedState(FSMState):
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
         if state_data.keepalive.should_close():
             logger.error("Keepalive timeout, closing socket")
-            state_data.disconnect_rc = -1  # Do not send DISCONNECT
             fsm.change_state(ClosedState)
             return True
 
