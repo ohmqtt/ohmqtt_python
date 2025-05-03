@@ -14,6 +14,7 @@ from ohmqtt.connection.states import (
     MQTTHandshakeConnectState,
     MQTTHandshakeConnAckState,
     ConnectedState,
+    ReconnectWaitState,
     ClosingState,
     ClosedState,
     #ShutdownState,
@@ -665,3 +666,38 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
     decoder.reset_mock()
     callbacks.assert_not_called()
     assert fsm.state is ClosingState
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, mocker):
+    mock_wait = mocker.patch("ohmqtt.connection.fsm.FSM.wait")
+    params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5.6)
+    fsm = FSM(env=env, init_state=ReconnectWaitState)
+
+    ReconnectWaitState.enter(fsm, state_data, env, params)
+    assert state_data.timeout.interval == params.reconnect_delay
+    state_data.timeout.mark.assert_called_once()
+    state_data.timeout.reset_mock()
+
+    # First handle, waiting.
+    mock_wait.return_value = True
+    ret = ReconnectWaitState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    state_data.timeout.exceeded.assert_called_once()
+    state_data.timeout.reset_mock()
+    if block:
+        mock_wait.assert_called_once_with(state_data.timeout.get_timeout.return_value)
+        mock_wait.reset_mock()
+    else:
+        mock_wait.assert_not_called()
+    assert fsm.state is ReconnectWaitState
+
+    # Second handle, transition.
+    state_data.timeout.exceeded.return_value = True
+    ret = ReconnectWaitState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    state_data.timeout.exceeded.assert_called_once()
+    mock_wait.assert_not_called()
+    assert fsm.state is ConnectingState
+
+    callbacks.assert_not_called()
