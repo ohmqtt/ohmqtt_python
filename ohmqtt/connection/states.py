@@ -331,20 +331,6 @@ class ClosingState(FSMState):
             fsm.change_state(ClosedState)
             return True
 
-        # Read all buffered packets without waiting for a select.
-        want_read = True
-        try:
-            while want_read:  # Read all available packets.
-                want_read = ConnectedState.read_packet(fsm, state_data, env, params)
-        except MQTTError as exc:
-            # Bad data during closing should still forcefully close the connection.
-            logger.error(f"There was a problem with data from broker, closing connection: {exc}")
-            state_data.disconnect_rc = exc.reason_code
-            fsm.change_state(ClosedState)
-            return True
-        except (BlockingIOError, OSError):
-            pass
-
         with fsm.selector:
             if not env.write_buffer:
                 logger.debug("No more data to send, connection closed")
