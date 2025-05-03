@@ -100,7 +100,7 @@ class FSM:
         Returns True if the state is finished and the calling thread should wait for a change."""
         with self.cond:
             if self._state_requested:
-                if self.requested_state not in self.state.transitions_to:
+                if self.requested_state not in self.state.transitions_to or self.state not in self.requested_state.can_request_from:
                     logger.debug(f"Ignoring invalid request to change from {self.state.__name__} to {self.requested_state.__name__}")
                     self._state_requested = False
                     self.requested_state = self.state
