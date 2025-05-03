@@ -37,16 +37,6 @@ def callbacks(mocker):
     return Callbacks(mocker)
 
 
-def wait_for(callback, timeout=1.0):
-    """Wait for a condition to be true, or raise a TimeoutError."""
-    t0 = time.monotonic()
-    while time.monotonic() - t0 < timeout:
-        if callback():
-            return
-        time.sleep(0.001)
-    raise TimeoutError()
-
-
 @pytest.mark.parametrize(
     "address, tls_hostname", [
     ("mqtt://localhost", ""),
@@ -146,10 +136,10 @@ def test_connection_slots(callbacks):
         open_callback=callbacks.open_callback,
         read_callback=callbacks.read_callback,
     )
+    assert not hasattr(connection, "__dict__")
     # Ensure that all slots are initialized in constructor.
     assert all(hasattr(connection, attr) for attr in connection.__slots__), \
         [attr for attr in connection.__slots__ if not hasattr(connection, attr)]
-
 
 
 def test_connection_nodelay(callbacks, mocker):
@@ -166,7 +156,7 @@ def test_connection_nodelay(callbacks, mocker):
         callbacks.read_callback,
     ) as connection:
         connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=True))
-        time.sleep(0.1)
+        connection.loop_once()
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 
