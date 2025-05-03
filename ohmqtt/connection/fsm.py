@@ -12,6 +12,11 @@ from ..threading_lite import ConditionLite
 logger: Final = get_logger("connection.fsm")
 
 
+class InvalidStateError(Exception):
+    """Exception raised when an operation is performed in an invalid state."""
+    pass
+
+
 @dataclass(slots=True, init=False)
 class FSM:
     """Threadsafe Finite State Machine."""
@@ -73,7 +78,7 @@ class FSM:
             if state == self.state:
                 return
             if state not in self.state.transitions_to:
-                raise RuntimeError(f"Cannot transition from {self.state.__name__} to {state.__name__}")
+                raise InvalidStateError(f"Cannot transition from {self.state.__name__} to {state.__name__}")
             self.previous_state = self.state
             self.state = state
             self._state_changed = True
