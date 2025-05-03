@@ -35,6 +35,7 @@ class ConnectingState(FSMState):
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
+        state_data.open_called = False
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
@@ -208,6 +209,7 @@ class ConnectedState(FSMState):
             env.write_buffer.clear()
         assert state_data.connack is not None
         env.open_callback(state_data.connack)
+        state_data.open_called = True
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
@@ -368,7 +370,8 @@ class ClosedState(FSMState):
     All buffers will be flushed and the socket will be closed after conditionally sending a DISCONNECT."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        if fsm.previous_state in (ClosingState, ConnectedState):
+        if state_data.open_called:
+            state_data.open_called = False
             env.close_callback()
             with fsm.selector:
                 if state_data.disconnect_rc >= 0 and not env.write_buffer:
@@ -402,7 +405,8 @@ class ShutdownState(FSMState):
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         # We can enter this state from any other state.
         # Free up as many resources as possible.
-        if fsm.previous_state in (ClosingState, ConnectedState):
+        if state_data.open_called:
+            state_data.open_called = False
             env.close_callback()
         state_data.sock.close()
         state_data.decoder.reset()
