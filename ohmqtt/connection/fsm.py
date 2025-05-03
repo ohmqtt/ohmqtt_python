@@ -24,6 +24,7 @@ class FSM:
     previous_state: Type[FSMState]
     requested_state: Type[FSMState]
     state: Type[FSMState]
+    error_state: Type[FSMState]
     lock: threading.RLock
     cond: ConditionLite
     selector: InterruptibleSelector
@@ -32,11 +33,12 @@ class FSM:
     _state_requested: bool
     _state_data: StateData
 
-    def __init__(self, env: StateEnvironment, init_state: Type[FSMState]) -> None:
+    def __init__(self, env: StateEnvironment, init_state: Type[FSMState], error_state: Type[FSMState]) -> None:
         self.env = env
         self.previous_state = init_state
         self.requested_state = init_state
         self.state = init_state
+        self.error_state = error_state
         self.lock = threading.RLock()
         self.cond = ConditionLite(self.lock)
         self.selector = InterruptibleSelector(self.lock)
@@ -101,27 +103,46 @@ class FSM:
         State transition will be run if needed.
 
         Returns True if the state is finished and the calling thread should wait for a change."""
-        with self.cond:
-            if self._state_requested:
-                if self.requested_state not in self.state.transitions_to or self.state not in self.requested_state.can_request_from:
-                    logger.debug(f"Ignoring invalid request to change from {self.state.__name__} to {self.requested_state.__name__}")
-                    self._state_requested = False
-                    self.requested_state = self.state
-                else:
-                    logger.debug(f"Handling request to change from {self.state.__name__} to {self.requested_state.__name__}")
+        try:
+            with self.cond:
+                # Consume state change requests.
+                if self._state_requested:
+                    if self.requested_state not in self.state.transitions_to or self.state not in self.requested_state.can_request_from:
+                        logger.debug(f"Ignoring invalid request to change from {self.state.__name__} to {self.requested_state.__name__}")
+                        self._state_requested = False
+                        self.requested_state = self.state
+                    else:
+                        logger.debug(f"Handling request to change from {self.state.__name__} to {self.requested_state.__name__}")
+                        self.previous_state = self.state
+                        self.state = self.requested_state
+                        self._state_requested = False
+                        self._state_changed = True
+                # Consume state changes, either from a state or from a request.
+                if self._state_changed:
+                    self._state_changed = False
+                    self.cond.notify_all()
+                    logger.debug(f"Entering state {self.state.__name__}")
+                    self.state.enter(self, self._state_data, self.env, self.params)
+                    return False  # Run the state on the next loop, unless it has changed.
+
+            # Run the state.  Do not run this while holding the lock, as it may block.
+            return self.state.handle(self, self._state_data, self.env, self.params, block)
+        except Exception:
+            # If there is an unhandled exception anywhere in the loop, try to go to the error state.
+            with self.cond:
+                if self.state != self.error_state:
+                    if self.error_state not in self.state.transitions_to:
+                        logger.exception(f"Unhandled exception in FSM loop, cannot transition to {self.error_state.__name__}, exploding")
+                        raise
+                    logger.exception(f"Unhandled exception in FSM loop, going to {self.error_state.__name__}")
                     self.previous_state = self.state
-                    self.state = self.requested_state
-                    self._state_requested = False
+                    self.state = self.error_state
                     self._state_changed = True
-            if self._state_changed:
-                self._state_changed = False
-                self.cond.notify_all()
-                logger.debug(f"Entering state {self.state.__name__}")
-                self.state.enter(self, self._state_data, self.env, self.params)
-                return False  # Run the state on the next loop, unless it has changed.
-            state = self.state
-        # Do not hold the condition while in handle.
-        return state.handle(self, self._state_data, self.env, self.params, block)
+                    self._state_requested = False
+                    self.cond.notify_all()
+                else:
+                    logger.exception(f"Unhandled exception in FSM loop, already in {self.error_state.__name__}")
+            return False
 
     def loop_forever(self) -> None:
         """Run the state machine.

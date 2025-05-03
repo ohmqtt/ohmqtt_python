@@ -40,7 +40,7 @@ class Connection:
             open_callback=open_callback,
             read_callback=read_callback,
         )
-        self.fsm = FSM(env=state_env, init_state=ClosedState)
+        self.fsm = FSM(env=state_env, init_state=ClosedState, error_state=ShutdownState)
 
         self._thread: threading.Thread | None = None
 

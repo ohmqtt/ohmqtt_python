@@ -17,7 +17,7 @@ from ohmqtt.connection.states import (
     ReconnectWaitState,
     ClosingState,
     ClosedState,
-    #ShutdownState,
+    ShutdownState,
 )
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
@@ -125,7 +125,7 @@ def test_states_connecting_happy_path(address, block, callbacks, state_data, env
     if address.startswith("unix:") and not hasattr(socket, "AF_UNIX"):
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
-    fsm = FSM(env=env, init_state=ConnectingState)
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
 
     # Enter state.
     ConnectingState.enter(fsm, state_data, env, params)
@@ -174,7 +174,7 @@ def test_states_connecting_timeout(address, block, callbacks, state_data, env, m
     if address.startswith("unix:") and not hasattr(socket, "AF_UNIX"):
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
-    fsm = FSM(env=env, init_state=ConnectingState)
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
 
     mock_timeout.exceeded.return_value = True
     ConnectingState.enter(fsm, state_data, env, params)
@@ -192,7 +192,7 @@ def test_states_connecting_error(address, block, callbacks, state_data, env, moc
     if address.startswith("unix:") and not hasattr(socket, "AF_UNIX"):
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
-    fsm = FSM(env=env, init_state=ConnectingState)
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
 
     mock_socket.connect.side_effect = ConnectionError("TEST")
     ConnectingState.enter(fsm, state_data, env, params)
@@ -206,7 +206,7 @@ def test_states_connecting_error(address, block, callbacks, state_data, env, moc
 @pytest.mark.parametrize("block", [True, False])
 def test_states_tls_handshake_happy_path(block, callbacks, state_data, env, mock_select, mock_socket, mocker):
     params = ConnectParams(address=Address("mqtts://testhost"), tls_context=mocker.Mock())
-    fsm = FSM(env=env, init_state=TLSHandshakeState)
+    fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
 
     # Enter state.
     params.tls_context.wrap_socket.return_value = mock_socket
@@ -253,7 +253,7 @@ def test_states_tls_handshake_happy_path(block, callbacks, state_data, env, mock
 @pytest.mark.parametrize("block", [True, False])
 def test_states_tls_handshake_timeout(block, callbacks, state_data, env, mocker, mock_timeout):
     params = ConnectParams(address=Address("mqtts://testhost"), tls_context=mocker.Mock())
-    fsm = FSM(env=env, init_state=TLSHandshakeState)
+    fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
 
     mock_timeout.exceeded.return_value = True
     TLSHandshakeState.enter(fsm, state_data, env, params)
@@ -286,7 +286,7 @@ def test_states_mqtt_connect_happy_path(address, user, pwd, block, callbacks, st
         will_properties=MQTTWillProps(),
         connect_properties=MQTTConnectProps(),
     )
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
 
     # Enter state.
     MQTTHandshakeConnectState.enter(fsm, state_data, env, params)
@@ -338,7 +338,7 @@ def test_states_mqtt_connect_happy_path(address, user, pwd, block, callbacks, st
 @pytest.mark.parametrize("block", [True, False])
 def test_states_mqtt_connect_timeout(block, callbacks, state_data, env, mock_timeout):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
 
     MQTTHandshakeConnectState.enter(fsm, state_data, env, params)
     mock_timeout.mark.assert_not_called()
@@ -354,7 +354,7 @@ def test_states_mqtt_connect_timeout(block, callbacks, state_data, env, mock_tim
 def test_states_mqtt_connect_partial(block, callbacks, state_data, env, mock_socket, mocker):
     env.write_buffer = mocker.Mock()
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
 
     # One byte on the first write.
     MQTTHandshakeConnectState.enter(fsm, state_data, env, params)
@@ -385,7 +385,7 @@ def test_states_mqtt_connect_partial(block, callbacks, state_data, env, mock_soc
 @pytest.mark.parametrize("block", [True, False])
 def test_states_mqtt_connect_error(block, callbacks, state_data, env, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
 
     MQTTHandshakeConnectState.enter(fsm, state_data, env, params)
     mock_socket.send.return_value = 0
@@ -399,7 +399,7 @@ def test_states_mqtt_connect_error(block, callbacks, state_data, env, mock_socke
 @pytest.mark.parametrize("block", [True, False])
 def test_states_mqtt_connack_happy_path(block, callbacks, state_data, env, decoder, mock_select, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
     # Enter state.
     MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
@@ -430,7 +430,7 @@ def test_states_mqtt_connack_happy_path(block, callbacks, state_data, env, decod
 @pytest.mark.parametrize("block", [True, False])
 def test_states_mqtt_connack_timeout(block, callbacks, state_data, env, mock_timeout):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
     MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
     mock_timeout.mark.assert_not_called()
@@ -445,7 +445,7 @@ def test_states_mqtt_connack_timeout(block, callbacks, state_data, env, mock_tim
 @pytest.mark.parametrize("block", [True, False])
 def test_states_mqtt_connack_closed_socket(block, callbacks, decoder, state_data, env, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
     MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
     decoder.decode.side_effect = ClosedSocketError("TEST")
@@ -459,7 +459,7 @@ def test_states_mqtt_connack_closed_socket(block, callbacks, decoder, state_data
 @pytest.mark.parametrize("block", [True, False])
 def test_states_mqtt_connack_unexpected(block, callbacks, decoder, state_data, env):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState)
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
     MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
     decoder.decode.return_value = MQTTPublishPacket(topic="test/topic", payload=b"test_payload")
@@ -473,7 +473,7 @@ def test_states_mqtt_connack_unexpected(block, callbacks, decoder, state_data, e
 @pytest.mark.parametrize("block", [True, False])
 def test_states_connected_happy_path(block, callbacks, state_data, env, mock_select, mock_socket, mock_read):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=ConnectedState)
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
     # Enter state.
     ConnectedState.enter(fsm, state_data, env, params)
@@ -519,7 +519,7 @@ def test_states_connected_happy_path(block, callbacks, state_data, env, mock_sel
 @pytest.mark.parametrize("block", [True, False])
 def test_states_connected_keepalive(block, callbacks, state_data, env, mock_keepalive, mock_select, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=ConnectedState)
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
     ConnectedState.enter(fsm, state_data, env, params)
     callbacks.reset()
@@ -551,7 +551,7 @@ def test_states_connected_keepalive(block, callbacks, state_data, env, mock_keep
 @pytest.mark.parametrize("block", [True, False])
 def test_states_connected_send_errors(block, exc, callbacks, state_data, env, mock_read, mock_select, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=ConnectedState)
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
     ConnectedState.enter(fsm, state_data, env, params)
     callbacks.reset()
@@ -580,7 +580,7 @@ def test_states_connected_send_errors(block, exc, callbacks, state_data, env, mo
 @pytest.mark.parametrize("block", [True, False])
 def test_states_connected_read_closed(block, callbacks, state_data, env, mock_read, mock_select, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=ConnectedState)
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
     ConnectedState.enter(fsm, state_data, env, params)
     callbacks.reset()
@@ -597,7 +597,7 @@ def test_states_connected_read_closed(block, callbacks, state_data, env, mock_re
 @pytest.mark.parametrize("block", [True, False])
 def test_states_connected_read_mqtt_error(block, callbacks, state_data, env, mock_read, mock_select, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=ConnectedState)
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
     ConnectedState.enter(fsm, state_data, env, params)
     callbacks.reset()
@@ -614,7 +614,7 @@ def test_states_connected_read_mqtt_error(block, callbacks, state_data, env, moc
 
 def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_keepalive):
     params = ConnectParams(address=Address("mqtt://testhost"))
-    fsm = FSM(env=env, init_state=ConnectedState)
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
     # Handle incomplete packet.
     decoder.decode.return_value = None
@@ -673,7 +673,7 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
 def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, mocker, mock_timeout):
     mock_wait = mocker.patch("ohmqtt.connection.fsm.FSM.wait")
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
-    fsm = FSM(env=env, init_state=ReconnectWaitState)
+    fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
 
     ReconnectWaitState.enter(fsm, state_data, env, params)
     assert mock_timeout.interval == params.reconnect_delay
@@ -708,7 +708,7 @@ def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, moc
 @pytest.mark.parametrize("block", [True, False])
 def test_states_closing_state(address, block, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
     params = ConnectParams(address=Address(address), connect_timeout=5)
-    fsm = FSM(env=env, init_state=ClosingState)
+    fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
 
     # Start from ConnectedState to test transition through ClosingState to ClosedState.
     fsm.previous_state = ConnectedState
