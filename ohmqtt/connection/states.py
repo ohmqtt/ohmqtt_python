@@ -6,7 +6,7 @@ from typing import cast, Final
 
 from .types import ConnectParams, StateData, StateEnvironment
 from .fsm import FSM, FSMState
-from .decoder import ClosedSocketError, WantRead
+from .decoder import ClosedSocketError
 from ..error import MQTTError
 from ..logger import get_logger
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
@@ -120,6 +120,8 @@ class MQTTHandshakeConnectState(FSMState):
             will_qos=params.will_qos,
             will_retain=params.will_retain,
             will_props=params.will_properties,
+            username=params.address.username,
+            password=params.address.password.encode() if params.address.password else None,
         )
         logger.debug(f"---> {str(connect_packet)}")
         with fsm.selector:
@@ -175,8 +177,6 @@ class MQTTHandshakeConnAckState(FSMState):
             logger.exception("Socket was closed")
             fsm.change_state(ClosedState)
             return True
-        except WantRead:
-            want_read = True
         
         if want_read:
             # Incomplete packet, wait for more data.

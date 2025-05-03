@@ -121,7 +121,11 @@ class IncrementalDecoder:
             self._state.data.extend(data)
 
     def decode(self, sock: socket.socket | ssl.SSLSocket) -> MQTTPacket | None:
-        """Decode a single packet straight from the socket."""
+        """Decode a single packet straight from the socket.
+
+        Returns None if the socket doesn't have enough data for us to decode a packet.
+
+        Raises ClosedSocketError if the socket is closed."""
         try:
             self._extract_head(sock)
             self._extract_length(sock)
