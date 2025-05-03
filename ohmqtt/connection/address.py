@@ -22,7 +22,7 @@ def is_ipv6(hostname: str) -> bool:
 
 def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     """Get the address family based on the parsed URL scheme."""
-    if parsed.scheme == "unix":
+    if parsed.scheme == "unix" and hasattr(socket, "AF_UNIX"):
         return socket.AF_UNIX
     elif parsed.scheme in ("mqtt", "mqtts"):
         if not parsed.hostname:
@@ -48,7 +48,10 @@ class Address:
         # Special case: empty address is allowed, but slots will be empty.
         if not address:
             return
-        if "//" not in address and not address.startswith("unix:"):
+        if address.startswith("unix:"):
+            if not hasattr(socket, "AF_UNIX"):
+                raise ValueError("Unix socket support is not available on this platform")
+        elif "//" not in address:
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
             address = "//" + address
         parsed = urlparse(address, scheme="mqtt")
