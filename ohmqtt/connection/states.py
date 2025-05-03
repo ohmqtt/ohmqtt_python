@@ -29,6 +29,7 @@ class ConnectingState(FSMState):
         state_data.keepalive.keepalive_interval = params.keepalive_interval
         state_data.timeout.interval = params.connect_timeout
         state_data.timeout.mark()
+        state_data.connack = None
         state_data.disconnect_rc = -1
         state_data.sock = _get_socket(params.address.family)
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
@@ -187,7 +188,7 @@ class MQTTHandshakeConnAckState(FSMState):
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
             packet = cast(MQTTConnAckPacket, packet)
             logger.debug(f"<--- {str(packet)}")
-            env.open_callback(packet)
+            state_data.connack = packet
             if packet.properties.ServerKeepAlive is not None:
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
             fsm.change_state(ConnectedState)
@@ -205,6 +206,7 @@ class ConnectedState(FSMState):
         state_data.keepalive.mark_init()
         with fsm.selector:
             env.write_buffer.clear()
+        env.open_callback(state_data.connack)
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:

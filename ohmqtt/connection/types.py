@@ -57,6 +57,7 @@ class StateData:
     keepalive: KeepAlive = field(init=False, default_factory=KeepAlive)
     timeout: Timeout = field(init=False, default_factory=Timeout)
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
+    connack: MQTTConnAckPacket | None = field(init=False, default=None)
 
 
 @dataclass(slots=True, kw_only=True)
