@@ -820,3 +820,72 @@ def test_states_closing_send_error(block, exc, callbacks, state_data, env, mock_
     assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("prev_state", [
+    ConnectingState,
+    TLSHandshakeState,
+    MQTTHandshakeConnectState,
+    MQTTHandshakeConnAckState,
+    ConnectedState,
+    ClosingState,
+    ReconnectWaitState,
+])
+@pytest.mark.parametrize("rc_delay", [0, 1])
+def test_states_closed_happy_path(prev_state, rc_delay, callbacks, state_data, env, decoder, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=rc_delay)
+    fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
+
+    fsm.previous_state = prev_state
+    fsm.requested_state = ConnectingState
+    state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+    ClosedState.enter(fsm, state_data, env, params)
+    if prev_state in (ConnectedState, ClosingState):
+        callbacks.close.assert_called_once()
+        callbacks.reset()
+        mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
+    mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
+    mock_socket.close.assert_called_once()
+    decoder.reset.assert_called_once()
+    # We will assert that the write buffer is empty in another test.
+    if rc_delay > 0 and prev_state in (ConnectedState, ClosingState):
+        assert fsm.state is ReconnectWaitState
+    else:
+        assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError, OSError])
+def test_states_closed_errors(exc, callbacks, state_data, env, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
+
+    fsm.previous_state = ClosingState
+    state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+    mock_socket.send.side_effect = exc("TEST")
+    mock_socket.shutdown.side_effect = OSError("TEST")
+    mock_socket.close.side_effect = OSError("TEST")
+    ClosedState.enter(fsm, state_data, env, params)
+    mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
+    mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
+    mock_socket.close.assert_called_once()
+    callbacks.close.assert_called_once()
+    callbacks.reset()
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+def test_states_closed_write_buffer_not_empty(callbacks, state_data, env, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectingState
+    env.write_buffer.extend(b"test_data")
+    ClosedState.enter(fsm, state_data, env, params)
+    mock_socket.send.assert_not_called()
+    assert len(env.write_buffer) == 0
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
