@@ -5,6 +5,7 @@ from typing import Callable, NamedTuple, TYPE_CHECKING
 import weakref
 
 from .packet import MQTTPublishPacket
+from .protected import Protected, protect
 from .topic_filter import match_topic_filter, validate_topic_filter, validate_share_name, join_share
 
 if TYPE_CHECKING:
@@ -45,11 +46,15 @@ class SubscriptionData:
     callbacks: set[SubscribeCallback] = field(init=False, default_factory=set)
 
 
-@dataclass(slots=True)
-class Subscriptions:
+class Subscriptions(Protected):
     """Container for MQTT subscriptions and their callbacks."""
-    _subscriptions: dict[SubscriptionId, SubscriptionData] = field(init=False, default_factory=dict)
+    __slots__ = ("_subscriptions",)
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._subscriptions: dict[SubscriptionId, SubscriptionData] = {}
+
+    @protect
     def add(self, topic_filter: str, share_name: str | None, qos: int, callback: SubscribeCallback) -> None:
         """Add a subscription with a callback."""
         validate_topic_filter(topic_filter)
@@ -63,6 +68,7 @@ class Subscriptions:
             self._subscriptions[sub_id].max_qos, qos
         )
 
+    @protect
     def remove(self, topic_filter: str, share_name: str | None, callback: SubscribeCallback) -> int:
         """Remove a callback from a subscription.
         
@@ -77,12 +83,14 @@ class Subscriptions:
         else:
             return 0
 
+    @protect
     def remove_all(self, topic_filter: str, share_name: str | None) -> None:
         """Remove all callbacks from a subscription."""
         sub_id = SubscriptionId(topic_filter, share_name)
         if sub_id in self._subscriptions:
             del self._subscriptions[sub_id]
 
+    @protect
     def get_callbacks(self, topic: str) -> frozenset[SubscribeCallback]:
         """Get all callbacks for a given topic."""
         callbacks = set()
@@ -91,10 +99,12 @@ class Subscriptions:
                 callbacks.update(subscription.callbacks)
         return frozenset(callbacks)
 
+    @protect
     def clear(self) -> None:
         """Clear all subscriptions."""
         self._subscriptions.clear()
 
+    @protect
     def get_topics(self) -> dict[SubscriptionId, int]:
         """Get a dictionary of all subscriptions and their max QoS.
 

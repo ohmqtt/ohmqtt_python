@@ -148,7 +148,8 @@ class Client:
         share_name: str | None = None,
     ) -> SubscriptionHandle:
         """Subscribe to a topic filter with a callback."""
-        self.subscriptions.add(topic_filter, share_name, qos, callback)
+        with self.subscriptions as subscriptions:
+            subscriptions.add(topic_filter, share_name, qos, callback)
         self.session.subscribe(topic_filter, share_name, qos, properties)
         return SubscriptionHandle(
             topic_filter=topic_filter,
@@ -167,10 +168,11 @@ class Client:
 
         If a callback is provided it will be removed, otherwise all callbacks for the topic filter will be removed."""
         remaining = 0
-        if callback is None:
-            self.subscriptions.remove_all(topic_filter, share_name)
-        else:
-            remaining = self.subscriptions.remove(topic_filter, share_name, callback)
+        with self.subscriptions as subscriptions:
+            if callback is None:
+                subscriptions.remove_all(topic_filter, share_name)
+            else:
+                remaining = subscriptions.remove(topic_filter, share_name, callback)
         if remaining == 0:
             self.session.unsubscribe(topic_filter, share_name)
 
@@ -194,7 +196,8 @@ class Client:
 
     def _handle_message(self, packet: MQTTPublishPacket) -> None:
         """Callback for when a message is received."""
-        callbacks = self.subscriptions.get_callbacks(packet.topic)
+        with self.subscriptions as subscriptions:
+            callbacks = subscriptions.get_callbacks(packet.topic)
         if not callbacks:
             logger.error(f"No callbacks for topic: {packet.topic}")
             return
@@ -206,12 +209,14 @@ class Client:
 
     def _handle_open(self, connack: MQTTConnAckPacket) -> None:
         """Callback for when the connection is opened."""
-        for sub_id, qos in self.subscriptions.get_topics().items():
-            self.session.subscribe(sub_id.topic_filter, sub_id.share_name, qos=qos)
+        with self.subscriptions as subscriptions:
+            for sub_id, qos in subscriptions.get_topics().items():
+                self.session.subscribe(sub_id.topic_filter, sub_id.share_name, qos=qos)
 
     def _handle_close(self) -> None:
         """Callback for when the connection is closed."""
-        self.subscriptions.clear()
+        with self.subscriptions as subscriptions:
+            subscriptions.clear()
 
     def _handle_auth(
         self,
