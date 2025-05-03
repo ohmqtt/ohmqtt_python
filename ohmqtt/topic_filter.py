@@ -47,11 +47,6 @@ def validate_share_name(share_name: str) -> None:
         raise ValueError("Share name is too long (> 65535 bytes encoded as UTF-8)")
 
 
-def _check_exact_match(topic_filter: str, topic: str) -> bool:
-    """Check if the topic matches the filter exactly."""
-    return topic_filter == topic
-
-
 def _check_multi_level_wildcard(topic_filter: str, topic: str) -> bool:
     """Check if the topic matches the filter with a multi-level wildcard."""
     if len(topic_filter) == 1 and not topic.startswith("$"):
@@ -82,7 +77,7 @@ def match_topic_filter(topic_filter: str, topic: str) -> bool:
 
     This method will validate the topic, but assumes that the filter is already validated."""
     validate_topic(topic)
-    if _check_exact_match(topic_filter, topic):
+    if topic_filter == topic:
         return True
     if "#" in topic_filter and _check_multi_level_wildcard(topic_filter, topic):
         return True
