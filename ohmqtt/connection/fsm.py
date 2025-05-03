@@ -140,30 +140,7 @@ class FSM:
                     self._state_changed = True
                     self._state_requested = False
                     self.cond.notify_all()
-                else:
-                    logger.exception(f"Unhandled exception in FSM loop, already in {self.error_state.__name__}")
-            return False
-
-    def loop_forever(self) -> None:
-        """Run the state machine.
-
-        This method will run in a loop until the state machine is finalized.
-        It will call the appropriate state methods based on the current state."""
-        while True:
-            try:
-                state_done = self.loop_once(block=True)
-                with self.cond:
-                    if state_done and not self._state_changed and not self._state_requested:
-                        if not self.state.transitions_to:
-                            # The state is final and finished, we are done.
-                            logger.debug("Shutting down loop")
-                            break
-                        else:
-                            # State is finished, wait for a change.
-                            self.cond.wait()
-            except Exception:
-                logger.exception("Unhandled exception in FSM loop, breaking the loop")
-                raise
+            raise
 
     def loop_until_state(self, state: Type[FSMState]) -> bool:
         """Run the state machine until a specific state has been entered.

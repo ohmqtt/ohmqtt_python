@@ -110,7 +110,7 @@ class Connection:
 
     def loop_forever(self) -> None:
         """Run the state machine until the connection is closed."""
-        self.fsm.loop_forever()
+        self.fsm.loop_until_state(ShutdownState)
 
     def loop_until_connected(self) -> bool:
         """Run the state machine until the connection is established.
@@ -122,7 +122,7 @@ class Connection:
         """Start the state machine in a separate thread."""
         if self._thread is not None:
             raise RuntimeError("Connection loop already started")
-        self._thread = threading.Thread(target=self.fsm.loop_forever, daemon=True)
+        self._thread = threading.Thread(target=self.loop_forever, daemon=True)
         self._thread.start()
 
     def is_alive(self) -> bool:
