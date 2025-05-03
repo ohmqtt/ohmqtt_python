@@ -9,7 +9,6 @@ from .address import Address
 from .decoder import IncrementalDecoder
 from .keepalive import KeepAlive
 from .timeout import Timeout
-from ..mqtt_spec import MQTTReasonCode
 from ..packet import MQTTPacket, MQTTConnAckPacket
 from ..property import MQTTConnectProps, MQTTWillProps
 
@@ -53,7 +52,7 @@ class StateData:
 
     The data in this class should never be accessed from outside the state methods."""
     sock: socket.socket | ssl.SSLSocket = field(init=False, default_factory=socket.socket)
-    disconnect_rc: int = field(init=False, default=MQTTReasonCode.NormalDisconnection)
+    disconnect_rc: int = field(init=False, default=-1)
     keepalive: KeepAlive = field(init=False, default_factory=KeepAlive)
     timeout: Timeout = field(init=False, default_factory=Timeout)
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)

@@ -314,7 +314,8 @@ class ClosingState(FSMState):
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         if fsm.previous_state == ConnectedState:
             logger.debug("Gracefully closing connection")
-            state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+            if state_data.disconnect_rc == -1:
+                state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
         else:
             logger.debug("Skipping ClosingState")
             fsm.change_state(ClosedState)
