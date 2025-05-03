@@ -200,7 +200,7 @@ class MQTTHandshakeConnAckState(FSMState):
 
 
 class ConnectedState(FSMState):
-    """Connected to the broker."""
+    """Connected to the broker. Full duplex messaging in this state."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.keepalive.mark_init()
