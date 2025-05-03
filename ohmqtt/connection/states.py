@@ -339,18 +339,17 @@ class ClosingState(FSMState):
             timeout = state_data.timeout.get_timeout() if block else 0
             _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
 
-        if state_data.sock in wlist:
-            try:
-                with fsm.selector:
+            if state_data.sock in wlist:
+                try:
                     sent = state_data.sock.send(env.write_buffer)
                     del env.write_buffer[:sent]
-                state_data.keepalive.mark_send()
-            except (BlockingIOError, ssl.SSLWantWriteError):
-                pass
-            except BrokenPipeError:
-                logger.error("Socket lost while closing")
-                fsm.change_state(ClosedState)
-                return True
+                    state_data.keepalive.mark_send()
+                except (BlockingIOError, ssl.SSLWantWriteError):
+                    pass
+                except BrokenPipeError:
+                    logger.error("Socket lost while closing")
+                    fsm.change_state(ClosedState)
+                    return True
         return False
 
 
