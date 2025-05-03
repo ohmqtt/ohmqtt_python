@@ -312,9 +312,6 @@ class ClosingState(FSMState):
     The socket will be shutdown for reading, but existing buffers will be flushed."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.timeout.interval = params.connect_timeout
-        state_data.timeout.mark()
-
         if fsm.previous_state == ConnectedState:
             logger.debug("Gracefully closing connection")
             state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
@@ -323,8 +320,11 @@ class ClosingState(FSMState):
             fsm.change_state(ClosedState)
             return
 
+        state_data.timeout.interval = params.connect_timeout
+        state_data.timeout.mark()
+
         # Shutdown only the read side of the socket, so we can still send data.
-        # We don't want to shutdown the socket if we're using TLS, as it will cause the protocol to fail.
+        # We don't want to shutdown the socket if we're using TLS, it would cause the protocol to fail.
         if not params.address.use_tls:
             try:
                 state_data.sock.shutdown(socket.SHUT_RD)
@@ -431,8 +431,11 @@ ClosingState.can_request_from = (
     ConnectedState,
     ReconnectWaitState,
 )
+
 ClosedState.transitions_to = (ConnectingState, ShutdownState, ReconnectWaitState)
-ReconnectWaitState.transitions_to = (ClosedState, ShutdownState, ConnectingState)
+
+ReconnectWaitState.transitions_to = (ClosingState, ClosedState, ShutdownState, ConnectingState)
+
 ShutdownState.can_request_from = (
     ConnectingState,
     TLSHandshakeState,

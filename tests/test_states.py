@@ -706,7 +706,7 @@ def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, moc
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost"])
 @pytest.mark.parametrize("block", [True, False])
-def test_states_closing_state(address, block, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
+def test_states_closing_happy_path(address, block, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
     params = ConnectParams(address=Address(address), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
 
@@ -743,6 +743,78 @@ def test_states_closing_state(address, block, callbacks, state_data, env, mock_s
     assert ret is True
     mock_timeout.exceeded.assert_called_once()
     mock_timeout.reset_mock()
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+# Try all states which can transition to ClosingState, except ConnectedState.
+@pytest.mark.parametrize("prev_state", [
+    ConnectingState,
+    TLSHandshakeState,
+    MQTTHandshakeConnectState,
+    MQTTHandshakeConnAckState,
+    ReconnectWaitState,
+])
+def test_states_closing_skip(prev_state, callbacks, state_data, env, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
+
+    fsm.previous_state = prev_state
+    ClosingState.enter(fsm, state_data, env, params)
+    mock_socket.shutdown.assert_not_called()
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_closing_timeout(block, callbacks, state_data, env, mock_timeout):
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectedState
+    ClosingState.enter(fsm, state_data, env, params)
+    mock_timeout.exceeded.return_value = True
+    ret = ClosingState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+def test_states_closing_shutdown_error(callbacks, state_data, env, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectedState
+    mock_socket.shutdown.side_effect = OSError("TEST")
+    ClosingState.enter(fsm, state_data, env, params)
+    mock_socket.shutdown.assert_called_once()
+    assert fsm.state is ClosingState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("block", [True, False])
+def test_states_closing_send_error(block, exc, callbacks, state_data, env, mock_select, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectedState
+    ClosingState.enter(fsm, state_data, env, params)
+
+    env.write_buffer.extend(b"test_data")
+    mock_select.return_value = ([], [mock_socket], [])
+    mock_socket.send.side_effect = exc("TEST")
+    ret = ClosingState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    assert fsm.state is ClosingState
+
+    mock_socket.send.side_effect = BrokenPipeError("TEST")
+    ret = ClosingState.handle(fsm, state_data, env, params, block)
+    assert ret is True
     assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
