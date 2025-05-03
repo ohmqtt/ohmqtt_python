@@ -82,7 +82,7 @@ class MQTTPublishPacket(MQTTPacket):
             encoded.append(0)
         encoded.extend(self.payload)
         encoded[0:0] = encode_varint(len(encoded))
-        encoded.insert(0, HEAD_PUBLISH + self.retain + (self.qos << 1) + (self.dup << 3))
+        encoded.insert(0, HEAD_PUBLISH | self.retain | (self.qos << 1) | (self.dup << 3))
         return bytes(encoded)
 
     @classmethod
@@ -90,7 +90,7 @@ class MQTTPublishPacket(MQTTPacket):
         qos = (flags >> 1) & 0x03
         if qos > 2:
             raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode.MalformedPacket)
-        retain = (flags % 2) == 1
+        retain = (flags & 0x01) == 1
         dup = (flags & 0x08) == 8
 
         topic, topic_length = decode_string(data)

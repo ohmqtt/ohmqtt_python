@@ -69,8 +69,8 @@ class MQTTConnectPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         connect_flags = (
-            (self.clean_start << 1) +
-            (self.will_qos << 3) +
+            (self.clean_start << 1) |
+            (self.will_qos << 3) |
             (self.will_retain << 5)
         )
 
@@ -78,13 +78,13 @@ class MQTTConnectPacket(MQTTPacket):
         payload.extend(encode_string(self.client_id))
         if self.will_topic:
             payload.extend(self.will_props.encode() + encode_string(self.will_topic) + encode_binary(self.will_payload))
-            connect_flags += 0x04
+            connect_flags |= 0x04
         if self.username is not None:
             payload.extend(encode_string(self.username))
-            connect_flags += 0x80
+            connect_flags |= 0x80
         if self.password is not None:
             payload.extend(encode_binary(self.password))
-            connect_flags += 0x40
+            connect_flags |= 0x40
 
         data = b"".join((
             encode_binary(b"MQTT"),
