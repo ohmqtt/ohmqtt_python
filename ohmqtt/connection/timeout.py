@@ -7,9 +7,9 @@ class Timeout:
     """A simple timer class for getting timeouts since the last event."""
     __slots__ = ("interval", "_mark")
 
-    def __init__(self) -> None:
-        self.interval: float | None = None
-        self._mark = 0.0
+    def __init__(self, interval: float | None = None) -> None:
+        self.interval = interval
+        self._mark = _time()
 
     def mark(self) -> None:
         """Mark an event."""

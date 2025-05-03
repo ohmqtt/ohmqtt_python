@@ -10,6 +10,7 @@ def mock_time(mocker):
 
 def test_timeout(mock_time):
     """Test the Timeout class."""
+    mock_time.return_value = 0.0
     timeout = Timeout()
 
     assert timeout.interval is None
@@ -17,7 +18,6 @@ def test_timeout(mock_time):
     assert not timeout.exceeded()
 
     timeout.interval = 1.0
-    mock_time.return_value = 0.0
     assert timeout.get_timeout() == 1.0
     assert not timeout.exceeded()
 
