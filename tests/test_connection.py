@@ -17,6 +17,7 @@ from ohmqtt.packet import (
     MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTDisconnectPacket,
+    MQTTPublishPacket,
     PING,
     PONG,
 )
@@ -85,6 +86,14 @@ def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_
         connection.wait_for_connect(timeout=0.1)
         callbacks.open_callback.assert_called_once_with(connack_packet)
         callbacks.open_callback.reset_mock()
+
+        pub_packet = MQTTPublishPacket(
+            topic="test/topic",
+            payload=b"test payload",
+            qos=0,
+        )
+        connection.send(pub_packet.encode())
+        assert loop.test_recv(512) == pub_packet.encode()
 
         # DISCONNECT
         connection.disconnect()
