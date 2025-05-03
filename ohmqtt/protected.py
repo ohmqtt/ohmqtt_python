@@ -11,7 +11,7 @@ else:
     from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from .threading_lite import LockLike
+    from .threading_lite import LockLike  # pragma: no cover
 
 
 ProtectedT = TypeVar("ProtectedT", bound="Protected")
@@ -45,13 +45,7 @@ class Protected:
         if hasattr(self._lock, "_is_owned"):
             self._is_owned = self._lock._is_owned
         else:
-            def _is_owned(self: Protected) -> bool:
-                """Check if the current thread owns the lock."""
-                if self._lock.acquire(False):
-                    self._lock.release()
-                    return False
-                return True
-            self._is_owned = _is_owned
+            raise RuntimeError(f"{self.__class__.__name__} lock does not support _is_owned() method")
 
     def __enter__(self) -> Self:
         self.acquire()
