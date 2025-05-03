@@ -49,12 +49,12 @@ class ConnectingState(FSMState):
                 state_data.sock.connect(address.host)
             else:
                 state_data.sock.connect((address.host, address.port))
-        except (BlockingIOError, OSError):
-            pass  # Either in progress or already connected, select will reveal which.
         except ConnectionError as exc:
             logger.error(f"Failed to connect to broker: {exc}")
             fsm.change_state(ClosedState)
             return True
+        except (BlockingIOError, OSError):
+            pass  # Either in progress or already connected, select will reveal which.
 
         with fsm.selector:
             timeout = state_data.timeout.get_timeout() if block else 0
