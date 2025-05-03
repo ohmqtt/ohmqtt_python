@@ -25,6 +25,7 @@ from ..property import (
 from ..serialization import (
     encode_string,
     encode_varint,
+    encode_uint16,
     decode_string,
     decode_uint8,
     decode_uint16,
@@ -74,7 +75,7 @@ class MQTTPublishPacket(MQTTPacket):
     def encode(self) -> bytes:
         encoded = bytearray(encode_string(self.topic))
         if self.qos > 0:
-            encoded.extend(self.packet_id.to_bytes(2, byteorder="big"))
+            encoded.extend(encode_uint16(self.packet_id))
         if self.properties:
             encoded.extend(self.properties.encode())
         else:
@@ -95,7 +96,7 @@ class MQTTPublishPacket(MQTTPacket):
         topic, topic_length = decode_string(data)
         offset = topic_length
         if qos > 0:
-            packet_id = int.from_bytes(data[offset:offset + 2], byteorder="big")
+            packet_id = decode_uint16(data[offset:])[0]
             offset += 2
         else:
             packet_id = 0
@@ -116,7 +117,7 @@ class MQTTPublishPacket(MQTTPacket):
 def _encode_pubacklike(packet: PubAckLikeT) -> bytes:
     """Encode a PUBACK-like packet."""
     head = HEAD_PUBACKS[packet.packet_type]
-    encoded = bytearray(packet.packet_id.to_bytes(2, byteorder="big"))
+    encoded = bytearray(encode_uint16(packet.packet_id))
     if packet.reason_code != MQTTReasonCode.Success:
         encoded.append(packet.reason_code)
     if packet.properties:

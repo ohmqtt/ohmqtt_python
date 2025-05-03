@@ -1,5 +1,6 @@
 """Primitives for encoding and decoding MQTT packet fields."""
 
+import struct
 from typing import Final
 
 from .error import MQTTError
@@ -7,6 +8,11 @@ from .mqtt_spec import MQTTReasonCode
 
 # Maximum variable integer value.
 MAX_VARINT: Final = 268435455
+
+
+UInt8Packer: Final = struct.Struct("B")
+UInt16Packer: Final = struct.Struct(">H")
+UInt32Packer: Final = struct.Struct(">L")
 
 
 def encode_bool(x: bool) -> bytes:
@@ -31,7 +37,7 @@ def decode_bool(data: memoryview) -> tuple[bool, int]:
 
 def encode_uint8(x: int) -> bytes:
     """Encode an 8-bit integer to a buffer."""
-    return x.to_bytes(length=1, byteorder="big")
+    return UInt8Packer.pack(x)
 
 
 def decode_uint8(data: memoryview) -> tuple[int, int]:
@@ -39,14 +45,14 @@ def decode_uint8(data: memoryview) -> tuple[int, int]:
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
-        return int(data[0]), 1
+        return UInt8Packer.unpack_from(data)[0], 1
     except Exception as e:
         raise MQTTError("Failed to decode byte from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_uint16(x: int) -> bytes:
     """Encode a 16-bit integer to a buffer."""
-    return x.to_bytes(length=2, byteorder="big")
+    return UInt16Packer.pack(x)
 
 
 def decode_uint16(data: memoryview) -> tuple[int, int]:
@@ -54,16 +60,14 @@ def decode_uint16(data: memoryview) -> tuple[int, int]:
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
-        if len(data) < 2:
-            raise ValueError("Integer underrun")
-        return int.from_bytes(data[:2], byteorder="big"), 2
+        return UInt16Packer.unpack_from(data)[0], 2
     except Exception as e:
         raise MQTTError("Failed to decode 16-bit integer from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
 def encode_uint32(x: int) -> bytes:
     """Encode a 32-bit integer to a buffer."""
-    return x.to_bytes(length=4, byteorder="big")
+    return UInt32Packer.pack(x)
 
 
 def decode_uint32(data: memoryview) -> tuple[int, int]:
@@ -71,9 +75,7 @@ def decode_uint32(data: memoryview) -> tuple[int, int]:
     
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
-        if len(data) < 4:
-            raise ValueError("Integer underrun")
-        return int.from_bytes(data[:4], byteorder="big"), 4
+        return UInt32Packer.unpack_from(data)[0], 4
     except Exception as e:
         raise MQTTError("Failed to decode 32-bit integer from buffer", MQTTReasonCode.MalformedPacket) from e
 
@@ -81,7 +83,7 @@ def decode_uint32(data: memoryview) -> tuple[int, int]:
 def encode_string(s: str) -> bytes:
     """Encode a UTF-8 string to a buffer."""
     data = s.encode("utf-8")
-    return len(data).to_bytes(2, byteorder="big") + data
+    return UInt16Packer.pack(len(data)) + data
 
 
 def decode_string(data: memoryview) -> tuple[str, int]:
@@ -89,9 +91,7 @@ def decode_string(data: memoryview) -> tuple[str, int]:
     
     Returns a tuple of the decoded string and the number of bytes consumed."""
     try:
-        if len(data) < 2:
-            raise ValueError("String length underrun")
-        length = int.from_bytes(data[:2], byteorder="big")
+        length = UInt16Packer.unpack_from(data)[0]
         if length > len(data) - 2:
             raise ValueError("String data underrun")
         # Strict UTF-8 decoding will catch any invalid UTF-8 sequences.
@@ -109,7 +109,7 @@ def encode_string_pair(values: tuple[str, str]) -> bytes:
     """Encode a UTF-8 string pair to a buffer."""
     left = values[0].encode("utf-8")
     right = values[1].encode("utf-8")
-    return len(left).to_bytes(2, byteorder="big") + left + len(right).to_bytes(2, byteorder="big") + right
+    return UInt16Packer.pack(len(left)) + left + UInt16Packer.pack(len(right)) + right
 
 
 def decode_string_pair(data: memoryview) -> tuple[tuple[str, str], int]:
@@ -126,7 +126,7 @@ def decode_string_pair(data: memoryview) -> tuple[tuple[str, str], int]:
 
 def encode_binary(data: bytes) -> bytes:
     """Encode binary data to a buffer."""
-    return len(data).to_bytes(2, byteorder="big") + data
+    return UInt16Packer.pack(len(data)) + data
 
 
 def decode_binary(data: memoryview) -> tuple[bytes, int]:
@@ -134,9 +134,7 @@ def decode_binary(data: memoryview) -> tuple[bytes, int]:
     
     Returns a tuple of the decoded data and the number of bytes consumed."""
     try:
-        if len(data) < 2:
-            raise ValueError("Binary length underrun")
-        length = int.from_bytes(data[:2], byteorder="big")
+        length = UInt16Packer.unpack_from(data)[0]
         if length > len(data) - 2:
             raise ValueError("Binary data underrun")
         return data[2:2 + length].tobytes("A"), length + 2
