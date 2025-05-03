@@ -83,6 +83,10 @@ class TopicAlias:
         self.next_out_alias += 1
         return OutboundLookupResult(alias, False)
 
+    def remove_outbound(self, topic: str) -> None:
+        """Remove the topic alias for a given topic from the client."""
+        self.out_aliases.pop(topic)
+
     def store_inbound(self, alias: int, topic: str) -> None:
         """Store the topic for a given topic alias from the server."""
         if alias > self.max_in_alias:

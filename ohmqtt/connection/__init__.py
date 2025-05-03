@@ -5,6 +5,7 @@ from typing import Final
 
 from .address import Address as Address
 from .fsm import FSM
+from .fsm import InvalidStateError as InvalidStateError
 from .states import (
     ClosedState,
     ConnectingState,
@@ -51,10 +52,19 @@ class Connection:
         """Shutdown the connection."""
         self.shutdown()
 
+    def can_send(self) -> bool:
+        """Check if the connection is in a state where data can be sent."""
+        with self.fsm.lock:
+            state = self.fsm.get_state()
+            return state is ConnectedState
+
     def send(self, data: bytes) -> None:
         """Send data to the connection."""
         logger.debug(f"Sending {len(data)} bytes")
         with self.fsm.lock:
+            if not self.can_send():
+                state = self.fsm.get_state()
+                raise InvalidStateError(f"Cannot send data in state {state.__name__}")
             self.fsm.env.write_buffer.extend(data)
             self.fsm.selector.interrupt()
 

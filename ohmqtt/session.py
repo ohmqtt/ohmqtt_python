@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Final, Mapping, Sequence
 
-from .connection import Connection, ConnectParams
+from .connection import Connection, ConnectParams, InvalidStateError
 from .error import MQTTError
 from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
@@ -171,12 +171,18 @@ class Session:
 
         This will handle topic aliasing if the server supports it."""
         with self.protected as protected:
-            lookup = protected.topic_alias.lookup_outbound(packet.topic, alias_policy)
+            topic = packet.topic
+            lookup = protected.topic_alias.lookup_outbound(topic, alias_policy)
             if lookup.alias > 0:
                 packet.properties.TopicAlias = lookup.alias
                 if lookup.existed:
                     packet.topic = ""
-        self._send_packet(packet)
+            try:
+                self._send_packet(packet)
+            except InvalidStateError:
+                if lookup.alias > 0 and not lookup.existed:
+                    protected.topic_alias.remove_outbound(topic)
+                raise
 
     def _connection_open_callback(self, packet: MQTTConnAckPacket) -> None:
         """Handle a connection open event."""
@@ -337,7 +343,10 @@ class Session:
                     properties=properties,
                     alias_policy=alias_policy,
                 )
-                self._flush()
+                if self.connection.can_send():
+                    self._flush()
+                else:
+                    logger.debug("Connection is not ready to send, deferring flush")
                 return handle
         else:
             packet = MQTTPublishPacket(
@@ -347,7 +356,11 @@ class Session:
                 retain=retain,
                 properties=properties if properties is not None else {},
             )
-            self._send_aliased(packet, alias_policy)
+            try:
+                self._send_aliased(packet, alias_policy)
+            except InvalidStateError:
+                # Not being able to send a packet is not an error for QoS 0.
+                logger.debug("Failed to send QoS 0 packet (invalid connection state), ignoring")
             return UnreliablePublishHandle()
 
     def subscribe(self, topic: str, share_name: str | None, qos: int = 2, properties: MQTTSubscribeProps | None = None) -> None:
@@ -416,6 +429,7 @@ class Session:
                         self._send_aliased(packet, alias_policy)
                     else:
                         self._send_packet(packet)
-                except Exception:
-                    logger.exception("Unhandled exception while flushing pending packets")
-                    self.disconnect()
+                except InvalidStateError:
+                    # A race during transition out of ConnectedState can cause this.
+                    # The rest of the machinery should be able to handle it.
+                    logger.debug("Failed to send reliable packet (invalid connection state), ignoring")
