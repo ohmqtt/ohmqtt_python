@@ -86,6 +86,7 @@ def mock_keepalive(mocker):
 @pytest.fixture
 def mock_timeout(mocker):
     mock_timeout = mocker.Mock(spec=Timeout)
+    mock_timeout.interval = None
     mock_timeout.get_timeout.return_value = 1
     mock_timeout.exceeded.return_value = False
     return mock_timeout
@@ -669,13 +670,13 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
 
 
 @pytest.mark.parametrize("block", [True, False])
-def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, mocker):
+def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, mocker, mock_timeout):
     mock_wait = mocker.patch("ohmqtt.connection.fsm.FSM.wait")
-    params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5.6)
+    params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState)
 
     ReconnectWaitState.enter(fsm, state_data, env, params)
-    assert state_data.timeout.interval == params.reconnect_delay
+    assert mock_timeout.interval == params.reconnect_delay
     state_data.timeout.mark.assert_called_once()
     state_data.timeout.reset_mock()
 
@@ -699,5 +700,43 @@ def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, moc
     state_data.timeout.exceeded.assert_called_once()
     mock_wait.assert_not_called()
     assert fsm.state is ConnectingState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("block", [True, False])
+def test_states_closing_state(block, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=ClosingState)
+
+    # Start from ConnectedState to test transition through ClosingState to ClosedState.
+    fsm.previous_state = ConnectedState
+    ClosingState.enter(fsm, state_data, env, params)
+    assert mock_timeout.interval == params.connect_timeout
+    mock_timeout.mark.assert_called_once()
+    mock_timeout.reset_mock()
+    assert state_data.disconnect_rc == MQTTReasonCode.NormalDisconnection
+    assert fsm.state is ClosingState
+
+    # First handle, write all.
+    mock_select.return_value = ([], [mock_socket], [])
+    env.write_buffer.extend(b"test_data")
+    mock_socket.send.return_value = len(env.write_buffer)
+    ret = ClosingState.handle(fsm, state_data, env, params, block)
+    assert ret is False
+    mock_select.assert_called_once_with([], [mock_socket], [], 1 if block else 0)
+    mock_select.reset_mock()
+    mock_socket.send.assert_called_once_with(env.write_buffer)
+    mock_socket.reset_mock()
+    mock_timeout.exceeded.assert_called_once()
+    mock_timeout.reset_mock()
+    assert fsm.state is ClosingState
+
+    # Second handle, done writing, transition to ClosedState.
+    ret = ClosingState.handle(fsm, state_data, env, params, block)
+    assert ret is True
+    mock_timeout.exceeded.assert_called_once()
+    mock_timeout.reset_mock()
+    assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
