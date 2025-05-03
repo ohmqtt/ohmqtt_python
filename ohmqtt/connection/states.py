@@ -45,7 +45,7 @@ class ConnectingState(FSMState):
 
         try:
             address = params.address
-            if address.family == socket.AF_UNIX:
+            if hasattr(socket, "AF_UNIX") and address.family == socket.AF_UNIX:
                 state_data.sock.connect(address.host)
             else:
                 state_data.sock.connect((address.host, address.port))
