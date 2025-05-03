@@ -66,6 +66,7 @@ class Client:
         address: str,
         *,
         client_id: str = "",
+        connect_timeout: float | None = None,
         reconnect_delay: int = 0,
         keepalive_interval: int = 0,
         tcp_nodelay: bool = True,
@@ -83,6 +84,7 @@ class Client:
         self.session.connect(ConnectParams(
             address=_address,
             client_id=client_id,
+            connect_timeout=connect_timeout,
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
             tcp_nodelay=tcp_nodelay,

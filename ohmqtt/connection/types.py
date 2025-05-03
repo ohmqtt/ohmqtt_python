@@ -8,6 +8,7 @@ from typing import Callable
 from .address import Address
 from .decoder import IncrementalDecoder
 from .keepalive import KeepAlive
+from .timeout import Timeout
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import MQTTPacket, MQTTConnAckPacket
 from ..property import MQTTConnectProps, MQTTWillProps
@@ -28,6 +29,7 @@ class ConnectParams:
     """Parameters for the MQTT connection."""
     address: Address = field(default_factory=Address)
     client_id: str = ""
+    connect_timeout: float | None = None
     reconnect_delay: int = 0
     keepalive_interval: int = 0
     tcp_nodelay: bool = True
@@ -53,6 +55,7 @@ class StateData:
     sock: socket.socket | ssl.SSLSocket = field(init=False, default_factory=socket.socket)
     disconnect_rc: int = field(init=False, default=MQTTReasonCode.NormalDisconnection)
     keepalive: KeepAlive = field(init=False, default_factory=KeepAlive)
+    timeout: Timeout = field(init=False, default_factory=Timeout)
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
 
 

@@ -27,7 +27,8 @@ class ConnectingState(FSMState):
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.keepalive.keepalive_interval = params.keepalive_interval
-        state_data.keepalive.mark_init()
+        state_data.timeout.interval = params.connect_timeout
+        state_data.timeout.mark()
         state_data.disconnect_rc = -1
         state_data.sock = _get_socket(params.address.family)
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
@@ -36,7 +37,7 @@ class ConnectingState(FSMState):
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
-        if state_data.keepalive.should_send_ping():
+        if state_data.timeout.exceeded():
             logger.debug("Connect timeout")
             fsm.change_state(ClosedState)
             return True
@@ -55,7 +56,7 @@ class ConnectingState(FSMState):
             return True
 
         with fsm.selector:
-            timeout = state_data.keepalive.get_next_timeout() if block else 0
+            timeout = state_data.timeout.get_timeout() if block else 0
             _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
         if state_data.sock in wlist:
             logger.debug("Socket connected to broker")
@@ -72,7 +73,6 @@ class TLSHandshakeState(FSMState):
     """Performing TLS handshake with the broker."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.keepalive.mark_init()
         state_data.sock = params.tls_context.wrap_socket(
             state_data.sock,
             server_hostname=params.tls_hostname if params.tls_hostname else params.address.host,
@@ -81,11 +81,12 @@ class TLSHandshakeState(FSMState):
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
-        if state_data.keepalive.should_send_ping():
+        if state_data.timeout.exceeded():
             logger.debug("TLS handshake timeout")
             fsm.change_state(ClosedState)
             return True
-        timeout = state_data.keepalive.get_next_timeout() if block else 0
+        
+        timeout = state_data.timeout.get_timeout() if block else 0
         sock = cast(ssl.SSLSocket, state_data.sock)
         try:
             logger.debug("trying TLS handshake")
@@ -107,7 +108,6 @@ class MQTTHandshakeConnectState(FSMState):
     """Sending MQTT CONNECT packet to the broker."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.keepalive.mark_init()
         connect_packet = MQTTConnectPacket(
             client_id=params.client_id,
             protocol_version=params.protocol_version,
@@ -127,20 +127,19 @@ class MQTTHandshakeConnectState(FSMState):
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
-        if state_data.keepalive.should_send_ping():
+        if state_data.timeout.exceeded():
             logger.debug("MQTT CONNECT keepalive timeout")
             fsm.change_state(ClosedState)
             return True
+        
         try:
             with fsm.selector:
                 num_sent = state_data.sock.send(env.write_buffer)
-                state_data.keepalive.mark_send()
                 if num_sent == 0:
                     logger.error("MQTT CONNECT send returned 0 bytes, closing connection")
                     fsm.change_state(ClosedState)
                     return True
                 elif num_sent < len(env.write_buffer):
-                    state_data.keepalive.mark_send()
                     # Not all data was sent, wait for writable again.
                     logger.debug(f"Not all CONNECT data was sent, waiting for writable again: {num_sent=}")
                     del env.write_buffer[:num_sent]
@@ -152,7 +151,7 @@ class MQTTHandshakeConnectState(FSMState):
             # The write was blocked, wait for the socket to be writable.
             if block:
                 with fsm.selector:
-                    timeout = state_data.keepalive.get_next_timeout()
+                    timeout = state_data.timeout.get_timeout()
                     fsm.selector.select([], [state_data.sock], [], timeout)
         return False
 
@@ -160,12 +159,8 @@ class MQTTHandshakeConnectState(FSMState):
 class MQTTHandshakeConnAckState(FSMState):
     """Receiving MQTT CONNACK packet from the broker."""
     @classmethod
-    def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.keepalive.mark_init()
-
-    @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
-        if state_data.keepalive.should_send_ping():
+        if state_data.timeout.exceeded():
             logger.debug("MQTT CONNACK keepalive timeout")
             fsm.change_state(ClosedState)
             return True
@@ -185,7 +180,7 @@ class MQTTHandshakeConnAckState(FSMState):
         if want_read:
             # Incomplete packet, wait for more data.
             with fsm.selector:
-                timeout = state_data.keepalive.get_next_timeout() if block else 0
+                timeout = state_data.timeout.get_timeout() if block else 0
                 fsm.selector.select([state_data.sock], [], [], timeout)
             return False
 
@@ -293,17 +288,17 @@ class ReconnectWaitState(FSMState):
     """Waiting to reconnect to the broker."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.keepalive.keepalive_interval = params.reconnect_delay
-        state_data.keepalive.mark_init()
+        state_data.timeout.interval = params.reconnect_delay
+        state_data.timeout.mark()
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
         # Here we repurpose the keepalive timer to wait for a reconnect.
-        if state_data.keepalive.should_send_ping():
+        if state_data.timeout.exceeded():
             fsm.change_state(ConnectingState)
             return True
         elif block:
-            timeout = state_data.keepalive.get_next_timeout()
+            timeout = state_data.timeout.get_timeout()
             fsm.wait(timeout)
         return False
 
@@ -314,7 +309,8 @@ class ClosingState(FSMState):
     The socket will be shutdown for reading, but existing buffers will be flushed."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.keepalive.mark_init()
+        state_data.timeout.interval = params.connect_timeout
+        state_data.timeout.mark()
 
         if fsm.previous_state == ConnectedState:
             logger.debug("Gracefully closing connection")
@@ -327,11 +323,10 @@ class ClosingState(FSMState):
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
         # Wait for the socket to be writable.
-        if state_data.keepalive.should_send_ping():
+        if state_data.timeout.exceeded():
             logger.error("ClosingState timed out")
             fsm.change_state(ClosedState)
             return True
-        timeout = state_data.keepalive.get_next_timeout() if block else 0
 
         # Read all buffered packets without waiting for a select.
         want_read = True
@@ -344,7 +339,7 @@ class ClosingState(FSMState):
             state_data.disconnect_rc = exc.reason_code
             fsm.change_state(ClosedState)
             return True
-        except Exception:
+        except (BlockingIOError, OSError):
             pass
 
         with fsm.selector:
@@ -352,6 +347,7 @@ class ClosingState(FSMState):
                 logger.debug("No more data to send, connection closed")
                 fsm.change_state(ClosedState)
                 return True
+            timeout = state_data.timeout.get_timeout() if block else 0
             _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
 
         if state_data.sock in wlist:
