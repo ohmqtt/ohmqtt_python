@@ -248,7 +248,7 @@ class ConnectedState(FSMState):
             want_read = True
             while want_read:  # Read all available packets.
                 try:
-                    want_read = cls._read_packet(fsm, state_data, env, params)
+                    want_read = cls.read_packet(fsm, state_data, env, params)
                 except ClosedSocketError:
                     logger.debug("Connection closed")
                     fsm.change_state(ClosedState)
@@ -262,7 +262,7 @@ class ConnectedState(FSMState):
         return False
 
     @classmethod
-    def _read_packet(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
+    def read_packet(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
         """Called by the underlying SocketWrapper when the socket is ready to read.
         
         Incrementally reads and decodes a packet from the socket.
@@ -310,12 +310,74 @@ class ReconnectWaitState(FSMState):
         return False
 
 
-class ClosedState(FSMState):
-    """Connection is closed."""
+class ClosingState(FSMState):
+    """Gracefully closing the connection.
+
+    The socket will be shutdown for reading, but existing buffers will be flushed."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
+        state_data.keepalive.mark_init()
+
         if fsm.previous_state == ConnectedState:
-            logger.debug("Clean disconnect from connected")
+            logger.debug("Gracefully closing connection")
+            state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
+        else:
+            logger.debug("Skipping ClosingState")
+            fsm.change_state(ClosedState)
+            return
+
+    @classmethod
+    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
+        # Wait for the socket to be writable.
+        if state_data.keepalive.should_send_ping():
+            logger.error("ClosingState timed out")
+            fsm.change_state(ClosedState)
+            return True
+        timeout = state_data.keepalive.get_next_timeout() if block else 0
+
+        # Read all buffered packets without waiting for a select.
+        want_read = True
+        try:
+            while want_read:  # Read all available packets.
+                want_read = ConnectedState.read_packet(fsm, state_data, env, params)
+        except MQTTError as exc:
+            # Bad data during closing should still forcefully close the connection.
+            logger.error(f"There was a problem with data from broker, closing connection: {exc}")
+            state_data.disconnect_rc = exc.reason_code
+            fsm.change_state(ClosedState)
+            return True
+        except Exception:
+            pass
+
+        with fsm.selector:
+            if not env.write_buffer:
+                logger.debug("No more data to send, connection closed")
+                fsm.change_state(ClosedState)
+                return True
+            _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
+
+        if state_data.sock in wlist:
+            try:
+                with fsm.selector:
+                    sent = state_data.sock.send(env.write_buffer)
+                    del env.write_buffer[:sent]
+                state_data.keepalive.mark_send()
+            except (BlockingIOError, ssl.SSLWantWriteError):
+                pass
+            except BrokenPipeError:
+                logger.error("Socket lost while closing")
+                fsm.change_state(ClosedState)
+                return True
+        return False
+
+
+class ClosedState(FSMState):
+    """Connection is closed.
+
+    All buffers will be flushed and the socket will be closed after conditionally sending a DISCONNECT."""
+    @classmethod
+    def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
+        if fsm.previous_state in (ClosingState, ConnectedState):
             env.close_callback()
             with fsm.selector:
                 if state_data.disconnect_rc >= 0 and not env.write_buffer:
@@ -329,6 +391,10 @@ class ClosedState(FSMState):
             if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:
                 fsm.change_state(ReconnectWaitState)
         try:
+            state_data.sock.shutdown(socket.SHUT_RDWR)
+        except OSError as exc:
+            logger.debug(f"Error while shutting down socket: {exc}")
+        try:
             state_data.sock.close()
         except OSError as exc:
             logger.debug(f"Error while closing socket: {exc}")
@@ -338,11 +404,15 @@ class ClosedState(FSMState):
 
 
 class ShutdownState(FSMState):
-    """The final state."""
+    """The final state.
+
+    All buffers will be flushed and the socket will be closed immediately on entry."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         # We can enter this state from any other state.
         # Free up as many resources as possible.
+        if fsm.previous_state in (ClosingState, ConnectedState):
+            env.close_callback()
         state_data.sock.close()
         state_data.decoder.reset()
         with fsm.selector:
@@ -351,14 +421,19 @@ class ShutdownState(FSMState):
 
 
 # Hook up transitions.
-ConnectingState.transitions_to = (ClosedState, ShutdownState, TLSHandshakeState, MQTTHandshakeConnectState)
+ConnectingState.transitions_to = (ClosingState, ClosedState, ShutdownState, TLSHandshakeState, MQTTHandshakeConnectState)
 ConnectingState.can_request_from = (ClosedState, ReconnectWaitState)
-TLSHandshakeState.transitions_to = (ClosedState, ShutdownState, MQTTHandshakeConnectState)
-MQTTHandshakeConnectState.transitions_to = (ClosedState, ShutdownState, MQTTHandshakeConnAckState)
-MQTTHandshakeConnAckState.transitions_to = (ClosedState, ShutdownState, ConnectedState)
-ConnectedState.transitions_to = (ClosedState, ShutdownState)
-ClosedState.transitions_to = (ConnectingState, ShutdownState, ReconnectWaitState)
-ClosedState.can_request_from = (
+
+TLSHandshakeState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnectState)
+
+MQTTHandshakeConnectState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnAckState)
+
+MQTTHandshakeConnAckState.transitions_to = (ClosingState, ClosedState, ShutdownState, ConnectedState)
+
+ConnectedState.transitions_to = (ClosingState, ClosedState, ShutdownState)
+
+ClosingState.transitions_to = (ClosedState, ShutdownState)
+ClosingState.can_request_from = (
     ConnectingState,
     TLSHandshakeState,
     MQTTHandshakeConnectState,
@@ -366,6 +441,7 @@ ClosedState.can_request_from = (
     ConnectedState,
     ReconnectWaitState,
 )
+ClosedState.transitions_to = (ConnectingState, ShutdownState, ReconnectWaitState)
 ReconnectWaitState.transitions_to = (ClosedState, ShutdownState, ConnectingState)
 ShutdownState.can_request_from = (
     ConnectingState,
@@ -374,5 +450,6 @@ ShutdownState.can_request_from = (
     MQTTHandshakeConnAckState,
     ConnectedState,
     ReconnectWaitState,
+    ClosingState,
     ClosedState,
 )

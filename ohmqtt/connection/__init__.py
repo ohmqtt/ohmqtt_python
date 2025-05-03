@@ -7,6 +7,7 @@ from .address import Address as Address
 from .fsm import FSM
 from .fsm import InvalidStateError as InvalidStateError
 from .states import (
+    ClosingState,
     ClosedState,
     ConnectingState,
     ConnectedState,
@@ -78,7 +79,7 @@ class Connection:
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker."""
         with self.fsm.lock:
-            self.fsm.request_state(ClosedState)
+            self.fsm.request_state(ClosingState)
             self.fsm.selector.interrupt()
 
     def shutdown(self) -> None:
