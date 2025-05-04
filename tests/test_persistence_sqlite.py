@@ -16,9 +16,10 @@ def tempdbpath():
         yield Path(tempdir) / "test.db"
 
 
-def test_persistence_sqlite_happy_path_qos1(tempdbpath):
+@pytest.mark.parametrize("db_fast", [True, False])
+def test_persistence_sqlite_happy_path_qos1(db_fast, tempdbpath):
     """Test the SQLitePersistence class with a happy path scenario qos=1."""
-    persistence = SQLitePersistence(tempdbpath)
+    persistence = SQLitePersistence(tempdbpath, db_fast=db_fast)
     persistence.open("test_client")
     assert len(persistence) == 0
 
@@ -59,9 +60,10 @@ def test_persistence_sqlite_happy_path_qos1(tempdbpath):
     assert len(persistence) == 0
 
 
-def test_persistence_sqlite_happy_path_qos2(tempdbpath):
+@pytest.mark.parametrize("db_fast", [True, False])
+def test_persistence_sqlite_happy_path_qos2(db_fast, tempdbpath):
     """Test the SQLitePersistence class with a happy path scenario qos=2."""
-    persistence = SQLitePersistence(tempdbpath)
+    persistence = SQLitePersistence(tempdbpath, db_fast=db_fast)
     persistence.open("test_client")
     assert len(persistence) == 0
 
@@ -119,9 +121,11 @@ def test_persistence_sqlite_happy_path_qos2(tempdbpath):
     persistence.ack(1)
     assert len(persistence) == 0
 
-def test_persistence_sqlite_open(tempdbpath):
+
+@pytest.mark.parametrize("db_fast", [True, False])
+def test_persistence_sqlite_open(db_fast, tempdbpath):
     """Test the SQLitePersistence class with a resume scenario."""
-    persistence = SQLitePersistence(tempdbpath)
+    persistence = SQLitePersistence(tempdbpath, db_fast=db_fast)
     persistence.open("test_client")
     assert len(persistence) == 0
 
@@ -169,6 +173,7 @@ def test_persistence_sqlite_open(tempdbpath):
     persistence.open("test_client_2")
     assert len(persistence) == 0
 
+
 def test_persistence_sqlite_properties():
     persistence = SQLitePersistence(":memory:")
     persistence.open("test_client")
@@ -203,8 +208,9 @@ def test_persistence_sqlite_properties():
     rendered = persistence.render(message_ids[0])
     assert rendered.packet == packet
 
+
 def test_persistence_sqlite_loose_alias():
-    """We should not bbe able to add a message with an alias policy of ALWAYS."""
+    """We should not be able to add a message with an alias policy of ALWAYS."""
     persistence = SQLitePersistence(":memory:")
     persistence.open("test_client")
 
