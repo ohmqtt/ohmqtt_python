@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import threading
 import time
 from typing import Callable, TypeAlias, TypeVar, Union
@@ -16,11 +17,11 @@ class ConditionLite(Protected):
     """A lightweight condition variable implementation."""
     # This implementation is a memory-reduced version of threading.Condition.
     __slots__ = ("_waiters",)
-    _waiters: list[threading.Lock]
+    _waiters: deque[threading.Lock]
 
     def __init__(self, lock: LockLike | None = None) -> None:
         super().__init__(lock if lock is not None else threading.RLock())
-        self._waiters = []
+        self._waiters = deque()
 
     @protect
     def wait(self, timeout: float | None = None) -> bool:
@@ -76,21 +77,14 @@ class ConditionLite(Protected):
         """Wake up one or more threads waiting on this condition, if any."""
         if not self._is_owned():
             raise RuntimeError("cannot notify on un-acquired lock")
-        waiters = self._waiters
-        while waiters and n > 0:
-            waiter = waiters[0]
+        while self._waiters and n > 0:
             try:
-                waiter.release()
+                self._waiters.popleft().release()
             except RuntimeError:
-                pass
+                pass  # Stale waiters can exist, ignore them.
             else:
                 n -= 1
-            try:
-                waiters.remove(waiter)
-            except ValueError:
-                pass
 
-    @protect
     def notify_all(self) -> None:
         """Wake up all threads waiting on this condition."""
         self.notify(len(self._waiters))
