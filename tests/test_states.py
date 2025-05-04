@@ -35,6 +35,7 @@ from ohmqtt.packet import (
     PONG,
 )
 from ohmqtt.property import MQTTConnectProps, MQTTConnAckProps, MQTTWillProps
+from ohmqtt.threading_lite import ConditionLite
 
 
 @pytest.fixture
@@ -674,9 +675,12 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
 
 @pytest.mark.parametrize("block", [True, False])
 def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, mocker, mock_timeout):
-    mock_wait = mocker.patch("ohmqtt.connection.fsm.FSM.wait")
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
+    mock_cond = mocker.MagicMock(spec=ConditionLite)
+    mock_cond.wait.return_value = True
+    mock_cond.__enter__.return_value = mock_cond
+    fsm.cond = mock_cond
 
     ReconnectWaitState.enter(fsm, state_data, env, params)
     assert mock_timeout.interval == params.reconnect_delay
@@ -684,16 +688,15 @@ def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, moc
     state_data.timeout.reset_mock()
 
     # First handle, waiting.
-    mock_wait.return_value = True
     ret = ReconnectWaitState.handle(fsm, state_data, env, params, block)
     assert ret is False
     state_data.timeout.exceeded.assert_called_once()
     state_data.timeout.reset_mock()
     if block:
-        mock_wait.assert_called_once_with(state_data.timeout.get_timeout.return_value)
-        mock_wait.reset_mock()
+        fsm.cond.wait.assert_called_once_with(state_data.timeout.get_timeout.return_value)
+        fsm.cond.wait.reset_mock()
     else:
-        mock_wait.assert_not_called()
+        fsm.cond.wait.assert_not_called()
     assert fsm.state is ReconnectWaitState
 
     # Second handle, transition.
@@ -701,7 +704,7 @@ def test_states_reconnect_wait_happy_path(block, callbacks, state_data, env, moc
     ret = ReconnectWaitState.handle(fsm, state_data, env, params, block)
     assert ret is True
     state_data.timeout.exceeded.assert_called_once()
-    mock_wait.assert_not_called()
+    fsm.cond.wait.assert_not_called()
     assert fsm.state is ConnectingState
 
     callbacks.assert_not_called()

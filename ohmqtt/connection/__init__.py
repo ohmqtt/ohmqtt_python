@@ -110,13 +110,13 @@ class Connection:
 
     def loop_forever(self) -> None:
         """Run the state machine until the connection is closed."""
-        self.fsm.loop_until_state(ShutdownState)
+        self.fsm.loop_until_state((ShutdownState,))
 
     def loop_until_connected(self) -> bool:
         """Run the state machine until the connection is established.
 
         Returns True if the connection is established, False otherwise."""
-        return self.fsm.loop_until_state(ConnectedState)
+        return self.fsm.loop_until_state((ConnectedState,))
 
     def start_loop(self) -> None:
         """Start the state machine in a separate thread."""

@@ -304,7 +304,11 @@ class ReconnectWaitState(FSMState):
             return True
         elif block:
             timeout = state_data.timeout.get_timeout()
-            fsm.wait(timeout)
+            with fsm.cond:
+                if fsm.state is not ReconnectWaitState:
+                    # The state has changed, don't wait.
+                    return True
+                fsm.cond.wait(timeout)
         return False
 
 
