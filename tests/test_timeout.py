@@ -9,7 +9,6 @@ def mock_time(mocker):
 
 
 def test_timeout(mock_time):
-    """Test the Timeout class."""
     mock_time.return_value = 0.0
     timeout = Timeout()
 
@@ -32,3 +31,14 @@ def test_timeout(mock_time):
     timeout.mark()
     assert timeout.get_timeout() == 1.0
     assert not timeout.exceeded()
+
+
+def test_timeout_max_wait(mock_time):
+    mock_time.return_value = 0.0
+    timeout = Timeout()
+
+    assert timeout.interval is None
+    assert timeout.get_timeout(max_wait=1.0) == 1.0
+
+    timeout.interval = 1.0
+    assert timeout.get_timeout(max_wait=0.5) == 0.5

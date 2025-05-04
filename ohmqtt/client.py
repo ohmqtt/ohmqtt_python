@@ -46,9 +46,15 @@ class Client:
         """
         self.session.connection.start_loop()
 
-    def loop_once(self) -> None:
-        """Run a single iteration of the MQTT client loop, without blocking."""
-        self.session.connection.loop_once()
+    def loop_once(self, max_wait: float | None = 0.0) -> None:
+        """Run a single iteration of the MQTT client loop.
+
+        If max_wait is 0.0 (the default), this call will not block.
+
+        If max_wait is None, this call will block until the next event.
+
+        Any other numeric max_wait value may block for maximum that amount of time in seconds."""
+        self.session.connection.loop_once(max_wait=max_wait)
 
     def loop_forever(self) -> None:
         """Run the MQTT client loop.
@@ -57,9 +63,13 @@ class Client:
         """
         self.session.connection.loop_forever()
 
-    def loop_until_connected(self) -> None:
-        """Run the MQTT client loop until the client is connected to the broker."""
-        self.session.connection.loop_until_connected()
+    def loop_until_connected(self, timeout: float | None = None) -> bool:
+        """Run the MQTT client loop until the client is connected to the broker.
+
+        If a timeout is provided, the loop will give up after that amount of time.
+
+        Returns True if the client is connected, False if the timeout was reached."""
+        return self.session.connection.loop_until_connected(timeout=timeout)
 
     def is_connected(self) -> bool:
         """Check if the client is connected to the broker."""

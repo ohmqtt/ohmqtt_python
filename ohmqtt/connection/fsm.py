@@ -5,6 +5,7 @@ import threading
 from typing import ClassVar, Final, Sequence, Type
 
 from .selector import InterruptibleSelector
+from .timeout import Timeout
 from .types import ConnectParams, StateData, StateEnvironment
 from ..logger import get_logger
 from ..threading_lite import ConditionLite
@@ -91,7 +92,7 @@ class FSM:
             self._state_requested = True
             self.cond.notify_all()
 
-    def loop_once(self, block: bool = False) -> bool:
+    def loop_once(self, max_wait: float | None = 0.0) -> bool:
         """Do the current state.
 
         State transition will be run if needed.
@@ -119,7 +120,7 @@ class FSM:
                     return False  # Run the state on the next loop, unless it has changed.
 
             # Run the state.  Do not run this while holding the lock, as it may block.
-            return self.state.handle(self, self._state_data, self.env, self.params, block)
+            return self.state.handle(self, self._state_data, self.env, self.params, max_wait)
         except Exception:
             # If there is an unhandled exception anywhere in the loop, try to go to the error state.
             with self.cond:
@@ -135,23 +136,26 @@ class FSM:
                     self.cond.notify_all()
             raise
 
-    def loop_until_state(self, targets: Sequence[Type[FSMState]]) -> bool:
+    def loop_until_state(self, targets: Sequence[Type[FSMState]], timeout: float | None = None) -> bool:
         """Run the state machine until a specific state(s) has been entered.
 
         Return True if a target state is reached, False if another final state was finished."""
+        to = Timeout(timeout)
         while True:
-            state_done = self.loop_once(block=True)
+            state_done = self.loop_once(max_wait=to.get_timeout())
+            if to.exceeded():
+                return False
             with self.cond:
-                if not self._state_changed:
-                    if self.state in targets:
-                        return True
-                    if state_done and not self._state_requested:
-                        if not self.state.transitions_to:
-                            # The state is final and finished, we are done.
-                            return False
-                        else:
-                            # State is finished, wait for a change.
-                            self.cond.wait()
+                if self.state in targets and not self._state_changed:
+                    # We are in a target state and the state has been entered.
+                    return True
+                if state_done and not self._state_requested and not self._state_changed:
+                    if not self.state.transitions_to:
+                        # The state is final and finished, we are done.
+                        return False
+                    else:
+                        # State is finished, wait for a change.
+                        self.cond.wait(to.get_timeout())
 
 
 class FSMState:
@@ -170,7 +174,7 @@ class FSMState:
         pass
 
     @classmethod
-    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
+    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         """Called when handling the state.
 
         This method may block if block=True.

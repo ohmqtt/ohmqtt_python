@@ -9,21 +9,29 @@ class Timeout:
 
     def __init__(self, interval: float | None = None) -> None:
         self.interval = interval
-        self._mark = _time()
+        self.mark()
 
     def mark(self) -> None:
         """Mark an event."""
         self._mark = _time()
 
-    def get_timeout(self) -> float | None:
+    def get_timeout(self, max_wait: float | None = None) -> float | None:
         """Get the difference between the interval and the last mark.
 
         If the value would be negative, returns 0.
 
-        If the interval is None, returns None."""
-        if self.interval is None:
+        If the interval is None, returns None.
+
+        If max_wait is not None, returns the minimum of max_wait and the interval."""
+        now = _time()
+        if max_wait is not None:
+            if self.interval is None:
+                return max_wait
+            else:
+                return min(max_wait, self.interval - (now - self._mark))
+        elif self.interval is None:
             return None
-        return max(0, self.interval - (_time() - self._mark))
+        return max(0, self.interval - (now - self._mark))
 
     def exceeded(self) -> bool:
         """Check if the timeout has been exceeded.

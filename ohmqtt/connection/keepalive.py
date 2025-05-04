@@ -36,9 +36,7 @@ from time import monotonic as _time
 from typing import Final
 
 
-# The minimum timeout for the keep alive timer.
-# This is used to avoid busy waiting in the event loop.
-MIN_TIMEOUT: Final = 0.001
+MIN_TIMEOUT: Final = 0
 
 
 class KeepAlive:
@@ -94,22 +92,29 @@ class KeepAlive:
             return True
         return False
 
-    def get_next_timeout(self) -> float | None:
+    def get_next_timeout(self, max_wait: float | None = None) -> float | None:
         """Check how long until the next next ping or closure check is due.
 
-        If the keep alive interval is 0, this will return None.
+        max_wait is the maximum time to wait for a timeout. If this is set,
+        the timeout will be the minimum of the calculated timeout and max_wait.
 
-        Otherwise the minimum timeout is 0.001 seconds, to avoid busy waiting."""
+        If the keep alive interval is 0, this will return None unless max_wait is set."""
         if self._keepalive_interval == 0:
             # Keep alive is disabled
+            if max_wait is not None:
+                # If max_wait is set, we should wait for that time.
+                return max_wait
             return None
         now = _time()
         if self._pong_deadline > 0.0:
             # After this amount of time, we should close the connection.
-            return max(MIN_TIMEOUT, self._pong_deadline - now)
+            to = max(MIN_TIMEOUT, self._pong_deadline - now)
         else:
             # After this amount of time, we should send a PINGREQ.
-            return max(MIN_TIMEOUT, self._last_send + self._keepalive_interval - now)
+            to = max(MIN_TIMEOUT, self._last_send + self._keepalive_interval - now)
+        if max_wait is not None:
+            to = min(to, max_wait)
+        return to
 
     def mark_init(self) -> None:
         """Initialize the keep alive timer for a new connection."""

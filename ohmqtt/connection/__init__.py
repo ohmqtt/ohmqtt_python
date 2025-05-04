@@ -104,19 +104,21 @@ class Connection:
         Returns True if the connection is closed, False if the timeout is reached."""
         return self.fsm.wait_for_state((ClosedState, ShutdownState, ReconnectWaitState), timeout)
 
-    def loop_once(self) -> None:
-        """Run a single iteration of the state machine, without blocking."""
-        self.fsm.loop_once()
+    def loop_once(self, max_wait: float | None = 0.0) -> None:
+        """Run a single iteration of the state machine.
+
+        If max_wait is None, wait indefinitely. Otherwise, wait for the specified time."""
+        self.fsm.loop_once(max_wait=max_wait)
 
     def loop_forever(self) -> None:
         """Run the state machine until the connection is closed."""
         self.fsm.loop_until_state((ShutdownState,))
 
-    def loop_until_connected(self) -> bool:
+    def loop_until_connected(self, timeout: float | None = None) -> bool:
         """Run the state machine until the connection is established.
 
         Returns True if the connection is established, False otherwise."""
-        return self.fsm.loop_until_state((ConnectedState,))
+        return self.fsm.loop_until_state((ConnectedState,), timeout=timeout)
 
     def start_loop(self) -> None:
         """Start the state machine in a separate thread."""

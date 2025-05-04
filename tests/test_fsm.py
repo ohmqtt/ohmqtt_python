@@ -17,11 +17,10 @@ class _TestError(Exception):
 class MockState(FSMState):
     """Simulate a blocking state."""
     @classmethod
-    def handle(cls, fsm, data, env, params, block):
-        if block:
-            with fsm.cond:
-                logging.debug(f"Blocking in {cls.__name__} handle")
-                fsm.cond.wait()
+    def handle(cls, fsm, data, env, params, max_wait):
+        with fsm.cond:
+            logging.debug(f"Waiting {max_wait=} in {cls.__name__} handle")
+            fsm.cond.wait(max_wait)
         return True
 class MockStateA(MockState):
     """This is set up like initial state."""
@@ -131,7 +130,6 @@ def test_fsm_wait_for_state(do_request, env):
 @pytest.mark.parametrize("do_request", [True, False])
 def test_fsm_loop_until_state(do_request, env):
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
-    assert fsm.wait_for_state([MockStateB, MockStateC], 0.001) is False
 
     start = threading.Event()
     def notifier():
@@ -151,6 +149,13 @@ def test_fsm_loop_until_state(do_request, env):
     finally:
         thread.join(0.1)
         assert not thread.is_alive()
+
+
+def test_fsm_loop_until_state_timeout(env):
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    t0 = time.monotonic()
+    assert fsm.loop_until_state([MockStateC], timeout=0.001) is False
+    assert time.monotonic() - t0 < 0.1
 
 
 @pytest.mark.parametrize("do_request", [True, False])

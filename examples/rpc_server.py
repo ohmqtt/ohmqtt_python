@@ -43,7 +43,7 @@ def main() -> None:
     client = Client()
     client.connect("localhost")
     print("*** Waiting for connection...")
-    client.loop_until_connected()
+    assert client.loop_until_connected(timeout=5.0), "Timeout waiting for connection"
 
     client.subscribe("ohmqtt/examples/rpc/request", qos=2, callback=rpc_server.handle_request)
     print("*** Waiting for RPC requests...")
