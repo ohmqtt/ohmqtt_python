@@ -10,7 +10,7 @@ from ..logger import get_logger
 from ..protected import Protected, protect
 
 if TYPE_CHECKING:
-    from ..threading_lite import LockLike
+    from ..threading_lite import LockLike  # pragma: no cover
 
 logger: Final = get_logger("connection.selector")
 

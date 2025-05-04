@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from typing import ClassVar, Sequence, Type, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..property import MQTTProperties
+    from ..property import MQTTProperties  # pragma: no cover
 
 
 class MQTTPacket(metaclass=ABCMeta):
