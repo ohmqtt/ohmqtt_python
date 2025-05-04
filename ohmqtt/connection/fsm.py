@@ -49,7 +49,8 @@ class FSM:
 
     def set_params(self, params: ConnectParams) -> None:
         """Set the connection parameters."""
-        self.params = params
+        with self.lock:
+            self.params = params
 
     def get_state(self) -> Type[FSMState]:
         """Get the current state."""
