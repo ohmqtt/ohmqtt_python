@@ -300,14 +300,15 @@ class ReconnectWaitState(FSMState):
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, block: bool) -> bool:
         # Here we repurpose the keepalive timer to wait for a reconnect.
         if state_data.timeout.exceeded():
+            logger.debug("Reconnecting")
             fsm.change_state(ConnectingState)
             return True
-        elif block:
-            timeout = state_data.timeout.get_timeout()
-            with fsm.cond:
-                if fsm.state is not ReconnectWaitState:
-                    # The state has changed, don't wait.
-                    return True
+        with fsm.cond:
+            if fsm.state is not ReconnectWaitState:
+                # The state has changed, don't wait.
+                return True
+            if block:
+                timeout = state_data.timeout.get_timeout()
                 fsm.cond.wait(timeout)
         return False
 
