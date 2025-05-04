@@ -7,15 +7,14 @@ from typing import Callable
 
 from .address import Address
 from .decoder import IncrementalDecoder
+from .handlers import RegisterablePacketT
 from .keepalive import KeepAlive
 from .timeout import Timeout
-from ..packet import MQTTPacket, MQTTConnAckPacket
+from ..packet import MQTTConnAckPacket
 from ..property import MQTTConnectProps, MQTTWillProps
 
 
-ConnectionCloseCallback = Callable[[], None]
-ConnectionOpenCallback = Callable[[MQTTConnAckPacket], None]
-ConnectionReadCallback = Callable[[MQTTPacket], None]
+ConnectionReadCallback = Callable[[RegisterablePacketT], None]
 
 
 class ConnectionCloseCondition(Exception):
@@ -63,9 +62,7 @@ class StateData:
 @dataclass(slots=True, kw_only=True)
 class StateEnvironment:
     """State environment for the connection.
-    
+
     Data in this class is shared with the outside world."""
-    close_callback: ConnectionCloseCallback
-    open_callback: ConnectionOpenCallback
-    read_callback: ConnectionReadCallback
+    packet_callback: ConnectionReadCallback
     write_buffer: bytearray = field(init=False, default_factory=bytearray)

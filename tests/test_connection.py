@@ -1,265 +1,171 @@
-import os
 import pytest
-import socket
-import ssl
-import time
 
 from ohmqtt.connection import (
     Address,
     Connection,
     ConnectParams,
-    ConnectionCloseCallback,
-    ConnectionOpenCallback,
-    ConnectionReadCallback,
+    MessageHandlers,
+    InvalidStateError,
 )
+from ohmqtt.connection.fsm import FSM
+from ohmqtt.connection.states import (
+    ConnectingState,
+    ConnectedState,
+    ClosingState,
+    ClosedState,
+    ReconnectWaitState,
+    ShutdownState,
+)
+from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
-    MQTTConnectPacket,
-    MQTTConnAckPacket,
-    MQTTDisconnectPacket,
     MQTTPublishPacket,
-    PING,
-    PONG,
 )
-from ohmqtt.property import MQTTConnAckProps
-
-
-class Callbacks:
-    """Container for Connection callbacks."""
-    def __init__(self, mocker):
-        self.close_callback = mocker.Mock(spec=ConnectionCloseCallback)
-        self.open_callback = mocker.Mock(spec=ConnectionOpenCallback)
-        self.read_callback = mocker.Mock(spec=ConnectionReadCallback)
 
 
 @pytest.fixture
-def callbacks(mocker):
-    return Callbacks(mocker)
+def mock_handlers(mocker):
+    return mocker.Mock(spec=MessageHandlers)
 
 
-@pytest.mark.parametrize(
-    "address, tls_hostname", [
-    ("mqtt://localhost", ""),
-    ("mqtts://localhost", "localhost")
-])
-def test_connection_happy_path(callbacks, mocker, loopback_socket, loopback_tls_socket, ssl_client_context, address, tls_hostname):
-    """Test the happy path of the Connection class."""
-    addr = Address(address)
-    if addr.use_tls:
-        tls_context = ssl_client_context(loopback_tls_socket.cert_pem)
-        loopback_tls_socket.test_do_handshake()
-        loop = loopback_tls_socket
-    else:
-        tls_context = ssl.create_default_context()
-        loop = loopback_socket
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loop)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams(
-            addr,
-            tls_hostname=tls_hostname,
-            tls_context=tls_context,
-            tcp_nodelay=False,
-        ))
-
-        time.sleep(0.1)  # Wait for potential TLS handshake.
-        connect_packet = MQTTConnectPacket()
-        assert loop.test_recv(512) == connect_packet.encode()
-        assert loop.connect_calls == [(addr.host, addr.port)]
-
-        connack_packet = MQTTConnAckPacket()
-        loop.test_sendall(connack_packet.encode())
-
-        connection.wait_for_connect(timeout=0.1)
-        callbacks.open_callback.assert_called_once_with(connack_packet)
-        callbacks.open_callback.reset_mock()
-
-        pub_packet = MQTTPublishPacket(
-            topic="test/topic",
-            payload=b"test payload",
-            qos=0,
-        )
-        connection.send(pub_packet.encode())
-        assert loop.test_recv(512) == pub_packet.encode()
-
-        # DISCONNECT
-        connection.disconnect()
-        disconnect_packet = MQTTDisconnectPacket()
-        assert loop.test_recv(512) == disconnect_packet.encode()
-
-        connection.join(timeout=0.1)
-        assert connection.is_alive()
-
-        callbacks.close_callback.assert_called_once_with()
-        callbacks.close_callback.reset_mock()
-
-    # Exiting the context manager should call shutdown.
-    connection.join(timeout=0.1)
-    assert not connection.is_alive()
-    callbacks.close_callback.assert_not_called()
+@pytest.fixture
+def mock_fsm(mocker):
+    mock_fsm = mocker.Mock(spec=FSM)
+    mock_fsm.lock = mocker.MagicMock()
+    mock_fsm.lock.__enter__.return_value = mock_fsm.lock
+    mocker.patch("ohmqtt.connection.FSM", return_value=mock_fsm)
+    yield mock_fsm
 
 
-def test_connection_garbage_read(callbacks, mocker, loopback_socket):
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
-    with Connection(
-        close_callback=callbacks.close_callback,
-        open_callback=callbacks.open_callback,
-        read_callback=callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=False))
+def test_connection_handle_packet(mocker):
+    handlers = MessageHandlers()
+    with handlers:
+        handlers.register(MQTTPublishPacket, mocker.Mock())
+        handlers.register(MQTTPublishPacket, mocker.Mock())
+    connection = Connection(handlers)
+    packet = MQTTPublishPacket()
 
-        connect_packet = MQTTConnectPacket()
-        assert loopback_socket.test_recv(512) == connect_packet.encode()
+    connection.handle_packet(packet)
+    for handler in handlers.get_handlers(MQTTPublishPacket):
+        handler.assert_called_once_with(packet)
+        handler.reset_mock()
 
-        connack_packet = MQTTConnAckPacket()
-        loopback_socket.test_sendall(connack_packet.encode())
-        connection.wait_for_connect(timeout=0.1)
+    # At least one exception should be raised if any handler raises an exception
+    handlers.get_handlers(MQTTPublishPacket)[0].side_effect = Exception("TEST")
+    with pytest.raises(Exception):
+        connection.handle_packet(packet)
+    # All handlers are still called
+    for handler in handlers.get_handlers(MQTTPublishPacket):
+        handler.assert_called_once_with(packet)
+        handler.reset_mock()
 
-        encoded = b"\xff\xff\xff\xff\xffThis is not a valid MQTT packet."
-        loopback_socket.test_sendall(encoded)
-
-        # Should be closed, but not shut down.
-        expected = MQTTDisconnectPacket(reason_code=MQTTReasonCode.MalformedPacket).encode()
-        assert loopback_socket.test_recv(512) == expected
-        connection.wait_for_disconnect(timeout=0.1)
-        callbacks.close_callback.assert_called_once_with()
-        connection.join(timeout=0.1)
-        assert connection.is_alive()
-
-
-def test_connection_slots(callbacks):
-    connection = Connection(
-        close_callback=callbacks.close_callback,
-        open_callback=callbacks.open_callback,
-        read_callback=callbacks.read_callback,
-    )
-    assert not hasattr(connection, "__dict__")
-    # Ensure that all slots are initialized in constructor.
-    assert all(hasattr(connection, attr) for attr in connection.__slots__), \
-        [attr for attr in connection.__slots__ if not hasattr(connection, attr)]
+    # MQTTError has priority over other exceptions
+    handlers.get_handlers(MQTTPublishPacket)[1].side_effect = MQTTError("TEST", MQTTReasonCode.UnspecifiedError)
+    with pytest.raises(MQTTError):
+        connection.handle_packet(packet)
+    # All handlers are still called
+    for handler in handlers.get_handlers(MQTTPublishPacket):
+        handler.assert_called_once_with(packet)
+        handler.reset_mock()
 
 
-def test_connection_nodelay(callbacks, mocker):
-    """Test that the Connection class sets TCP_NODELAY."""
-    mock_socket = mocker.Mock(spec=socket.socket)
-    devnull = open(os.devnull, "rb")
-    mock_socket.fileno.return_value = devnull.fileno()
-    mock_socket.recv.return_value = b""
-    mock_socket.send.return_value = 0
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=mock_socket)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=True))
-        connection.loop_once()
-        mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+def test_connection_can_send(mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.get_state.return_value = ClosedState
+    assert not connection.can_send()
+    mock_fsm.get_state.return_value = ConnectedState
+    assert connection.can_send()
 
 
-def test_connection_ping_pong(callbacks, mocker, loopback_socket):
-    """Test that the Connection class sends pings and handles pongs."""
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams(Address("localhost"), keepalive_interval=1, tcp_nodelay=False))
-
-        connect_packet = MQTTConnectPacket(keep_alive=1)
-        assert loopback_socket.test_recv(512) == connect_packet.encode()
-
-        connack_packet = MQTTConnAckPacket()
-        loopback_socket.test_sendall(connack_packet.encode())
-        connection.wait_for_connect(timeout=0.1)
-
-        assert loopback_socket.test_recv(512) == PING
-        loopback_socket.test_sendall(PONG)
-        assert loopback_socket.test_recv(512) == PING
-        time.sleep(0.9)
-        callbacks.close_callback.assert_not_called()
-        time.sleep(0.7)
-        callbacks.close_callback.assert_called_once_with()
-        callbacks.close_callback.reset_mock()
-        # Should not have received a DISCONNECT packet.
-        assert not loopback_socket.test_recv(512)
+def test_connection_send(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.get_state.return_value = ConnectedState
+    mock_fsm.env.write_buffer = bytearray()
+    data = b"test data"
+    connection.send(data)
+    assert mock_fsm.env.write_buffer == data
+    mock_fsm.get_state.return_value = ClosedState
+    with pytest.raises(InvalidStateError):
+        connection.send(data)
 
 
-def test_connection_set_keepalive_interval(callbacks, mocker, loopback_socket):
-    """Test that CONNACK can set the keepalive interval after starting the thread."""
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=False))
-
-        connect_packet = MQTTConnectPacket()
-        assert loopback_socket.test_recv(512) == connect_packet.encode()
-
-        connack_packet = MQTTConnAckPacket(
-            session_present=False,
-            reason_code=MQTTReasonCode.Success,
-            properties=MQTTConnAckProps(ServerKeepAlive=1),
-        )
-        loopback_socket.test_sendall(connack_packet.encode())
-        connection.wait_for_connect(timeout=0.1)
-        callbacks.open_callback.assert_called_once_with(connack_packet)
-        callbacks.open_callback.reset_mock()
-
-        assert loopback_socket.test_recv(512) == PING
-        time.sleep(1.6)
-        callbacks.close_callback.assert_called_once_with()
-        callbacks.close_callback.reset_mock()
-        # Should not have received a DISCONNECT packet.
-        assert not loopback_socket.test_recv(512)
+def test_connection_connect(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    params = ConnectParams(address=Address("test_address"))
+    connection.connect(params)
+    mock_fsm.set_params.assert_called_once_with(params)
+    mock_fsm.request_state.assert_called_once_with(ConnectingState)
+    mock_fsm.selector.interrupt.assert_called_once_with()
 
 
-def test_connection_reconnect(callbacks, mocker, loopback_socket):
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=loopback_socket)
-    with Connection(
-        callbacks.close_callback,
-        callbacks.open_callback,
-        callbacks.read_callback,
-    ) as connection:
-        connection.connect(ConnectParams(Address("localhost"), tcp_nodelay=False, keepalive_interval=1, reconnect_delay=0.5))
+def test_connection_disconnect(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    connection.disconnect()
+    mock_fsm.request_state.assert_called_once_with(ClosingState)
+    mock_fsm.selector.interrupt.assert_called_once_with()
 
-        connect_packet = MQTTConnectPacket(keep_alive=1)
-        assert loopback_socket.test_recv(512) == connect_packet.encode()
-        assert loopback_socket.connect_calls == [("localhost", 1883)]
-        loopback_socket.connect_calls.clear()
 
-        connack_packet = MQTTConnAckPacket(
-            session_present=False,
-            reason_code=MQTTReasonCode.Success,
-        )
-        loopback_socket.test_sendall(connack_packet.encode())
-        connection.wait_for_connect(timeout=0.1)
-        callbacks.open_callback.assert_called_once_with(connack_packet)
-        callbacks.open_callback.reset_mock()
+def test_connection_shutdown(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    connection.shutdown()
+    mock_fsm.request_state.assert_called_once_with(ShutdownState)
+    mock_fsm.selector.interrupt.assert_called_once_with()
 
-        # Simulate a disconnect.
-        disconnect_packet = MQTTDisconnectPacket()
-        loopback_socket.test_sendall(disconnect_packet.encode())
-        time.sleep(0.1)
-        loopback_socket.test_close()
-        connection.wait_for_disconnect(timeout=2.0)  # Should close on keepalive timeout.
-        loopback_socket.reset()
 
-        assert loopback_socket.test_recv(512) == connect_packet.encode()
-        assert loopback_socket.connect_calls == [("localhost", 1883)]
-        loopback_socket.connect_calls.clear()
+def test_connection_is_connected(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.get_state.return_value = ConnectedState
+    assert connection.is_connected() is True
+    mock_fsm.get_state.return_value = ClosedState
+    assert connection.is_connected() is False
 
-        connack_packet = MQTTConnAckPacket(
-            session_present=False,
-            reason_code=MQTTReasonCode.Success,
-        )
-        loopback_socket.test_sendall(connack_packet.encode())
-        connection.wait_for_connect(timeout=0.1)
-        callbacks.open_callback.assert_called_once_with(connack_packet)
-        callbacks.open_callback.reset_mock()
+
+def test_connection_wait_for_connect(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.wait_for_state.return_value = True
+    assert connection.wait_for_connect(0.1) is True
+    mock_fsm.wait_for_state.assert_called_once_with((ConnectedState,), 0.1)
+    mock_fsm.wait_for_state.return_value = False
+    assert connection.wait_for_connect(0.1) is False
+
+
+def test_connection_wait_for_disconnect(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.wait_for_state.return_value = True
+    assert connection.wait_for_disconnect(0.1) is True
+    mock_fsm.wait_for_state.assert_called_once_with((ClosedState, ShutdownState, ReconnectWaitState), 0.1)
+    mock_fsm.wait_for_state.return_value = False
+    assert connection.wait_for_disconnect(0.1) is False
+
+
+def test_connection_wait_for_shutdown(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.wait_for_state.return_value = True
+    assert connection.wait_for_shutdown(0.1) is True
+    mock_fsm.wait_for_state.assert_called_once_with((ShutdownState,), 0.1)
+    mock_fsm.wait_for_state.return_value = False
+    assert connection.wait_for_shutdown(0.1) is False
+
+
+def test_connection_loop_once(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    connection.loop_once(0.1)
+    mock_fsm.loop_once.assert_called_once_with(0.1)
+    connection.loop_once()
+    # Default should be non-blocking.
+    mock_fsm.loop_once.assert_called_with(0.0)
+
+
+def test_connection_loop_forever(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    connection.loop_forever()
+    mock_fsm.loop_until_state.assert_called_once_with((ShutdownState,))
+
+
+def test_connection_loop_until_connected(mocker, mock_fsm, mock_handlers):
+    connection = Connection(mock_handlers)
+    mock_fsm.loop_until_state.return_value = True
+    assert connection.loop_until_connected(0.1) is True
+    mock_fsm.loop_until_state.assert_called_once_with((ConnectedState,), 0.1)
+    mock_fsm.loop_until_state.return_value = False
+    assert connection.loop_until_connected(0.1) is False

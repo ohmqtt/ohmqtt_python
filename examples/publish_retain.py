@@ -20,7 +20,7 @@ def main() -> None:
         q: Queue[MQTTPublishPacket] = Queue()
         def callback(_: Client, msg: MQTTPublishPacket) -> None:
             q.put(msg)
-        client.subscribe("ohmqtt/examples/publish_retain", qos=1, callback=callback)
+        client.subscribe("ohmqtt/examples/publish_retain", callback)
         msg = q.get(timeout=5.0)
         assert msg.topic == "ohmqtt/examples/publish_retain"
         assert msg.payload == b"test_payload"

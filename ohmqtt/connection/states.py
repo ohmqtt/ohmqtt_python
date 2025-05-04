@@ -7,6 +7,7 @@ from typing import cast, Final
 from .types import ConnectParams, StateData, StateEnvironment
 from .fsm import FSM, FSMState
 from .decoder import ClosedSocketError
+from .handlers import RegisterablePacketT
 from ..error import MQTTError
 from ..logger import get_logger
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
@@ -208,7 +209,7 @@ class ConnectedState(FSMState):
         with fsm.selector:
             env.write_buffer.clear()
         assert state_data.connack is not None
-        env.open_callback(state_data.connack)
+        env.packet_callback(state_data.connack)
         state_data.open_called = True
 
     @classmethod
@@ -281,11 +282,17 @@ class ConnectedState(FSMState):
             with fsm.selector:
                 env.write_buffer.extend(PONG)
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
-            logger.debug(f"<--- {str(packet)}")
+            logger.debug(f"<--- {packet}")
+            logger.info("Broker sent DISCONNECT, closing connection")
             fsm.change_state(ClosingState)
+            return True
         else:
             # All other packets are passed to the read callback.
-            env.read_callback(packet)
+            try:
+                # To cast here, we must handle the exceptional case at runtime.
+                env.packet_callback(cast(RegisterablePacketT, packet))
+            except KeyError as exc:
+                raise MQTTError("Unexpected packet type", reason_code=MQTTReasonCode.ProtocolError) from exc
         return True
 
 
@@ -377,7 +384,6 @@ class ClosedState(FSMState):
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         if state_data.open_called:
             state_data.open_called = False
-            env.close_callback()
             with fsm.selector:
                 if state_data.disconnect_rc >= 0 and not env.write_buffer:
                     disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
@@ -410,9 +416,6 @@ class ShutdownState(FSMState):
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         # We can enter this state from any other state.
         # Free up as many resources as possible.
-        if state_data.open_called:
-            state_data.open_called = False
-            env.close_callback()
         try:
             state_data.sock.close()
         except OSError as exc:

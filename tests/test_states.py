@@ -43,27 +43,19 @@ def callbacks(mocker):
     class EnvironmentCallbacks:
         """Container for StateEnvironment callbacks."""
         def __init__(self, mocker):
-            self.close = mocker.Mock()
-            self.open = mocker.Mock()
-            self.read = mocker.Mock()
+            self.packet = mocker.Mock()
 
         def reset(self):
-            self.close.reset_mock()
-            self.open.reset_mock()
-            self.read.reset_mock()
+            self.packet.reset_mock()
 
         def assert_not_called(self):
-            self.close.assert_not_called()
-            self.open.assert_not_called()
-            self.read.assert_not_called()
+            self.packet.assert_not_called()
     return EnvironmentCallbacks(mocker)
 
 @pytest.fixture
 def env(callbacks):
     return StateEnvironment(
-        close_callback=callbacks.close,
-        open_callback=callbacks.open,
-        read_callback=callbacks.read,
+        packet_callback=callbacks.packet,
     )
 
 @pytest.fixture
@@ -488,7 +480,7 @@ def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_
     # Enter state.
     ConnectedState.enter(fsm, state_data, env, params)
     state_data.keepalive.mark_init.assert_called_once()
-    callbacks.open.assert_called_once_with(state_data.connack)
+    callbacks.packet.assert_called_once_with(state_data.connack)
     callbacks.reset()
     assert state_data.open_called is True
     assert fsm.state is ConnectedState
@@ -642,7 +634,7 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
     assert ret is True
     decoder.decode.assert_called_once()
     decoder.reset_mock()
-    callbacks.read.assert_called_once_with(packet)
+    callbacks.packet.assert_called_once_with(packet)
     callbacks.reset()
     assert fsm.state is ConnectedState
 
@@ -864,8 +856,8 @@ def test_states_closed_happy_path(open_called, rc, reconn_delay, callbacks, stat
     state_data.open_called = open_called
     ClosedState.enter(fsm, state_data, env, params)
     if open_called:
-        callbacks.close.assert_called_once()
-        callbacks.reset()
+        #callbacks.close.assert_called_once()
+        #callbacks.reset()
         if rc != -1:
             mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
     mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
@@ -895,8 +887,8 @@ def test_states_closed_errors(exc, callbacks, state_data, env, mock_socket):
     mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
     mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
     mock_socket.close.assert_called_once()
-    callbacks.close.assert_called_once()
-    callbacks.reset()
+    #callbacks.close.assert_called_once()
+    #callbacks.reset()
     assert state_data.open_called is False
     assert fsm.state is ClosedState
 
@@ -928,8 +920,9 @@ def test_states_shutdown_enter(open_called, close_exc, callbacks, state_data, en
     mock_socket.close.side_effect = close_exc("TEST") if close_exc else None
     ShutdownState.enter(fsm, state_data, env, params)
     if open_called:
-        callbacks.close.assert_called_once()
-        callbacks.reset()
+        pass
+        #callbacks.close.assert_called_once()
+        #callbacks.reset()
     mock_socket.close.assert_called_once()
     decoder.reset.assert_called_once()
     env.write_buffer.clear.assert_called_once()

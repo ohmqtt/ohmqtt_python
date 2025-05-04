@@ -59,9 +59,7 @@ def callbacks(mocker):
     class EnvironmentCallbacks:
         """Container for StateEnvironment callbacks."""
         def __init__(self, mocker):
-            self.close = mocker.Mock()
-            self.open = mocker.Mock()
-            self.read = mocker.Mock()
+            self.packet = mocker.Mock()
     return EnvironmentCallbacks(mocker)
 
 
@@ -69,9 +67,7 @@ def callbacks(mocker):
 def env(callbacks):
     """Fixture to create a StateEnvironment."""
     return StateEnvironment(
-        close_callback=callbacks.close,
-        open_callback=callbacks.open,
-        read_callback=callbacks.read,
+        packet_callback=callbacks.packet,
     )
 
 

@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 from .error import MQTTError
 from .mqtt_spec import MQTTReasonCode
+from .packet import MQTTPublishPacket
 
 
 class MaxOutboundAliasError(Exception):
@@ -45,24 +46,72 @@ class OutboundLookupResult(NamedTuple):
 
 
 @dataclass(slots=True)
-class TopicAlias:
-    """Topic alias store for MQTT v5."""
-    out_aliases: dict[str, int] = field(default_factory=dict)
-    next_out_alias: int = field(default=1, init=False)
-    max_out_alias: int = field(default=0, init=False)
-    in_aliases: dict[int, str] = field(default_factory=dict)
-    next_in_alias: int = field(default=1, init=False)
-    max_in_alias: int = field(default=0, init=False)
+class InboundTopicAlias:
+    """Inbound topic alias store."""
+    aliases: dict[int, str] = field(default_factory=dict)
+    max_alias: int = field(default=0, init=False)
 
     def reset(self) -> None:
-        """Reset the topic alias state."""
-        self.out_aliases.clear()
-        # Do not reset max_out_alias, as it is set by the client in connect.
-        self.next_out_alias = 1
-        self.in_aliases.clear()
-        self.max_in_alias = 0
+        """Reset the topic alias state.
 
-    def lookup_outbound(self, topic: str, policy: AliasPolicy) -> OutboundLookupResult:
+        This should be called at least when the connection is opened."""
+        self.aliases.clear()
+        self.max_alias = 0
+
+    def handle(self, packet: MQTTPublishPacket) -> None:
+        """Handle the topic alias in a publish packet.
+
+        Stores the topic alias in the store if it is not recognized.
+
+        If the topic alias is recognized, the topic is replaced with the stored topic."""
+        topic = packet.topic
+        alias = packet.properties.TopicAlias
+        if alias is None:
+            if not topic:
+                raise MQTTError(
+                    "Topic alias not found and topic is empty",
+                    reason_code=MQTTReasonCode.ProtocolError,
+                )
+            else:
+                return
+        if alias > self.max_alias:
+            raise MQTTError(
+                f"Topic alias {alias} out of range",
+                reason_code=MQTTReasonCode.TopicAliasInvalid,
+            )
+
+        if alias in self.aliases:
+            if topic and self.aliases[alias] != topic:
+                raise MQTTError(
+                    f"Topic alias {alias} already exists",
+                    reason_code=MQTTReasonCode.TopicAliasInvalid,
+                )
+            packet.topic = self.aliases[alias]
+        else:
+            if not topic:
+                raise MQTTError(
+                    "Topic alias not found and topic is empty",
+                    reason_code=MQTTReasonCode.TopicAliasInvalid,
+                )
+            self.aliases[alias] = topic
+
+
+@dataclass(slots=True)
+class OutboundTopicAlias:
+    """Inbound topic alias store."""
+    aliases: dict[str, int] = field(default_factory=dict)
+    next_alias: int = field(default=1, init=False)
+    max_alias: int = field(default=0, init=False)
+
+    def reset(self) -> None:
+        """Reset the topic alias state.
+
+        This should be called at least when the connection is opened."""
+        self.aliases.clear()
+        # Do not reset max_alias, as it is set upon connection.
+        self.next_alias = 1
+
+    def lookup(self, topic: str, policy: AliasPolicy) -> OutboundLookupResult:
         """Get the topic alias for a given topic from the client.
         
         An alias integer and a boolean indicating if the alias already existed will be returned.
@@ -71,46 +120,19 @@ class TopicAlias:
         In this case, the topic alias must not be used in the publish packet."""
         if policy == AliasPolicy.NEVER:
             return OutboundLookupResult(0, False)
-        if topic in self.out_aliases:
-            return OutboundLookupResult(self.out_aliases[topic], True)
-        if self.next_out_alias > self.max_out_alias:
+        if topic in self.aliases:
+            return OutboundLookupResult(self.aliases[topic], True)
+        if self.next_alias > self.max_alias:
             if policy == AliasPolicy.ALWAYS:
                 raise MaxOutboundAliasError("Out of topic aliases and policy is ALWAYS")
             else:
                 return OutboundLookupResult(0, False)
-        alias = self.next_out_alias
-        self.out_aliases[topic] = alias
-        self.next_out_alias += 1
+        alias = self.next_alias
+        self.aliases[topic] = alias
+        self.next_alias += 1
         return OutboundLookupResult(alias, False)
 
-    def remove_outbound(self, topic: str) -> None:
-        """Remove the topic alias for a given topic from the client."""
-        self.out_aliases.pop(topic)
-
-    def store_inbound(self, alias: int, topic: str) -> None:
-        """Store the topic for a given topic alias from the server."""
-        if alias > self.max_in_alias:
-            raise MQTTError(
-                f"Topic alias {alias} out of range",
-                reason_code=MQTTReasonCode.TopicAliasInvalid,
-            )
-        if alias in self.in_aliases and self.in_aliases[alias] != topic:
-            raise MQTTError(
-                f"Topic alias {alias} already exists",
-                reason_code=MQTTReasonCode.TopicAliasInvalid,
-            )
-        self.in_aliases[alias] = topic
-
-    def lookup_inbound(self, alias: int) -> str:
-        """Get the topic for a given topic alias from the server."""
-        if alias > self.max_in_alias:
-            raise MQTTError(
-                f"Topic alias {alias} out of range",
-                reason_code=MQTTReasonCode.TopicAliasInvalid,
-            )
-        if alias in self.in_aliases:
-            return self.in_aliases[alias]
-        raise MQTTError(
-            f"Topic alias {alias} not found",
-            reason_code=MQTTReasonCode.TopicAliasInvalid,
-        )
+    def pop(self) -> None:
+        """Remove the last assigned alias."""
+        self.aliases.pop(next(reversed(self.aliases)), None)
+        self.next_alias -= 1

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import threading
 from typing import Final
 
 from .address import Address as Address
 from .fsm import FSM
 from .fsm import InvalidStateError as InvalidStateError
+from .handlers import MessageHandlers as MessageHandlers
+from .handlers import RegisterablePacketT
 from .states import (
     ClosingState,
     ClosedState,
@@ -15,11 +16,9 @@ from .states import (
     ShutdownState,
 )
 from .types import ConnectParams as ConnectParams
-from .types import ConnectionCloseCallback as ConnectionCloseCallback
-from .types import ConnectionOpenCallback as ConnectionOpenCallback
-from .types import ConnectionReadCallback as ConnectionReadCallback
 from .types import ConnectionCloseCondition as ConnectionCloseCondition
 from .types import StateEnvironment
+from ..error import MQTTError
 from ..logger import get_logger
 
 logger: Final = get_logger("connection")
@@ -27,31 +26,23 @@ logger: Final = get_logger("connection")
 
 class Connection:
     """Interface for the MQTT connection."""
-    __slots__ = ("fsm", "_thread")
+    __slots__ = ("fsm", "_handlers")
 
-    def __init__(
-        self,
-        close_callback: ConnectionCloseCallback,
-        open_callback: ConnectionOpenCallback,
-        read_callback: ConnectionReadCallback,
-    ) -> None:
-        state_env = StateEnvironment(
-            close_callback=close_callback,
-            open_callback=open_callback,
-            read_callback=read_callback,
-        )
+    def __init__(self, handlers: MessageHandlers) -> None:
+        state_env = StateEnvironment(packet_callback=self.handle_packet)
         self.fsm = FSM(env=state_env, init_state=ClosedState, error_state=ShutdownState)
+        self._handlers = handlers
 
-        self._thread: threading.Thread | None = None
-
-    def __enter__(self) -> Connection:
-        """Start the connection loop in a separate thread."""
-        self.start_loop()
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        """Shutdown the connection."""
-        self.shutdown()
+    def handle_packet(self, packet: RegisterablePacketT) -> None:
+        """Handle incoming packets by routing them to registered handlers."""
+        exceptions = self._handlers.handle(packet)
+        if exceptions:
+            if any(True for exc in exceptions if isinstance(exc, MQTTError)):
+                # If there is an MQTTError, raise it.
+                raise next(exc for exc in exceptions if isinstance(exc, MQTTError))
+            else:
+                # Otherwise. raise the first exception.
+                raise exceptions[0]
 
     def can_send(self) -> bool:
         """Check if the connection is in a state where data can be sent."""
@@ -104,11 +95,17 @@ class Connection:
         Returns True if the connection is closed, False if the timeout is reached."""
         return self.fsm.wait_for_state((ClosedState, ShutdownState, ReconnectWaitState), timeout)
 
+    def wait_for_shutdown(self, timeout: float | None = None) -> bool:
+        """Wait for the connection to be closed and finalized.
+
+        Returns True if the connection is closed, False if the timeout is reached."""
+        return self.fsm.wait_for_state((ShutdownState,), timeout)
+
     def loop_once(self, max_wait: float | None = 0.0) -> None:
         """Run a single iteration of the state machine.
 
         If max_wait is None, wait indefinitely. Otherwise, wait for the specified time."""
-        self.fsm.loop_once(max_wait=max_wait)
+        self.fsm.loop_once(max_wait)
 
     def loop_forever(self) -> None:
         """Run the state machine until the connection is closed."""
@@ -118,24 +115,4 @@ class Connection:
         """Run the state machine until the connection is established.
 
         Returns True if the connection is established, False otherwise."""
-        return self.fsm.loop_until_state((ConnectedState,), timeout=timeout)
-
-    def start_loop(self) -> None:
-        """Start the state machine in a separate thread."""
-        if self._thread is not None:
-            raise RuntimeError("Connection loop already started")
-        self._thread = threading.Thread(target=self.loop_forever, daemon=True)
-        self._thread.start()
-
-    def is_alive(self) -> bool:
-        """Check if the connection thread is alive."""
-        return self._thread is not None and self._thread.is_alive()
-
-    def join(self, timeout: float | None = None) -> bool:
-        """Wait for the connection thread to finish.
-
-        Returns True if the thread has finished, False if the timeout is reached."""
-        if self._thread is None:
-            return True
-        self._thread.join(timeout)
-        return not self._thread.is_alive()
+        return self.fsm.loop_until_state((ConnectedState,), timeout)

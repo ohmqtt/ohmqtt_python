@@ -1,36 +1,41 @@
 from __future__ import annotations
 
 import ssl
-from typing import Final, Sequence
+import threading
+from typing import Final, Iterable, Sequence
 import weakref
 
-from .topic_alias import AliasPolicy
-from .connection import Address, ConnectParams
+from .connection import Address, ConnectParams, Connection, MessageHandlers
 from .logger import get_logger
 from .mqtt_spec import MQTTReasonCode
-from .packet import MQTTConnAckPacket, MQTTPublishPacket
-from .property import MQTTConnectProps, MQTTPublishProps, MQTTSubscribeProps, MQTTWillProps
+from .packet import MQTTAuthPacket
+from .property import MQTTAuthProps, MQTTConnectProps, MQTTPublishProps, MQTTWillProps
 from .persistence.base import PublishHandle
 from .session import Session
-from .subscriptions import Subscriptions, SubscribeCallback, SubscriptionHandle
+from .subscriptions import Subscriptions, SubscribeCallback, SubscribeHandle, UnsubscribeHandle, RetainPolicy
+from .topic_alias import AliasPolicy
 
 logger: Final = get_logger("client")
 
 
 class Client:
     """High level interface for the MQTT client."""
-    __slots__ = ("session", "subscriptions", "__weakref__")
+    __slots__ = (
+        "_thread",
+        "connection",
+        "subscriptions",
+        "session",
+        "__weakref__",
+    )
 
     def __init__(self, db_path: str = "", *, db_fast: bool = False) -> None:
-        self.subscriptions = Subscriptions()
-        self.session = Session(
-            auth_callback=self._handle_auth,
-            close_callback=self._handle_close,
-            message_callback=self._handle_message,
-            open_callback=self._handle_open,
-            db_path=db_path,
-            db_fast=db_fast,
-        )
+        self._thread: threading.Thread | None = None
+        message_handlers = MessageHandlers()
+        with message_handlers as handlers:
+            self.connection = Connection(handlers)
+            self.subscriptions = Subscriptions(handlers, self.connection, weakref.ref(self))
+            self.session = Session(handlers, self.connection, db_path=db_path, db_fast=db_fast)
+            handlers.register(MQTTAuthPacket, self.handle_auth)
 
     def __enter__(self) -> Client:
         self.start_loop()
@@ -38,42 +43,6 @@ class Client:
 
     def __exit__(self, *args: object) -> None:
         self.shutdown()
-
-    def start_loop(self) -> None:
-        """Start the MQTT client loop.
-
-        This will block until the client is stopped or shutdown.
-        """
-        self.session.connection.start_loop()
-
-    def loop_once(self, max_wait: float | None = 0.0) -> None:
-        """Run a single iteration of the MQTT client loop.
-
-        If max_wait is 0.0 (the default), this call will not block.
-
-        If max_wait is None, this call will block until the next event.
-
-        Any other numeric max_wait value may block for maximum that amount of time in seconds."""
-        self.session.connection.loop_once(max_wait=max_wait)
-
-    def loop_forever(self) -> None:
-        """Run the MQTT client loop.
-
-        This will run until the client is stopped or shutdown.
-        """
-        self.session.connection.loop_forever()
-
-    def loop_until_connected(self, timeout: float | None = None) -> bool:
-        """Run the MQTT client loop until the client is connected to the broker.
-
-        If a timeout is provided, the loop will give up after that amount of time.
-
-        Returns True if the client is connected, False if the timeout was reached."""
-        return self.session.connection.loop_until_connected(timeout=timeout)
-
-    def is_connected(self) -> bool:
-        """Check if the client is connected to the broker."""
-        return self.session.connection.is_connected()
 
     def connect(
         self,
@@ -95,7 +64,7 @@ class Client:
     ) -> None:
         """Connect to the broker."""
         _address = Address(address)
-        self.session.connect(ConnectParams(
+        params = ConnectParams(
             address=_address,
             client_id=client_id,
             connect_timeout=connect_timeout,
@@ -110,29 +79,16 @@ class Client:
             will_retain=will_retain,
             will_properties=will_properties if will_properties is not None else MQTTWillProps(),
             connect_properties=connect_properties if connect_properties is not None else MQTTConnectProps(),
-        ))
+        )
+        self.connection.connect(params)
 
     def disconnect(self) -> None:
         """Disconnect from the broker."""
-        self.session.disconnect()
+        self.connection.disconnect()
 
     def shutdown(self) -> None:
         """Shutdown the client and close the connection."""
-        self.session.shutdown()
-
-    def wait_for_connect(self, timeout: float | None = None) -> None:
-        """Wait for the client to connect to the broker.
-
-        Raises TimeoutError if the timeout is exceeded."""
-        if not self.session.connection.wait_for_connect(timeout):
-            raise TimeoutError("Waiting for connection timed out")
-
-    def wait_for_disconnect(self, timeout: float | None = None) -> None:
-        """Wait for the client to disconnect from the broker.
-
-        Raises TimeoutError if the timeout is exceeded."""
-        if not self.session.connection.wait_for_disconnect(timeout):
-            raise TimeoutError("Waiting for disconnection timed out")
+        self.connection.shutdown()
 
     def publish(
         self,
@@ -159,38 +115,66 @@ class Client:
         self,
         topic_filter: str,
         callback: SubscribeCallback,
-        qos: int = 2,
-        properties: MQTTSubscribeProps | None = None,
+        max_qos: int = 2,
+        *,
         share_name: str | None = None,
-    ) -> SubscriptionHandle:
-        """Subscribe to a topic filter with a callback."""
-        with self.subscriptions as subscriptions:
-            subscriptions.add(topic_filter, share_name, qos, callback)
-        self.session.subscribe(topic_filter, share_name, qos, properties)
-        return SubscriptionHandle(
-            topic_filter=topic_filter,
+        no_local: bool = False,
+        retain_as_published: bool = False,
+        retain_policy: RetainPolicy = RetainPolicy.ALWAYS,
+        sub_id: int | None = None,
+        user_properties: Sequence[tuple[str, str]] | None = None,
+    ) -> SubscribeHandle | None:
+        """Subscribe to a topic filter with a callback.
+
+        If the client is connected, returns a handle which can be used to unsubscribe from the topic filter
+        or wait for the subscription to be acknowledged.
+
+        If the client is not connected, returns None."""
+        return self.subscriptions.subscribe(
+            topic_filter,
+            callback,
+            max_qos=max_qos,
             share_name=share_name,
-            callback=callback,
-            _client=weakref.ref(self),
+            no_local=no_local,
+            retain_as_published=retain_as_published,
+            retain_policy=retain_policy,
+            sub_id=sub_id,
+            user_properties=user_properties,
         )
 
     def unsubscribe(
+        # This method must have the same signature as the subscribe method.
+        # This lets us match the unsubscribe to the subscribe with the same args.
         self,
         topic_filter: str,
-        callback: SubscribeCallback | None = None,
+        callback: SubscribeCallback,
+        max_qos: int = 2,
+        *,
         share_name: str | None = None,
-    ) -> None:
+        no_local: bool = False,
+        retain_as_published: bool = False,
+        retain_policy: RetainPolicy = RetainPolicy.ALWAYS,
+        sub_id: int | None = None,
+        user_properties: Iterable[tuple[str, str]] | None = None,
+        unsub_user_properties: Iterable[tuple[str, str]] | None = None,
+    ) -> UnsubscribeHandle | None:
         """Unsubscribe from a topic filter.
 
-        If a callback is provided it will be removed, otherwise all callbacks for the topic filter will be removed."""
-        remaining = 0
-        with self.subscriptions as subscriptions:
-            if callback is None:
-                subscriptions.remove_all(topic_filter, share_name)
-            else:
-                remaining = subscriptions.remove(topic_filter, share_name, callback)
-        if remaining == 0:
-            self.session.unsubscribe(topic_filter, share_name)
+        If the client is connected, returns a handle which can be used to wait for the unsubscription to be acknowledged.
+
+        If the client is not connected, returns None."""
+        return self.subscriptions.unsubscribe(
+            topic_filter,
+            callback,
+            max_qos=max_qos,
+            share_name=share_name,
+            no_local=no_local,
+            retain_as_published=retain_as_published,
+            retain_policy=retain_policy,
+            sub_id=sub_id,
+            user_properties=user_properties,
+            unsub_user_properties=unsub_user_properties,
+        )
 
     def auth(
         self,
@@ -202,46 +186,78 @@ class Client:
         reason_code: int = MQTTReasonCode.Success,
     ) -> None:
         """Send an AUTH packet to the broker."""
-        self.session.auth(
+        properties = MQTTAuthProps()
+        if authentication_method is not None:
+            properties.AuthenticationMethod = authentication_method
+        if authentication_data is not None:
+            properties.AuthenticationData = authentication_data
+        if reason_string is not None:
+            properties.ReasonString = reason_string
+        if user_properties is not None:
+            properties.UserProperty = user_properties
+        packet = MQTTAuthPacket(
             reason_code=reason_code,
-            authentication_method=authentication_method,
-            authentication_data=authentication_data,
-            reason_string=reason_string,
-            user_properties=user_properties,
+            properties=properties,
         )
+        self.connection.send(packet.encode())
 
-    def _handle_message(self, packet: MQTTPublishPacket) -> None:
-        """Callback for when a message is received."""
-        with self.subscriptions as subscriptions:
-            callbacks = subscriptions.get_callbacks(packet.topic)
-        if not callbacks:
-            logger.error(f"No callbacks for topic: {packet.topic}")
-            return
-        for callback in callbacks:
-            try:
-                callback(self, packet)
-            except Exception:
-                logger.exception(f"Unhandled error in subscribe callback: {callback} for topic: {packet.topic}")
+    def wait_for_connect(self, timeout: float | None = None) -> None:
+        """Wait for the client to connect to the broker.
 
-    def _handle_open(self, connack: MQTTConnAckPacket) -> None:
-        """Callback for when the connection is opened."""
-        with self.subscriptions as subscriptions:
-            for sub_id, qos in subscriptions.get_topics().items():
-                self.session.subscribe(sub_id.topic_filter, sub_id.share_name, qos=qos)
+        Raises TimeoutError if the timeout is exceeded."""
+        if not self.connection.wait_for_connect(timeout):
+            raise TimeoutError("Waiting for connection timed out")
 
-    def _handle_close(self) -> None:
-        """Callback for when the connection is closed."""
-        with self.subscriptions as subscriptions:
-            subscriptions.clear()
+    def wait_for_disconnect(self, timeout: float | None = None) -> None:
+        """Wait for the client to disconnect from the broker.
 
-    def _handle_auth(
-        self,
-        reason_code: int,
-        authentication_method: str | None,
-        authentication_data: bytes | None,
-        reason_string: str | None,
-        user_properties: Sequence[tuple[str, str]] | None,
-    ) -> None:
+        Raises TimeoutError if the timeout is exceeded."""
+        if not self.connection.wait_for_disconnect(timeout):
+            raise TimeoutError("Waiting for disconnection timed out")
+
+    def wait_for_shutdown(self, timeout: float | None = None) -> None:
+        """Wait for the client to disconnect and finalize.
+
+        Raises TimeoutError if the timeout is exceeded."""
+        if not self.connection.wait_for_shutdown(timeout):
+            raise TimeoutError("Waiting for disconnection timed out")
+
+    def start_loop(self) -> None:
+        """Start the client state machine in a separate thread."""
+        if self._thread is not None:
+            raise RuntimeError("Connection loop already started")
+        self._thread = threading.Thread(target=self.loop_forever, daemon=True)
+        self._thread.start()
+
+    def loop_once(self, max_wait: float | None = 0.0) -> None:
+        """Run a single iteration of the MQTT client loop.
+
+        If max_wait is 0.0 (the default), this call will not block.
+
+        If max_wait is None, this call will block until the next event.
+
+        Any other numeric max_wait value may block for maximum that amount of time in seconds."""
+        self.connection.loop_once(max_wait)
+
+    def loop_forever(self) -> None:
+        """Run the MQTT client loop.
+
+        This will run until the client is stopped or shutdown.
+        """
+        self.connection.loop_forever()
+
+    def loop_until_connected(self, timeout: float | None = None) -> bool:
+        """Run the MQTT client loop until the client is connected to the broker.
+
+        If a timeout is provided, the loop will give up after that amount of time.
+
+        Returns True if the client is connected, False if the timeout was reached."""
+        return self.connection.loop_until_connected(timeout)
+
+    def is_connected(self) -> bool:
+        """Check if the client is connected to the broker."""
+        return self.connection.is_connected()
+
+    def handle_auth(self, packet: MQTTAuthPacket) -> None:
         """Callback for an AUTH packet from the broker."""
-        logger.debug(
-            f"Received AUTH packet: {reason_code=}, {authentication_method=}, {authentication_data=}, {reason_string=}, {user_properties=}")
+        logger.debug("Got an AUTH packet")

@@ -1,75 +1,204 @@
 import pytest
+import weakref
 
-from ohmqtt.subscriptions import Subscriptions, SubscriptionId
+from ohmqtt.client import Client
+from ohmqtt.connection import Connection, MessageHandlers, InvalidStateError
+from ohmqtt.packet import (
+    MQTTPublishPacket,
+    MQTTSubscribePacket,
+    MQTTSubAckPacket,
+    MQTTUnsubscribePacket,
+    MQTTUnsubAckPacket,
+    MQTTConnAckPacket,
+)
+from ohmqtt.property import MQTTSubscribeProps, MQTTUnsubscribeProps
+from ohmqtt.subscriptions import Subscriptions, RetainPolicy
 
 
-def test_subscriptions():
-    callback1 = lambda: None
-    callback2 = lambda: None
-    callback3 = lambda: None
+@pytest.fixture
+def mock_client(mocker):
+    return mocker.Mock(spec=Client)
 
-    subscriptions = Subscriptions()
-    with subscriptions as subs:
-        assert subs is subscriptions
 
-        subscriptions.add("test/topic", None, 0, callback1)
-        subscriptions.add("test/topic", None, 1, callback2)
-        subscriptions.add("test/topic2", None, 2, callback3)
-        subscriptions.add("#", None, 0, callback1)
-        subscriptions.add("very", "cherry", 0, callback1)
+@pytest.fixture
+def mock_connection(mocker):
+    return mocker.Mock(spec=Connection)
 
-        topics = subscriptions.get_topics()
-        assert topics == {
-            SubscriptionId("test/topic", None): 1,
-            SubscriptionId("test/topic2", None): 2,
-            SubscriptionId("#", None): 0,
-            SubscriptionId("very", "cherry"): 0,
-        }
-        topic_strs = [str(topic) for topic in topics.keys()]
-        assert topic_strs[0] == "test/topic"
-        assert topic_strs[3] == "$share/cherry/very"
 
-        callbacks = subscriptions.get_callbacks("test/topic")
-        assert len(callbacks) == 2
-        assert callback1 in callbacks
-        assert callback2 in callbacks
+@pytest.fixture
+def mock_handlers(mocker):
+    return mocker.MagicMock(spec=MessageHandlers)
 
-        callbacks = subscriptions.get_callbacks("test/topic2")
-        assert len(callbacks) == 2
-        assert callback1 in callbacks
-        assert callback3 in callbacks
 
-        callbacks = subscriptions.get_callbacks("test/topic3")
-        assert len(callbacks) == 1
-        assert callback1 in callbacks
+def test_subscriptions_registration(mock_client, mock_connection):
+    handlers = MessageHandlers()
+    with handlers:
+        subscriptions = Subscriptions(handlers, mock_connection, weakref.ref(mock_client))
+    assert subscriptions.handle_publish in handlers.get_handlers(MQTTPublishPacket)
+    assert subscriptions.handle_suback in handlers.get_handlers(MQTTSubAckPacket)
+    assert subscriptions.handle_unsuback in handlers.get_handlers(MQTTUnsubAckPacket)
+    assert subscriptions.handle_connack in handlers.get_handlers(MQTTConnAckPacket)
 
-        assert subscriptions.remove("#", None, callback3) == 1
-        assert subscriptions.remove("#", None, callback2) == 1
-        assert subscriptions.remove("#", None, callback1) == 0
-        assert subscriptions.get_callbacks("test/topic3") == frozenset()
-        assert subscriptions.remove("#", None, callback1) == 0
+@pytest.mark.parametrize("max_qos", [0, 1, 2])
+@pytest.mark.parametrize("no_local", [True, False])
+@pytest.mark.parametrize("retain_as_published", [True, False])
+@pytest.mark.parametrize("retain_policy", [RetainPolicy.NEVER, RetainPolicy.ONCE, RetainPolicy.ALWAYS])
+def test_subscriptions_subscribe_opts(mock_handlers, mock_client, mock_connection, max_qos, no_local, retain_as_published, retain_policy):
+    """Test subscribing with options."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
 
-        subscriptions.remove_all("test/topic", None)
-        assert subscriptions.get_callbacks("test/topic") == frozenset()
+    subscriptions.subscribe(
+        "test/topic",
+        lambda: None,
+        max_qos=max_qos,
+        share_name="test_share",
+        no_local=no_local,
+        retain_as_published=retain_as_published,
+        retain_policy=retain_policy,
+        sub_id=23,
+        user_properties=[("key", "value")],
+    )
+    expected_opts = max_qos | (retain_policy << 4) | (retain_as_published << 3) | (no_local << 2)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("$share/test_share/test/topic", expected_opts)],
+        packet_id=1,
+        properties=MQTTSubscribeProps(
+            SubscriptionIdentifier={23},
+            UserProperty=[("key", "value")],
+        ),
+    ).encode())
 
-        subscriptions.add("test/topic", None, 0, callback1)
-        subscriptions.clear()
-        assert subscriptions.get_topics() == {}
 
-    # Need to have the lock to call all public methods.
-    with pytest.raises(RuntimeError):
-        subscriptions.add("test/topic", None, 0, callback1)
-    with pytest.raises(RuntimeError):
-        subscriptions.get_topics()
-    with pytest.raises(RuntimeError):
-        subscriptions.get_topics("test/topic")
-    with pytest.raises(RuntimeError):
-        subscriptions.remove("test/topic", None, callback1)
-    with pytest.raises(RuntimeError):
-        subscriptions.remove_all("test/topic")
-    with pytest.raises(RuntimeError):
-        subscriptions.clear()
+def test_subscriptions_handle_unsubscribe(mock_handlers, mock_client, mock_connection):
+    """Test using a subscription handle to unsubscribe."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
 
+    sub_handle = subscriptions.subscribe("test/topic", lambda: None)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    ).encode())
+
+    unsub_handle = sub_handle.unsubscribe()
+    mock_connection.send.assert_called_with(MQTTUnsubscribePacket(
+        topics=["test/topic"],
+        packet_id=1,
+        properties=MQTTUnsubscribeProps(),
+    ).encode())
+
+    unsuback_packet = MQTTUnsubAckPacket(packet_id=1)
+    subscriptions.handle_unsuback(unsuback_packet)
+
+    assert unsub_handle.wait_for_ack(timeout=0.1) == unsuback_packet
+    assert unsub_handle.ack == unsuback_packet
+
+
+def test_subscriptions_wait_for_suback(mock_handlers, mock_client, mock_connection):
+    """Test waiting for a SUBACK packet."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    handle = subscriptions.subscribe("test/topic", lambda: None)
+
+    # Simulate receiving a SUBACK packet
+    suback_packet = MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[0],
+        properties=MQTTSubscribeProps(),
+    )
+    subscriptions.handle_suback(suback_packet)
+
+    assert handle.wait_for_ack(timeout=0.1) == suback_packet
+    assert handle.ack == suback_packet
+
+
+@pytest.mark.parametrize("session_present", [True, False])
+def test_subscriptions_subscribe_failure(mock_handlers, mock_client, mock_connection, session_present):
+    """Test replaying SUBSCRIBE packets on reconnection after calling in a bad state."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+    handle = subscriptions.subscribe("test/topic", lambda: None)
+
+    assert handle is None
+
+    mock_connection.send.side_effect = None
+    mock_connection.reset_mock()
+
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=session_present))
+
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    ).encode())
+    mock_connection.reset_mock()
+
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=session_present))
+
+    if not session_present:
+        # If the session was not present, we should send the SUBSCRIBE packet again.
+        mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+            topics=[("test/topic", 2)],
+            packet_id=1,
+        ).encode())
+
+
+@pytest.mark.parametrize("session_present", [True, False])
+def test_subscriptions_multi_subscribe(mock_handlers, mock_client, mock_connection, session_present):
+    """Test subscribing to the same topic multiple times."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    handle1 = subscriptions.subscribe("test/topic", lambda: None)
+    handle2 = subscriptions.subscribe("test/topic", lambda: None)
+
+    assert handle1 is not None
+    assert handle2 is not None
+    assert handle1 != handle2
+
+    assert mock_connection.send.call_count == 2
+    assert mock_connection.send.call_args_list[0][0][0] == MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    ).encode()
+    assert mock_connection.send.call_args_list[1][0][0] == MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=2,
+    ).encode()
+    mock_connection.reset_mock()
+
+    suback_packet = MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[0],
+        properties=MQTTSubscribeProps(),
+    )
+    subscriptions.handle_suback(suback_packet)
+
+    assert handle1.wait_for_ack(timeout=0.1) == suback_packet
+    assert handle2.wait_for_ack(timeout=0.1) is None
+
+    suback_packet.packet_id = 2
+    subscriptions.handle_suback(suback_packet)
+
+    assert handle2.wait_for_ack(timeout=0.1) == suback_packet
+
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=session_present))
+
+    if not session_present:
+        # If the session was not present, we should send the SUBSCRIBE packets again.
+        assert mock_connection.send.call_count == 2
+        assert mock_connection.send.call_args_list[0][0][0] == MQTTSubscribePacket(
+            topics=[("test/topic", 2)],
+            packet_id=1,
+        ).encode()
+        assert mock_connection.send.call_args_list[1][0][0] == MQTTSubscribePacket(
+            topics=[("test/topic", 2)],
+            packet_id=2,
+        ).encode()
+        mock_connection.reset_mock()
+
+
+def test_subscriptions_slots(mock_handlers, mock_client, mock_connection):
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
     # Slots all the way down.
     assert not hasattr(subscriptions, "__dict__")
+    assert hasattr(subscriptions, "__weakref__")
     assert all(hasattr(subscriptions, attr) for attr in subscriptions.__slots__)

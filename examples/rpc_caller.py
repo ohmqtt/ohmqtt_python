@@ -5,7 +5,7 @@ It sends an RPC request to a specific topic and waits for the response.
 
 The ResponseTopic property is used to specify the topic to which the response should be sent."""
 
-import time
+import threading
 import uuid
 from typing import Callable
 
@@ -32,7 +32,7 @@ class RPCCaller:
         self.callbacks[unique_id] = callback
 
         # Subscribe to the response topic.
-        self.client.subscribe(response_topic, qos=2, callback=self.handle_response)
+        self.client.subscribe(response_topic, self.handle_response)
 
         # Publish the request with the necessary properties.
         self.client.publish(
@@ -56,7 +56,7 @@ class RPCCaller:
             callback(msg.payload)
         finally:
             # Unsubscribe from the response topic.
-            client.unsubscribe(msg.topic)
+            client.unsubscribe(msg.topic, self.handle_response)
 
 
 def main() -> None:
@@ -66,13 +66,20 @@ def main() -> None:
         print("*** Waiting for connection...")
         client.wait_for_connect(timeout=5.0)
 
+        # Set up a callback which helps us block until a response is received.
+        recvd = threading.Event()
+        def callback(payload: bytes) -> None:
+            print(f"*** Received RPC response: {payload.decode()}")
+            recvd.set()  # Signal that the response has been received.
+
         while True:
+            recvd.clear()  # Reset the event for the next request.
             try:
                 payload = input("*** Enter something fun (or 'exit' to quit): ")
                 if payload.lower() == "exit":
                     break
-                rpc_caller.send_request(payload.encode(), lambda response: print(f"Received response: {response.decode()}"))
-                time.sleep(1)  # Give some time for the response to be received.
+                rpc_caller.send_request(payload.encode(), callback)
+                recvd.wait(timeout=5.0)  # Wait for the response to be received.
             except (EOFError, KeyboardInterrupt):
                 print("\n*** Shutting down RPC caller...")
                 break
