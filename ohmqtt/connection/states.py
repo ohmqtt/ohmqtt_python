@@ -408,7 +408,10 @@ class ShutdownState(FSMState):
         if state_data.open_called:
             state_data.open_called = False
             env.close_callback()
-        state_data.sock.close()
+        try:
+            state_data.sock.close()
+        except OSError as exc:
+            logger.debug(f"Error while closing socket: {exc}")
         state_data.decoder.reset()
         with fsm.selector:
             env.write_buffer.clear()

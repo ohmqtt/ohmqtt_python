@@ -886,3 +886,24 @@ def test_states_closed_write_buffer_not_empty(callbacks, state_data, env, mock_s
     assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("close_exc", [OSError, None])
+@pytest.mark.parametrize("open_called", [True, False])
+def test_states_shutdown_enter(open_called, close_exc, callbacks, state_data, env, decoder, mocker, mock_socket):
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ShutdownState, error_state=ShutdownState)
+
+    env.write_buffer = mocker.Mock()
+    state_data.open_called = open_called
+    mock_socket.close.side_effect = close_exc("TEST") if close_exc else None
+    ShutdownState.enter(fsm, state_data, env, params)
+    if open_called:
+        callbacks.close.assert_called_once()
+        callbacks.reset()
+    mock_socket.close.assert_called_once()
+    decoder.reset.assert_called_once()
+    env.write_buffer.clear.assert_called_once()
+    assert fsm.state is ShutdownState
+
+    callbacks.assert_not_called()
