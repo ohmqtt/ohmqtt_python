@@ -10,6 +10,7 @@ from .topic_filter import match_topic_filter, validate_topic_filter, validate_sh
 
 if TYPE_CHECKING:
     from .client import Client  # pragma: no cover
+    from .threading_lite import LockLike  # pragma: no cover
 
 
 SubscribeCallback = Callable[["Client", MQTTPublishPacket], None]
@@ -50,8 +51,8 @@ class Subscriptions(Protected):
     """Container for MQTT subscriptions and their callbacks."""
     __slots__ = ("_subscriptions",)
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, lock: LockLike | None = None) -> None:
+        super().__init__(lock)
         self._subscriptions: dict[SubscriptionId, SubscriptionData] = {}
 
     @protect
