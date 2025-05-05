@@ -9,7 +9,7 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import dataclass_transform, Self
 
-from .mqtt_spec import MQTTPropertyId, MQTTPropertyName, MQTTPropertyIdReverse
+from .mqtt_spec import MQTTPropertyId, MQTTPropertyName
 from .serialization import (
     encode_bool,
     decode_bool,
@@ -218,7 +218,7 @@ class MQTTProperties(MQTTPropertiesBase):
             key = data[0]
             data  = data[1:]
             remaining -= 1
-            prop_name = MQTTPropertyIdReverse[key]
+            prop_name = MQTTPropertyId(key).name
             deserializer = _PropertySerializersById[key].deserializer
             value, sz = deserializer(data)
             data = data[sz:]

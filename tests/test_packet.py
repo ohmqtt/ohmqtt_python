@@ -1,7 +1,7 @@
 import pytest
 
 from ohmqtt.error import MQTTError
-from ohmqtt.mqtt_spec import MQTTPacketType, MQTTReasonCode, MQTTPropertyId, MQTTPropertyIdStrings
+from ohmqtt.mqtt_spec import MQTTPacketType, MQTTReasonCode, MQTTPropertyId
 from ohmqtt.packet import (
     decode_packet,
     decode_packet_from_parts,
@@ -66,7 +66,7 @@ def extract_props(cls: MQTTPacket, data, props_t=None) -> MQTTProperties:
         props = props_t()
     for prop in data:
         k = prop[0]
-        prop_key = MQTTPropertyIdStrings[k]
+        prop_key = MQTTPropertyId[k]
         if prop_key in (MQTTPropertyId.CorrelationData, MQTTPropertyId.AuthenticationData):
             prop_value = bytes.fromhex(prop[1])
         elif prop_key == MQTTPropertyId.SubscriptionIdentifier:

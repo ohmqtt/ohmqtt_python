@@ -27,7 +27,7 @@ class MQTTPacketType(IntEnum):
 
 
 # Types of MQTT properties, mapped to identifiers from the specification.
-class MQTTPropertyId:
+class MQTTPropertyId(IntEnum):
     PayloadFormatIndicator = 0x01
     MessageExpiryInterval = 0x02
     ContentType = 0x03
@@ -85,14 +85,6 @@ class MQTTPropertyName:
     WildcardSubscriptionAvailable = "WildcardSubscriptionAvailable"
     SubscriptionIdentifierAvailable = "SubscriptionIdentifierAvailable"
     SharedSubscriptionAvailable = "SharedSubscriptionAvailable"
-
-
-MQTTPropertyIdStrings: Final[Mapping[str, int]] = {
-    k: int(getattr(MQTTPropertyId, k)) for k in MQTTPropertyId.__dict__ if not k.startswith("__")
-}
-MQTTPropertyIdReverse: Final[Mapping[int, str]] = {
-    int(getattr(MQTTPropertyId, k)): k for k in MQTTPropertyId.__dict__ if not k.startswith("__")
-}
 
 
 # Indicates the result of an operation.
