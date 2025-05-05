@@ -57,36 +57,6 @@ class MQTTPropertyId(IntEnum):
     SharedSubscriptionAvailable = 0x2a
 
 
-class MQTTPropertyName:
-    PayloadFormatIndicator = "PayloadFormatIndicator"
-    MessageExpiryInterval = "MessageExpiryInterval"
-    ContentType = "ContentType"
-    ResponseTopic = "ResponseTopic"
-    CorrelationData = "CorrelationData"
-    SubscriptionIdentifier = "SubscriptionIdentifier"
-    SessionExpiryInterval = "SessionExpiryInterval"
-    AssignedClientIdentifier = "AssignedClientIdentifier"
-    ServerKeepAlive = "ServerKeepAlive"
-    AuthenticationMethod = "AuthenticationMethod"
-    AuthenticationData = "AuthenticationData"
-    RequestProblemInformation = "RequestProblemInformation"
-    WillDelayInterval = "WillDelayInterval"
-    RequestResponseInformation = "RequestResponseInformation"
-    ResponseInformation = "ResponseInformation"
-    ServerReference = "ServerReference"
-    ReasonString = "ReasonString"
-    ReceiveMaximum = "ReceiveMaximum"
-    TopicAliasMaximum = "TopicAliasMaximum"
-    TopicAlias = "TopicAlias"
-    MaximumQoS = "MaximumQoS"
-    RetainAvailable = "RetainAvailable"
-    UserProperty = "UserProperty"
-    MaximumPacketSize = "MaximumPacketSize"
-    WildcardSubscriptionAvailable = "WildcardSubscriptionAvailable"
-    SubscriptionIdentifierAvailable = "SubscriptionIdentifierAvailable"
-    SharedSubscriptionAvailable = "SharedSubscriptionAvailable"
-
-
 # Indicates the result of an operation.
 class MQTTReasonCode:
     GrantedQoS0 = 0x00

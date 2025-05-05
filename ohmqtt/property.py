@@ -9,7 +9,7 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import dataclass_transform, Self
 
-from .mqtt_spec import MQTTPropertyId, MQTTPropertyName
+from .mqtt_spec import MQTTPropertyId
 from .serialization import (
     encode_bool,
     decode_bool,
@@ -139,33 +139,33 @@ _StringPairSerializer: Final = _SerializerPair(serializer=encode_string_pair, de
 
 
 _PropertySerializers: Final[Mapping[str, _SerializerPair]] = {
-    MQTTPropertyName.PayloadFormatIndicator: _UInt8Serializer,
-    MQTTPropertyName.MessageExpiryInterval: _UInt32Serializer,
-    MQTTPropertyName.ContentType: _StringSerializer,
-    MQTTPropertyName.ResponseTopic: _StringSerializer,
-    MQTTPropertyName.CorrelationData: _BinarySerializer,
-    MQTTPropertyName.SubscriptionIdentifier: _VarIntSerializer,
-    MQTTPropertyName.SessionExpiryInterval: _UInt32Serializer,
-    MQTTPropertyName.AssignedClientIdentifier: _StringSerializer,
-    MQTTPropertyName.ServerKeepAlive: _UInt16Serializer,
-    MQTTPropertyName.AuthenticationMethod: _StringSerializer,
-    MQTTPropertyName.AuthenticationData: _BinarySerializer,
-    MQTTPropertyName.RequestProblemInformation: _BoolSerializer,
-    MQTTPropertyName.WillDelayInterval: _UInt32Serializer,
-    MQTTPropertyName.RequestResponseInformation: _BoolSerializer,
-    MQTTPropertyName.ResponseInformation: _StringSerializer,
-    MQTTPropertyName.ServerReference: _StringSerializer,
-    MQTTPropertyName.ReasonString: _StringSerializer,
-    MQTTPropertyName.ReceiveMaximum: _UInt16Serializer,
-    MQTTPropertyName.TopicAliasMaximum: _UInt16Serializer,
-    MQTTPropertyName.TopicAlias: _UInt16Serializer,
-    MQTTPropertyName.MaximumQoS: _UInt8Serializer,
-    MQTTPropertyName.RetainAvailable: _BoolSerializer,
-    MQTTPropertyName.UserProperty: _StringPairSerializer,
-    MQTTPropertyName.MaximumPacketSize: _UInt32Serializer,
-    MQTTPropertyName.WildcardSubscriptionAvailable: _BoolSerializer,
-    MQTTPropertyName.SubscriptionIdentifierAvailable: _BoolSerializer,
-    MQTTPropertyName.SharedSubscriptionAvailable: _BoolSerializer
+    MQTTPropertyId.PayloadFormatIndicator.name: _UInt8Serializer,
+    MQTTPropertyId.MessageExpiryInterval.name: _UInt32Serializer,
+    MQTTPropertyId.ContentType.name: _StringSerializer,
+    MQTTPropertyId.ResponseTopic.name: _StringSerializer,
+    MQTTPropertyId.CorrelationData.name: _BinarySerializer,
+    MQTTPropertyId.SubscriptionIdentifier.name: _VarIntSerializer,
+    MQTTPropertyId.SessionExpiryInterval.name: _UInt32Serializer,
+    MQTTPropertyId.AssignedClientIdentifier.name: _StringSerializer,
+    MQTTPropertyId.ServerKeepAlive.name: _UInt16Serializer,
+    MQTTPropertyId.AuthenticationMethod.name: _StringSerializer,
+    MQTTPropertyId.AuthenticationData.name: _BinarySerializer,
+    MQTTPropertyId.RequestProblemInformation.name: _BoolSerializer,
+    MQTTPropertyId.WillDelayInterval.name: _UInt32Serializer,
+    MQTTPropertyId.RequestResponseInformation.name: _BoolSerializer,
+    MQTTPropertyId.ResponseInformation.name: _StringSerializer,
+    MQTTPropertyId.ServerReference.name: _StringSerializer,
+    MQTTPropertyId.ReasonString.name: _StringSerializer,
+    MQTTPropertyId.ReceiveMaximum.name: _UInt16Serializer,
+    MQTTPropertyId.TopicAliasMaximum.name: _UInt16Serializer,
+    MQTTPropertyId.TopicAlias.name: _UInt16Serializer,
+    MQTTPropertyId.MaximumQoS.name: _UInt8Serializer,
+    MQTTPropertyId.RetainAvailable.name: _BoolSerializer,
+    MQTTPropertyId.UserProperty.name: _StringPairSerializer,
+    MQTTPropertyId.MaximumPacketSize.name: _UInt32Serializer,
+    MQTTPropertyId.WildcardSubscriptionAvailable.name: _BoolSerializer,
+    MQTTPropertyId.SubscriptionIdentifierAvailable.name: _BoolSerializer,
+    MQTTPropertyId.SharedSubscriptionAvailable.name: _BoolSerializer
 }
 _PropertySerializersById: Final[Mapping[int, _SerializerPair]] = {
     getattr(MQTTPropertyId, key): value for key, value in _PropertySerializers.items()
