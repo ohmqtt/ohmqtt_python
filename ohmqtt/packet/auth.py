@@ -22,7 +22,7 @@ HEAD_AUTH = MQTTPacketType.AUTH << 4
 class MQTTAuthPacket(MQTTPacket):
     packet_type = MQTTPacketType.AUTH
     props_type = MQTTAuthProps
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTAuthProps = field(default_factory=MQTTAuthProps)
 
     def __str__(self) -> str:
@@ -40,7 +40,7 @@ class MQTTAuthPacket(MQTTPacket):
         encoded.append(HEAD_AUTH)
         props = self.properties.encode()
         encoded.extend(encode_varint(len(props) + 1))
-        encoded.append(self.reason_code)
+        encoded.append(self.reason_code.value)
         encoded.extend(props)
         return bytes(encoded)
     
@@ -53,4 +53,4 @@ class MQTTAuthPacket(MQTTPacket):
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
         props, props_sz = MQTTAuthProps.decode(data[sz:])
-        return MQTTAuthPacket(reason_code, properties=props)
+        return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)

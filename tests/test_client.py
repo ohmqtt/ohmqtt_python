@@ -3,6 +3,7 @@ import threading
 
 from ohmqtt.client import Client
 from ohmqtt.connection import Connection, MessageHandlers
+from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import MQTTAuthPacket
 from ohmqtt.property import MQTTAuthProps, MQTTPublishProps
 from ohmqtt.session import Session
@@ -131,14 +132,14 @@ def test_client_auth(mocker, mock_connection, mock_handlers, mock_session, mock_
     client = Client()
 
     client.auth(
-        reason_code=0x23,
+        reason_code=MQTTReasonCode.ReAuthenticate,
         authentication_method="test_method",
         authentication_data=b"test_data",
         reason_string="test_reason",
         user_properties=[("key", "value")],
     )
     mock_connection.send.assert_called_once_with(MQTTAuthPacket(
-        reason_code=0x23,
+        reason_code=MQTTReasonCode.ReAuthenticate,
         properties=MQTTAuthProps(
             AuthenticationMethod="test_method",
             AuthenticationData=b"test_data",

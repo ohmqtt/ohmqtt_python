@@ -119,7 +119,7 @@ def _encode_pubacklike(packet: PubAckLikeT) -> bytes:
     head = HEAD_PUBACKS[packet.packet_type]
     encoded = bytearray(encode_uint16(packet.packet_id))
     if packet.reason_code != MQTTReasonCode.Success:
-        encoded.append(packet.reason_code)
+        encoded.append(packet.reason_code.value)
     if packet.properties:
         encoded.extend(packet.properties.encode())
     encoded[0:0] = encode_varint(len(encoded))
@@ -144,8 +144,8 @@ def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> 
             MQTTReasonCode.Success,
             PropsT(),  # type: ignore
         )
-    reason_code, reason_code_length = decode_uint8(data[offset:])
-    offset += reason_code_length
+    reason_code = MQTTReasonCode(decode_uint8(data[offset:])[0])
+    offset += 1
     if offset == len(data):
         # Properties alone may be omitted.
         return cls(
@@ -166,7 +166,7 @@ class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBACK
     props_type: ClassVar[Type[MQTTProperties]] = MQTTPubAckProps
     packet_id: int
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTPubAckProps = field(default_factory=MQTTPubAckProps)
 
     def __str__(self) -> str:
@@ -190,7 +190,7 @@ class MQTTPubRecPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBREC
     props_type = MQTTPubRecProps
     packet_id: int
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTPubRecProps = field(default_factory=MQTTPubRecProps)
 
     def __str__(self) -> str:
@@ -214,7 +214,7 @@ class MQTTPubRelPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBREL
     props_type = MQTTPubRelProps
     packet_id: int
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTPubRelProps = field(default_factory=MQTTPubRelProps)
 
     def __str__(self) -> str:
@@ -238,7 +238,7 @@ class MQTTPubCompPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBCOMP
     props_type = MQTTPubCompProps
     packet_id: int
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTPubCompProps = field(default_factory=MQTTPubCompProps)
 
     def __str__(self) -> str:

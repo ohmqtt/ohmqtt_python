@@ -85,6 +85,10 @@ def extract_args(cls, data, binary_args):
     for k, v in data.items():
         if k in binary_args:
             args[k] = bytes.fromhex(v)
+        elif k == "reason_code":
+            args[k] = MQTTReasonCode(v)
+        elif k == "reason_codes":
+            args[k] = [MQTTReasonCode(x) for x in v]
         elif k == "properties":
             args[k] = extract_props(cls, v)
         elif k == "will_props":

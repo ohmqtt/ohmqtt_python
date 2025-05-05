@@ -31,7 +31,7 @@ class ConnectingState(FSMState):
         state_data.timeout.interval = params.connect_timeout
         state_data.timeout.mark()
         state_data.connack = None
-        state_data.disconnect_rc = -1
+        state_data.disconnect_rc = None
         state_data.sock = _get_socket(params.address.family)
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
@@ -328,7 +328,7 @@ class ClosingState(FSMState):
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         if fsm.previous_state == ConnectedState:
             logger.debug("Gracefully closing connection")
-            if state_data.disconnect_rc == -1:
+            if state_data.disconnect_rc is None:
                 state_data.disconnect_rc = MQTTReasonCode.NormalDisconnection
         else:
             logger.debug("Skipping ClosingState")
@@ -385,7 +385,7 @@ class ClosedState(FSMState):
         if state_data.open_called:
             state_data.open_called = False
             with fsm.selector:
-                if state_data.disconnect_rc >= 0 and not env.write_buffer:
+                if state_data.disconnect_rc is not None and not env.write_buffer:
                     disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
                     # Try to send a DISCONNECT packet, but no problem if we can't.
                     try:

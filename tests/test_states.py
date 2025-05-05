@@ -131,7 +131,7 @@ def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, 
     assert mock_timeout.interval == params.connect_timeout
     mock_timeout.mark.assert_called_once()
     mock_timeout.reset_mock()
-    assert state_data.disconnect_rc == -1
+    assert state_data.disconnect_rc is None
     assert fsm.state is ConnectingState
 
     # First handle, begin non-blocking connect.
@@ -845,7 +845,7 @@ def test_states_closing_send_error(max_wait, exc, callbacks, state_data, env, mo
 
 
 @pytest.mark.parametrize("open_called", [True, False])
-@pytest.mark.parametrize("rc", [-1, MQTTReasonCode.NormalDisconnection])
+@pytest.mark.parametrize("rc", [None, MQTTReasonCode.NormalDisconnection])
 @pytest.mark.parametrize("reconn_delay", [0, 1])
 def test_states_closed_happy_path(open_called, rc, reconn_delay, callbacks, state_data, env, decoder, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=reconn_delay)
@@ -858,7 +858,7 @@ def test_states_closed_happy_path(open_called, rc, reconn_delay, callbacks, stat
     if open_called:
         #callbacks.close.assert_called_once()
         #callbacks.reset()
-        if rc != -1:
+        if rc is not None:
             mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
     mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
     mock_socket.close.assert_called_once()

@@ -183,7 +183,7 @@ class MQTTConnectPacket(MQTTPacket):
 class MQTTConnAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.CONNACK
     props_type = MQTTConnAckProps
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     session_present: bool = False
     properties: MQTTConnAckProps = field(default_factory=MQTTConnAckProps)
 
@@ -197,7 +197,7 @@ class MQTTConnAckPacket(MQTTPacket):
     
     def encode(self) -> bytes:
         head = HEAD_CONNACK
-        data = encode_bool(self.session_present) + encode_uint8(self.reason_code) + self.properties.encode()
+        data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + self.properties.encode()
         length = encode_varint(len(data))
         return b"".join((bytes([head]), length, data))
 
@@ -207,7 +207,7 @@ class MQTTConnAckPacket(MQTTPacket):
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
 
         session_present, _ = decode_bool(data[0:])
-        reason_code, _ = decode_uint8(data[1:])
+        reason_code = MQTTReasonCode(decode_uint8(data[1:])[0])
         props, props_sz = MQTTConnAckProps.decode(data[2:])
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
@@ -216,7 +216,7 @@ class MQTTConnAckPacket(MQTTPacket):
 class MQTTDisconnectPacket(MQTTPacket):
     packet_type = MQTTPacketType.DISCONNECT
     props_type = MQTTDisconnectProps
-    reason_code: int = MQTTReasonCode.Success
+    reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTDisconnectProps = field(default_factory=MQTTDisconnectProps)
 
     def __str__(self) -> str:
@@ -235,7 +235,7 @@ class MQTTDisconnectPacket(MQTTPacket):
         props = self.properties.encode()
         length = 1 + len(props)
         encoded.extend(encode_varint(length))
-        encoded.append(self.reason_code)
+        encoded.append(self.reason_code.value)
         encoded.extend(props)
         return bytes(encoded)
     
@@ -246,6 +246,6 @@ class MQTTDisconnectPacket(MQTTPacket):
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
-        reason_code, sz = decode_uint8(data)
-        props, props_sz = MQTTDisconnectProps.decode(data[sz:])
+        reason_code = MQTTReasonCode(decode_uint8(data)[0])
+        props, props_sz = MQTTDisconnectProps.decode(data[1:])
         return MQTTDisconnectPacket(reason_code, properties=props)

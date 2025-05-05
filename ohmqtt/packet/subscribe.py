@@ -81,7 +81,7 @@ class MQTTSubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.SUBACK
     props_type = MQTTSubAckProps
     packet_id: int
-    reason_codes: Sequence[int] = field(default_factory=tuple)
+    reason_codes: Sequence[MQTTReasonCode] = field(default_factory=tuple)
     properties: MQTTSubAckProps = field(default_factory=MQTTSubAckProps)
 
     def __str__(self) -> str:
@@ -102,7 +102,7 @@ class MQTTSubAckPacket(MQTTPacket):
         encoded.extend(encode_uint16(self.packet_id))
         encoded.extend(props)
         for reason_code in self.reason_codes:
-            encoded.append(reason_code)
+            encoded.append(reason_code.value)
         return bytes(encoded)
 
     @classmethod
@@ -114,7 +114,7 @@ class MQTTSubAckPacket(MQTTPacket):
         offset += packet_id_length
         props, props_length = MQTTSubAckProps.decode(data[offset:])
         offset += props_length
-        reason_codes = [b for b in data[offset:]]
+        reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
@@ -166,7 +166,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.UNSUBACK
     props_type = MQTTUnsubAckProps
     packet_id: int
-    reason_codes: Sequence[int] = field(default_factory=tuple)
+    reason_codes: Sequence[MQTTReasonCode] = field(default_factory=tuple)
     properties: MQTTUnsubAckProps = field(default_factory=MQTTUnsubAckProps)
 
     def __str__(self) -> str:
@@ -182,7 +182,7 @@ class MQTTUnsubAckPacket(MQTTPacket):
         encoded.append(HEAD_UNSUBACK)
         data = encode_uint16(self.packet_id) + self.properties.encode()
         for reason_code in self.reason_codes:
-            data += encode_uint8(reason_code)
+            data += encode_uint8(reason_code.value)
         encoded.extend(encode_varint(len(data)))
         encoded.extend(data)
         return bytes(encoded)
@@ -196,5 +196,5 @@ class MQTTUnsubAckPacket(MQTTPacket):
         offset += packet_id_length
         props, props_length = MQTTUnsubAckProps.decode(data[offset:])
         offset += props_length
-        reason_codes = [b for b in data[offset:]]
+        reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)

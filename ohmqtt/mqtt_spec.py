@@ -1,7 +1,7 @@
 """Constants from the MQTT specification."""
 
 from enum import IntEnum
-from typing import Final, Mapping
+from typing import Final
 
 
 MAX_PACKET_ID: Final = 0xffff
@@ -58,7 +58,7 @@ class MQTTPropertyId(IntEnum):
 
 
 # Indicates the result of an operation.
-class MQTTReasonCode:
+class MQTTReasonCode(IntEnum):
     GrantedQoS0 = 0x00
     NormalDisconnection = 0x00
     Success = 0x00
@@ -104,8 +104,3 @@ class MQTTReasonCode:
     MaximumConnectTime = 0xA0
     SubscriptionIdentifiersNotSupported = 0xA1
     WildcardSubscriptionsNotSupported = 0xA2
-
-MQTTReasonCodeStrings: Final[Mapping[str, int]] = {
-    k: int(getattr(MQTTReasonCode, k)) for k in MQTTReasonCode.__dict__ if not k.startswith("__")
-}
-MQTTReasonCodeReverse: Final[Mapping[int, str]] = {v: k for k, v in MQTTReasonCodeStrings.items()}
