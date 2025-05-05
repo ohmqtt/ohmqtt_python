@@ -13,7 +13,7 @@ else:
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTPacketType, MQTTPacketTypeReverse, MQTTReasonCode
+from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 from ..property import (
     MQTTProperties,
     MQTTPublishProps,
@@ -175,7 +175,7 @@ class MQTTPubAckPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
@@ -199,7 +199,7 @@ class MQTTPubRecPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
@@ -223,7 +223,7 @@ class MQTTPubRelPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
@@ -247,7 +247,7 @@ class MQTTPubCompPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketTypeReverse[self.packet_type]}[{', '.join(attrs)}]"
+        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)

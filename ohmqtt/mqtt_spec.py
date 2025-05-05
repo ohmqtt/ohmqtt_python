@@ -1,5 +1,6 @@
 """Constants from the MQTT specification."""
 
+from enum import IntEnum
 from typing import Final, Mapping
 
 
@@ -7,7 +8,7 @@ MAX_PACKET_ID: Final = 0xffff
 
 
 # Types of MQTT control packets, mapped to identifiers from the specification.
-class MQTTPacketType:
+class MQTTPacketType(IntEnum):
     CONNECT = 0x01
     CONNACK = 0x02
     PUBLISH = 0x03
@@ -23,10 +24,6 @@ class MQTTPacketType:
     PINGRESP = 0x0d
     DISCONNECT = 0x0e
     AUTH = 0x0f
-
-MQTTPacketTypeReverse: Final[Mapping[int, str]] = {
-    int(getattr(MQTTPacketType, k)): k for k in MQTTPacketType.__dict__ if not k.startswith("__")
-}
 
 
 # Types of MQTT properties, mapped to identifiers from the specification.

@@ -56,8 +56,8 @@ class SessionProtected(Protected):
         self._topic_alias = OutboundTopicAlias()
         self._inflight = 0
         self._next_packet_ids = {
-            MQTTPacketType.SUBSCRIBE: 1,
-            MQTTPacketType.UNSUBSCRIBE: 1,
+            MQTTPacketType.SUBSCRIBE.value: 1,
+            MQTTPacketType.UNSUBSCRIBE.value: 1,
         }
         # _params intentionally left blank.
 
