@@ -131,6 +131,10 @@ class Session:
         handlers.register(MQTTPubRelPacket, self.handle_pubrel)
         handlers.register(MQTTPubCompPacket, self.handle_pubcomp)
 
+    def set_params(self, params: ConnectParams) -> None:
+        with self.protected as protected:
+            protected.params = params
+
     def publish(
         self,
         topic: str,

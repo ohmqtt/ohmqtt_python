@@ -80,6 +80,7 @@ class Client:
             will_properties=will_properties if will_properties is not None else MQTTWillProps(),
             connect_properties=connect_properties if connect_properties is not None else MQTTConnectProps(),
         )
+        self.session.set_params(params)
         self.connection.connect(params)
 
     def disconnect(self) -> None:
