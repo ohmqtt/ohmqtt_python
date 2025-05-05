@@ -1,5 +1,6 @@
 from collections import deque
 from dataclasses import dataclass, field
+from threading import Condition
 from typing import Final, Sequence
 import weakref
 
@@ -8,7 +9,6 @@ from ..logger import get_logger
 from ..mqtt_spec import MAX_PACKET_ID
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
-from ..threading_lite import ConditionLite
 from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.in_memory")
@@ -38,7 +38,7 @@ class InMemoryPersistence(Persistence):
     _next_packet_id: int = field(default=1, init=False)
     _messages: dict[int, RetainedMessage] = field(init=False, default_factory=dict)
     _pending: deque[int] = field(init=False, default_factory=deque)
-    _cond: ConditionLite = field(init=False, default_factory=ConditionLite)
+    _cond: Condition = field(init=False, default_factory=Condition)
 
     def __len__(self) -> int:
         """Return the number of messages in the persistence store."""

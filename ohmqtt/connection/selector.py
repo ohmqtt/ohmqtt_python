@@ -4,13 +4,10 @@ import select
 import socket
 import ssl
 import threading
-from typing import Final, TypeAlias, TYPE_CHECKING
+from typing import Final, TypeAlias
 
 from ..logger import get_logger
-from ..protected import Protected, protect
-
-if TYPE_CHECKING:
-    from ..threading_lite import LockLike  # pragma: no cover
+from ..protected import Protected, protect, LockLike
 
 logger: Final = get_logger("connection.selector")
 

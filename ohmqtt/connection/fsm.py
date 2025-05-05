@@ -8,7 +8,6 @@ from .selector import InterruptibleSelector
 from .timeout import Timeout
 from .types import ConnectParams, StateData, StateEnvironment
 from ..logger import get_logger
-from ..threading_lite import ConditionLite
 
 logger: Final = get_logger("connection.fsm")
 
@@ -27,7 +26,7 @@ class FSM:
     state: Type[FSMState]
     error_state: Type[FSMState]
     lock: threading.RLock
-    cond: ConditionLite
+    cond: threading.Condition
     selector: InterruptibleSelector
     params: ConnectParams
     _state_changed: bool
@@ -41,7 +40,7 @@ class FSM:
         self.state = init_state
         self.error_state = error_state
         self.lock = threading.RLock()
-        self.cond = ConditionLite(self.lock)
+        self.cond = threading.Condition(self.lock)
         self.selector = InterruptibleSelector(self.lock)
         self.params = ConnectParams()
         self._state_changed = True

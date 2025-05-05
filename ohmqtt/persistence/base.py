@@ -1,9 +1,9 @@
 from abc import ABCMeta, abstractmethod
+from threading import Condition
 from typing import ClassVar, NamedTuple, Sequence
 
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
-from ..threading_lite import ConditionLite
 from ..topic_alias import AliasPolicy
 
 
@@ -46,7 +46,7 @@ class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
     __slots__ = ("_cond", "acked", "__weakref__")
 
-    def __init__(self, cond: ConditionLite) -> None:
+    def __init__(self, cond: Condition) -> None:
         self._cond = cond
         self.acked = False
 

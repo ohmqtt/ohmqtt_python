@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from enum import IntEnum
+from threading import Condition
 from typing import Callable, Final, Iterable, NamedTuple, Sequence, TYPE_CHECKING
 import weakref
 
@@ -18,7 +19,6 @@ from .packet import (
     MQTTConnAckPacket,
 )
 from .property import MQTTSubscribeProps, MQTTUnsubscribeProps
-from .threading_lite import ConditionLite
 from .topic_alias import InboundTopicAlias
 from .topic_filter import validate_topic_filter, validate_share_name, join_share
 
@@ -161,7 +161,7 @@ class Subscriptions:
     ) -> None:
         self._connection = connection
         self._client = client
-        self._cond = ConditionLite()
+        self._cond = Condition()
         self._topic_alias = InboundTopicAlias()
         self._subscriptions: dict[str, list[Subscription]] = {}
         self._sub_handles: dict[int, SubscribeHandle] = {}

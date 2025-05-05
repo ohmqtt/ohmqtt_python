@@ -1,5 +1,6 @@
 import socket
 import ssl
+from threading import Condition
 
 import pytest
 
@@ -35,7 +36,6 @@ from ohmqtt.packet import (
     PONG,
 )
 from ohmqtt.property import MQTTConnectProps, MQTTConnAckProps, MQTTWillProps
-from ohmqtt.threading_lite import ConditionLite
 
 
 @pytest.fixture
@@ -677,7 +677,7 @@ def test_states_reconnect_wait_happy_path(max_wait, callbacks, state_data, env, 
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
     mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
-    mock_cond = mocker.MagicMock(spec=ConditionLite)
+    mock_cond = mocker.MagicMock(spec=Condition)
     mock_cond.wait.return_value = True
     mock_cond.__enter__.return_value = mock_cond
     fsm.cond = mock_cond
@@ -714,7 +714,7 @@ def test_states_reconnect_wait_race(callbacks, state_data, env, mocker):
     """Check for a race condition between state changes and waiting for state changes."""
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
-    mock_cond = mocker.MagicMock(spec=ConditionLite)
+    mock_cond = mocker.MagicMock(spec=Condition)
     mock_cond.wait.return_value = True
     mock_cond.__enter__.return_value = mock_cond
     fsm.cond = mock_cond
