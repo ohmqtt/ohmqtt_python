@@ -101,15 +101,16 @@ def params():
 
 @pytest.fixture
 def mock_select(mocker):
-    mock_select = mocker.Mock(spec=InterruptibleSelector.select)
-    mock_select.return_value = ([], [], [])
-    mocker.patch("ohmqtt.connection.selector.InterruptibleSelector.select", mock_select)
+    mock_select = mocker.MagicMock(spec=InterruptibleSelector)
+    mock_select.__enter__.return_value = mock_select
+    mock_select.select.return_value = (False, False)
+    mocker.patch("ohmqtt.connection.fsm.InterruptibleSelector", return_value=mock_select)
     return mock_select
 
 @pytest.fixture
 def mock_read(mocker):
-    mock_read = mocker.Mock(spec=ConnectedState.read_packet)
-    mocker.patch("ohmqtt.connection.states.ConnectedState.read_packet", mock_read)
+    mock_read = mocker.patch.object(ConnectedState, "read_packet", autospec=True)
+    mock_read.return_value = False
     return mock_read
 
 
@@ -133,14 +134,15 @@ def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, 
     mock_timeout.mark.assert_called_once()
     mock_timeout.reset_mock()
     assert state_data.disconnect_rc is None
+    mock_select.change_sock.assert_called_once_with(mock_socket)
     assert fsm.state is ConnectingState
 
     # First handle, begin non-blocking connect.
-    mock_select.return_value = ([], [], [])
+    mock_select.select.return_value = (False, False)
     mock_socket.connect.side_effect = BlockingIOError
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([], [mock_socket], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     if params.address.scheme == "unix":
         mock_socket.connect.assert_called_once_with(params.address.host)
@@ -150,10 +152,10 @@ def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, 
     assert fsm.state is ConnectingState
 
     # Second handle, finish non-blocking connect.
-    mock_select.return_value = ([], [mock_socket], [])
+    mock_select.select.return_value = (False, True)
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
-    mock_select.assert_called_once_with([], [mock_socket], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     mock_socket.setblocking.assert_called_once_with(False)
     mock_socket.reset_mock()
@@ -167,7 +169,7 @@ def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, 
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env, mock_timeout):
+def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env, mock_select, mock_timeout):
     if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
@@ -186,7 +188,7 @@ def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connecting_error(address, max_wait, callbacks, state_data, env, mock_socket):
+def test_states_connecting_error(address, max_wait, callbacks, state_data, env, mock_select, mock_socket):
     if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
@@ -215,13 +217,14 @@ def test_states_tls_handshake_happy_path(max_wait, callbacks, state_data, env, m
         server_hostname=params.address.host,
         do_handshake_on_connect=False,
     )
+    mock_select.change_sock.assert_called_once_with(mock_socket)
 
     # First handle, want write.
     mock_socket.do_handshake.side_effect = ssl.SSLWantWriteError
-    mock_select.return_value = ([], [mock_socket], [])
+    mock_select.select.return_value = (False, True)
     ret = TLSHandshakeState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([], [mock_socket], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     mock_socket.do_handshake.assert_called_once()
     mock_socket.reset_mock()
@@ -229,10 +232,10 @@ def test_states_tls_handshake_happy_path(max_wait, callbacks, state_data, env, m
 
     # Second handle, want read.
     mock_socket.do_handshake.side_effect = ssl.SSLWantReadError
-    mock_select.return_value = ([mock_socket], [], [])
+    mock_select.select.return_value = (True, False)
     ret = TLSHandshakeState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([mock_socket], [], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(read=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     mock_socket.do_handshake.assert_called_once()
     mock_socket.reset_mock()
@@ -250,7 +253,7 @@ def test_states_tls_handshake_happy_path(max_wait, callbacks, state_data, env, m
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_tls_handshake_timeout(max_wait, callbacks, state_data, env, mocker, mock_timeout):
+def test_states_tls_handshake_timeout(max_wait, callbacks, state_data, env, mocker, mock_select, mock_timeout):
     params = ConnectParams(address=Address("mqtts://testhost"), tls_context=mocker.Mock())
     fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
 
@@ -321,7 +324,7 @@ def test_states_mqtt_connect_happy_path(address, user, pwd, max_wait, callbacks,
     mock_socket.reset_mock()
     assert fsm.state is MQTTHandshakeConnectState
     if max_wait:
-        mock_select.assert_called_once_with([], [mock_socket], [], 1)
+        mock_select.select.assert_called_once_with(write=True, timeout=1)
 
     # Second handle, complete.
     mock_socket.send.side_effect = None
@@ -409,17 +412,17 @@ def test_states_mqtt_connack_happy_path(max_wait, callbacks, state_data, env, de
 
     # First handle, blocked read.
     decoder.decode.return_value = None
-    mock_select.return_value = ([mock_socket], [], [])
+    mock_select.select.return_value = (True, False)
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([mock_socket], [], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(read=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     assert fsm.state is MQTTHandshakeConnAckState
 
     # Second handle, complete.
     connack = MQTTConnAckPacket(properties=MQTTConnAckProps(ServerKeepAlive=23))
     decoder.decode.return_value = connack
-    mock_select.return_value = ([], [], [])
+    mock_select.select.return_value = (False, False)
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert state_data.connack == connack
@@ -473,7 +476,7 @@ def test_states_mqtt_connack_unexpected(max_wait, callbacks, decoder, state_data
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_keepalive, mock_select, mock_socket, mock_read):
+def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_keepalive, mock_select, mock_socket, mock_read, mocker):
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
     mock_keepalive.get_next_timeout.return_value = 1 if max_wait is None else max_wait
@@ -487,20 +490,20 @@ def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_
     assert fsm.state is ConnectedState
 
     # First handle, nothing to read.
-    mock_select.return_value = ([], [], [])
+    mock_select.select.return_value = (False, False)
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([mock_socket], [], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(read=True, write=False, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     assert fsm.state is ConnectedState
 
     # Second handle, send data in write buffer.
     env.write_buffer.extend(b"test_data")
-    mock_select.return_value = ([], [mock_socket], [])
+    mock_select.select.return_value = (False, True)
     mock_socket.send.return_value = len(env.write_buffer)
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([mock_socket], [mock_socket], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(read=True, write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     mock_socket.send.assert_called_once_with(env.write_buffer)
     mock_socket.reset_mock()
@@ -509,11 +512,11 @@ def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_
     assert fsm.state is ConnectedState
 
     # Third handle, read data.
-    mock_select.return_value = ([mock_socket], [], [])
+    mock_select.select.return_value = (True, False)
     mock_read.side_effect = [True, False]
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([mock_socket], [], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(read=True, write=False, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     assert mock_read.call_count == 2
 
@@ -530,7 +533,7 @@ def test_states_connected_keepalive(max_wait, callbacks, state_data, env, mock_k
 
     # First handle, send a PINGREQ.
     mock_keepalive.should_send_ping.return_value = True
-    mock_select.return_value = ([], [mock_socket], [])
+    mock_select.select.return_value = (False, True)
     mock_socket.send.return_value = len(PING)
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
@@ -563,7 +566,7 @@ def test_states_connected_send_errors(max_wait, block_exc, fatal_exc, callbacks,
 
     env.write_buffer.extend(b"test_data")
     mock_read.return_value = False
-    mock_select.return_value = ([mock_socket], [mock_socket], [])
+    mock_select.select.return_value = (True, True)
 
     mock_socket.send.side_effect = block_exc("TEST")
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
@@ -572,7 +575,7 @@ def test_states_connected_send_errors(max_wait, block_exc, fatal_exc, callbacks,
     mock_read.reset_mock()
     assert fsm.state is ConnectedState
 
-    mock_select.return_value = ([mock_socket], [mock_socket], [])
+    mock_select.select.return_value = (True, True)
     mock_socket.send.side_effect = fatal_exc("TEST")
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
@@ -590,7 +593,7 @@ def test_states_connected_read_closed(max_wait, callbacks, state_data, env, mock
     ConnectedState.enter(fsm, state_data, env, params)
     callbacks.reset()
 
-    mock_select.return_value = ([mock_socket], [], [])
+    mock_select.select.return_value = (True, False)
     mock_read.side_effect = ClosedSocketError("TEST")
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
@@ -607,7 +610,7 @@ def test_states_connected_read_mqtt_error(max_wait, callbacks, state_data, env, 
     ConnectedState.enter(fsm, state_data, env, params)
     callbacks.reset()
 
-    mock_select.return_value = ([mock_socket], [], [])
+    mock_select.select.return_value = (True, False)
     mock_read.side_effect = MQTTError("TEST", reason_code=MQTTReasonCode.ProtocolError)
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
@@ -751,12 +754,12 @@ def test_states_closing_happy_path(address, max_wait, callbacks, state_data, env
     assert fsm.state is ClosingState
 
     # First handle, write all.
-    mock_select.return_value = ([], [mock_socket], [])
+    mock_select.select.return_value = (False, True)
     env.write_buffer.extend(b"test_data")
     mock_socket.send.return_value = len(env.write_buffer)
     ret = ClosingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    mock_select.assert_called_once_with([], [mock_socket], [], 1 if max_wait is None else max_wait)
+    mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     mock_socket.send.assert_called_once_with(env.write_buffer)
     mock_socket.reset_mock()
@@ -832,7 +835,7 @@ def test_states_closing_send_error(max_wait, exc, callbacks, state_data, env, mo
     ClosingState.enter(fsm, state_data, env, params)
 
     env.write_buffer.extend(b"test_data")
-    mock_select.return_value = ([], [mock_socket], [])
+    mock_select.select.return_value = (False, True)
     mock_socket.send.side_effect = exc("TEST")
     ret = ClosingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False

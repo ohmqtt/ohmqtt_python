@@ -37,6 +37,8 @@ class ConnectingState(FSMState):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
         state_data.open_called = False
+        with fsm.selector:
+            fsm.selector.change_sock(state_data.sock)
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
@@ -60,8 +62,8 @@ class ConnectingState(FSMState):
 
         with fsm.selector:
             timeout = state_data.timeout.get_timeout(max_wait)
-            _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
-        if state_data.sock in wlist:
+            _, writable = fsm.selector.select(write=True, timeout=timeout)
+        if writable:
             logger.debug("Socket connected to broker")
             if params.address.use_tls:
                 fsm.change_state(TLSHandshakeState)
@@ -81,6 +83,8 @@ class TLSHandshakeState(FSMState):
             server_hostname=params.tls_hostname if params.tls_hostname else params.address.host,
             do_handshake_on_connect=False,
         )
+        with fsm.selector:
+            fsm.selector.change_sock(state_data.sock)
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
@@ -99,11 +103,11 @@ class TLSHandshakeState(FSMState):
         except ssl.SSLWantReadError:
             logger.debug("TLS handshake wants read")
             with fsm.selector:
-                fsm.selector.select([sock], [], [], timeout)
+                fsm.selector.select(read=True, timeout=timeout)
         except ssl.SSLWantWriteError:
             logger.debug("TLS handshake wants write")
             with fsm.selector:
-                fsm.selector.select([], [sock], [], timeout)
+                fsm.selector.select(write=True, timeout=timeout)
         return False
 
 
@@ -157,7 +161,7 @@ class MQTTHandshakeConnectState(FSMState):
             if max_wait is None or max_wait > 0.0:
                 with fsm.selector:
                     timeout = state_data.timeout.get_timeout(max_wait)
-                    fsm.selector.select([], [state_data.sock], [], timeout)
+                    fsm.selector.select(write=True, timeout=timeout)
         return False
 
 
@@ -184,7 +188,7 @@ class MQTTHandshakeConnAckState(FSMState):
             # Incomplete packet, wait for more data.
             with fsm.selector:
                 timeout = state_data.timeout.get_timeout(max_wait)
-                fsm.selector.select([state_data.sock], [], [], timeout)
+                fsm.selector.select(read=True, timeout=timeout)
             return False
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
@@ -227,10 +231,10 @@ class ConnectedState(FSMState):
 
         timeout = state_data.keepalive.get_next_timeout(max_wait)
         with fsm.selector:
-            write_check = [state_data.sock] if env.write_buffer else []
-            rlist, wlist, _ = fsm.selector.select([state_data.sock], write_check, [], timeout)
+            write_check = bool(env.write_buffer)
+            readable, writable = fsm.selector.select(read=True, write=write_check, timeout=timeout)
 
-        if state_data.sock in wlist:
+        if writable:
             try:
                 with fsm.selector:
                     sent = state_data.sock.send(env.write_buffer)
@@ -243,7 +247,7 @@ class ConnectedState(FSMState):
                 fsm.change_state(ClosedState)
                 return True
 
-        if state_data.sock in rlist:
+        if readable:
             want_read = True
             try:
                 while want_read:  # Read all available packets.
@@ -360,9 +364,9 @@ class ClosingState(FSMState):
                 fsm.change_state(ClosedState)
                 return True
             timeout = state_data.timeout.get_timeout(max_wait)
-            _, wlist, _ = fsm.selector.select([], [state_data.sock], [], timeout)
+            _, writable = fsm.selector.select(write=True, timeout=timeout)
 
-            if state_data.sock in wlist:
+            if writable:
                 try:
                     sent = state_data.sock.send(env.write_buffer)
                     del env.write_buffer[:sent]
