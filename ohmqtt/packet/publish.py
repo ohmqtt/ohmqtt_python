@@ -81,8 +81,8 @@ class MQTTPublishPacket(MQTTPacket):
         else:
             encoded.append(0)
         encoded.extend(self.payload)
-        encoded[0:0] = encode_varint(len(encoded))
-        encoded.insert(0, HEAD_PUBLISH | self.retain | (self.qos << 1) | (self.dup << 3))
+        head = HEAD_PUBLISH | self.retain | (self.qos << 1) | (self.dup << 3)
+        encoded[0:0] = head.to_bytes(1, "big") + encode_varint(len(encoded))
         return bytes(encoded)
 
     @classmethod
