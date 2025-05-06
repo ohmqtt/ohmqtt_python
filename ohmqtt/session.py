@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, Final, Sequence
+from typing import Final
 
 from .connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
 from .error import MQTTError
 from .logger import get_logger
-from .mqtt_spec import MAX_PACKET_ID, MQTTPacketType, MQTTReasonCode
+from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode
 from .packet import (
     MQTTPacket,
     MQTTConnAckPacket,
@@ -25,26 +25,11 @@ from .topic_alias import AliasPolicy, OutboundTopicAlias
 
 logger: Final = get_logger("session")
 
-SessionAuthCallback = Callable[
-    [
-        int,
-        str | None,
-        bytes | None,
-        str | None,
-        Sequence[tuple[str, str]] | None
-    ],
-    None,
-]
-SessionCloseCallback = Callable[[], None]
-SessionOpenCallback = Callable[[MQTTConnAckPacket], None]
-SessionMessageCallback = Callable[[MQTTPublishPacket], None]
-
 
 class SessionProtected(Protected):
     """Represents the thread-protected state of the session."""
     __slots__ = (
         "_inflight",
-        "_next_packet_ids",
         "_params",
         "_persistence",
         "_topic_alias",
@@ -55,10 +40,6 @@ class SessionProtected(Protected):
         self._persistence = persistence
         self._topic_alias = OutboundTopicAlias()
         self._inflight = 0
-        self._next_packet_ids = {
-            MQTTPacketType.SUBSCRIBE.value: 1,
-            MQTTPacketType.UNSUBSCRIBE.value: 1,
-        }
         # _params intentionally left blank.
 
     @property
@@ -88,17 +69,6 @@ class SessionProtected(Protected):
     @protect
     def inflight(self, value: int) -> None:
         self._inflight = value
-
-    @protect
-    def get_next_packet_id(self, packet_type: int) -> int:
-        """Get the next packet ID for a given packet type.
-
-        Should only be used for SUBSCRIBE and UNSUBSCRIBE packets. Get PUBLISH IDs from the persistence store."""
-        packet_id = self._next_packet_ids[packet_type]
-        self._next_packet_ids[packet_type] += 1
-        if self._next_packet_ids[packet_type] > MAX_PACKET_ID:
-            self._next_packet_ids[packet_type] = 1
-        return packet_id
 
 
 class Session:
