@@ -34,6 +34,17 @@ class SQLitePersistence(Persistence):
             )
         self._create_tables()
 
+    def __del__(self) -> None:
+        # Ignore "already closed" errors while closing resources.
+        try:
+            self._cursor.close()
+        except sqlite3.ProgrammingError:
+            pass
+        try:
+            self._conn.close()
+        except sqlite3.ProgrammingError:
+            pass
+
     def __len__(self) -> int:
         """Return the number of messages in the persistence store."""
         with self._cond:
