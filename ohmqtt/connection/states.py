@@ -126,7 +126,7 @@ class MQTTHandshakeConnectState(FSMState):
             username=params.address.username,
             password=params.address.password.encode() if params.address.password else None,
         )
-        logger.debug(f"---> {str(connect_packet)}")
+        logger.debug(f"---> {connect_packet}")
         with fsm.selector:
             env.write_buffer.clear()
             env.write_buffer.extend(connect_packet.encode())
@@ -190,14 +190,14 @@ class MQTTHandshakeConnAckState(FSMState):
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
             packet = cast(MQTTConnAckPacket, packet)
-            logger.debug(f"<--- {str(packet)}")
+            logger.debug(f"<--- {packet}")
             state_data.connack = packet
             if packet.properties.ServerKeepAlive is not None:
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
             fsm.change_state(ConnectedState)
             return True
         else:
-            logger.error(f"Unexpected packet while waiting for CONNACK: {str(packet)}")
+            logger.error(f"Unexpected packet while waiting for CONNACK: {packet}")
             fsm.change_state(ClosedState)
             return True
 
@@ -289,6 +289,7 @@ class ConnectedState(FSMState):
             return True
         else:
             # All other packets are passed to the read callback.
+            logger.debug(f"<--- {packet}")
             try:
                 # To cast here, we must handle the exceptional case at runtime.
                 env.packet_callback(cast(RegisterablePacketT, packet))
@@ -391,7 +392,7 @@ class ClosedState(FSMState):
                     # Try to send a DISCONNECT packet, but no problem if we can't.
                     try:
                         state_data.sock.send(disconnect_packet.encode())
-                        logger.debug(f"---> {str(disconnect_packet)}")
+                        logger.debug(f"---> {disconnect_packet}")
                     except (BlockingIOError, ssl.SSLWantWriteError, OSError):
                         logger.debug("Failed to send DISCONNECT packet")
             if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:

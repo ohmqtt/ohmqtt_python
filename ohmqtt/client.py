@@ -200,6 +200,7 @@ class Client:
             reason_code=reason_code,
             properties=properties,
         )
+        logger.debug(f"---> {packet}")
         self.connection.send(packet.encode())
 
     def wait_for_connect(self, timeout: float | None = None) -> None:

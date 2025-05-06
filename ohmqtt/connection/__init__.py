@@ -52,7 +52,6 @@ class Connection:
 
     def send(self, data: bytes) -> None:
         """Send data to the connection."""
-        logger.debug(f"Sending {len(data)} bytes")
         with self.fsm.lock:
             if not self.can_send():
                 state = self.fsm.get_state()
