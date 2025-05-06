@@ -175,7 +175,7 @@ class MQTTPubAckPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
+        return f"PUBACK[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
@@ -199,7 +199,7 @@ class MQTTPubRecPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
+        return f"PUBREC[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
@@ -223,7 +223,7 @@ class MQTTPubRelPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
+        return f"PUBREL[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
@@ -247,7 +247,7 @@ class MQTTPubCompPacket(MQTTPacket):
             f"reason_code={hex(self.reason_code)}",
             f"properties={self.properties}",
         ]
-        return f"{MQTTPacketType(self.packet_type)}[{', '.join(attrs)}]"
+        return f"PUBCOMP[{', '.join(attrs)}]"
 
     def encode(self) -> bytes:
         return _encode_pubacklike(self)
