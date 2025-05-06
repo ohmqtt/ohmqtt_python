@@ -1,14 +1,17 @@
 import pytest
 
-from ohmqtt.connection import Connection, MessageHandlers
+from ohmqtt.connection import Connection, ConnectParams, MessageHandlers
 from ohmqtt.packet import (
+    MQTTConnAckPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
     MQTTPubRecPacket,
     MQTTPubRelPacket,
     MQTTPubCompPacket,
 )
+from ohmqtt.property import MQTTConnAckProps, MQTTPublishProps
 from ohmqtt.session import Session
+from ohmqtt.topic_alias import AliasPolicy
 
 
 @pytest.fixture
@@ -82,6 +85,49 @@ def test_session_publish_qos2(mock_handlers, mock_connection):
     session.handle_pubcomp(MQTTPubCompPacket(packet_id=1))
     assert handle.is_acked() is True
     assert handle.wait_for_ack(0.001) is True
+
+
+@pytest.mark.parametrize("db_path", [":memory:", ""])
+@pytest.mark.parametrize("qos", [0, 1, 2])
+def test_session_publish_alias(db_path, qos, mock_handlers, mock_connection):
+    session = Session(mock_handlers, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    mock_connection.can_send.return_value = True
+
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(TopicAliasMaximum=255)))
+
+    session.publish("test/topic1", b"test payload", qos=qos, alias_policy=AliasPolicy.NEVER)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic1",
+        payload=b"test payload",
+        qos=qos,
+        packet_id=1 if qos > 0 else 0,
+    ).encode())
+    mock_connection.send.reset_mock()
+
+    session.publish("test/topic2", b"test payload", qos=qos, alias_policy=AliasPolicy.TRY)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic2",
+        payload=b"test payload",
+        qos=qos,
+        packet_id=2 if qos > 0 else 0,
+        properties=MQTTPublishProps(TopicAlias=1),
+    ).encode())
+    mock_connection.send.reset_mock()
+
+    if qos > 0:
+        with pytest.raises(ValueError):
+            session.publish("test/topic3", b"test payload", qos=qos, alias_policy=AliasPolicy.ALWAYS)
+    else:
+        session.publish("test/topic3", b"test payload", qos=qos, alias_policy=AliasPolicy.ALWAYS)
+        mock_connection.send.assert_called_with(MQTTPublishPacket(
+            topic="test/topic3",
+            payload=b"test payload",
+            qos=qos,
+            packet_id=3 if qos > 0 else 0,
+            properties=MQTTPublishProps(TopicAlias=2),
+        ).encode())
+        mock_connection.send.reset_mock()
 
 
 def test_session_slots(mock_handlers, mock_connection):
