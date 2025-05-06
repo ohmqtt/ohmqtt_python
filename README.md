@@ -1,8 +1,8 @@
 # ΩQTT
 
-*pronounced "ohm cue tee tee" or "ohm cutie"*
+*pron. "ohm cue tee tee" or "ohm cutie"*
 
-A lightweight and persistent MQTT 5.0 client library for Python 3.10+.
+A reliable and persistent MQTT 5.0 client library for Python.
 
 ## Features
 
@@ -14,29 +14,46 @@ Either way, publishing a message returns a handle with a method to wait for the 
 
 ### TLS
 
-Optionally use TLS and provide a TLS context when connecting to a broker.
+Optionally use TLS and provide your own TLS context when connecting to a broker.
 
 ### Properties
 
-ΩQTT gives you easy access to all PUBLISH, SUBSCRIBE, AUTH and CONNECT optional properties.
+ΩQTT gives you complete access to all PUBLISH, SUBSCRIBE, AUTH and CONNECT optional properties.
 
-### Diminutive Profile
+### Automatic Topic Alias
 
-ΩQTT is obsessively optimized for low memory use and high throughput.
-ΩQTT is obsessively tested and analyzed by a suite of tests and static analysis tools.
-ΩQTT has no runtime dependencies.
+Set an alias policy when publishing a message and a topic alias will be generated, if allowed by the broker.
+
+### Toolkit
+
+ΩQTT is built on a toolkit for efficiently serializing MQTT control messages.
+Use it to build your own custom implementation, or to serialize your own payloads.
+
+### Compatibility
+
+ΩQTT is tested on Linux and Windows with CPython versions 3.10-3.13.
+It should work on any platform that CPython runs on.
+
+### Reliability
+
+ΩQTT has been implemented to a high standard of test coverage and static analysis, from the beginning.
+
+### Performance
+
+Every drop of pure Python performance has been squeezed out of serialization and the event loop.
+You're not using Python because it's fast, but it can't hurt.
 
 ## TODO for 0.1
 
+* Auth
 * Instructions
 * Error handling and validation
-* Client interface review
+* Refactor Session
 
 ## TODO for 1.0
 
+* E2E Tests
 * Autodoc
-* Subscription identifiers
-* Portability (Windows)
 * Publish automation
 
 ## Development
