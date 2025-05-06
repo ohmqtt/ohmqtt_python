@@ -21,7 +21,7 @@ def test_data(request):
     The YAML file must be named after the test suite, and contain a mapping of test names to test data."""
     suite_name = request.module.__name__.split(".")[-1]
     test_name = request.node.name
-    with open(f"tests/data/{suite_name}.yml") as f:
+    with open(f"tests/data/{suite_name}.yml", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data[test_name]
 
