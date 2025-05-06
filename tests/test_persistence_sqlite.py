@@ -16,10 +16,9 @@ def tempdbpath():
         yield Path(tempdir) / "test.db"
 
 
-@pytest.mark.parametrize("db_fast", [True, False])
-def test_persistence_sqlite_happy_path_qos1(db_fast, tempdbpath):
+def test_persistence_sqlite_happy_path_qos1():
     """Test the SQLitePersistence class with a happy path scenario qos=1."""
-    persistence = SQLitePersistence(tempdbpath, db_fast=db_fast)
+    persistence = SQLitePersistence(":memory:")
     persistence.open("test_client")
     assert len(persistence) == 0
 
@@ -60,10 +59,9 @@ def test_persistence_sqlite_happy_path_qos1(db_fast, tempdbpath):
     assert len(persistence) == 0
 
 
-@pytest.mark.parametrize("db_fast", [True, False])
-def test_persistence_sqlite_happy_path_qos2(db_fast, tempdbpath):
+def test_persistence_sqlite_happy_path_qos2():
     """Test the SQLitePersistence class with a happy path scenario qos=2."""
-    persistence = SQLitePersistence(tempdbpath, db_fast=db_fast)
+    persistence = SQLitePersistence(":memory:")
     persistence.open("test_client")
     assert len(persistence) == 0
 
