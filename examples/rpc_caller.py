@@ -5,6 +5,7 @@ It sends an RPC request to a specific topic and waits for the response.
 
 The ResponseTopic property is used to specify the topic to which the response should be sent."""
 
+import argparse
 import threading
 import uuid
 from typing import Callable
@@ -59,10 +60,10 @@ class RPCCaller:
             client.unsubscribe(msg.topic, self.handle_response)
 
 
-def main() -> None:
+def main(args: argparse.Namespace) -> None:
     with Client() as client:
         rpc_caller = RPCCaller(client)
-        client.connect("localhost")
+        client.connect(args.address)
         print("*** Waiting for connection...")
         client.wait_for_connect(timeout=5.0)
 
@@ -86,4 +87,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from .args import parser
+    args = parser.parse_args()
+    main(args)

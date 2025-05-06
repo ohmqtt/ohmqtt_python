@@ -5,16 +5,17 @@ before proceeding to send the next message.
 It also demonstrates the debug logging output of the client.  
 """
 
+import argparse
 import logging
 
 from ohmqtt.client import Client
 
 
-def main() -> None:
+def main(args: argparse.Namespace) -> None:
     logging.basicConfig(level=logging.DEBUG)
     with Client() as client:
 
-        client.connect("localhost")
+        client.connect(args.address)
         client.wait_for_connect(timeout=5.0)
         
         for n in range(1, 9):
@@ -26,4 +27,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from .args import parser
+    args = parser.parse_args()
+    main(args)

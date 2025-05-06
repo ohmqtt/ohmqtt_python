@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """This example demonstrates connecting to a broker, publishing messages to a topic, and then disconnecting."""
 
+import argparse
 import time
 
 from ohmqtt.client import Client
 
 
-def main() -> None:
+def main(args: argparse.Namespace) -> None:
     with Client() as client:
 
         print("*** Connecting to broker...")
-        client.connect("localhost")
+        client.connect(args.address)
 
         client.wait_for_connect(timeout=5.0)
         print("*** Connected to broker")
@@ -28,4 +29,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from .args import parser
+    args = parser.parse_args()
+    main(args)

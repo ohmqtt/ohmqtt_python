@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""This example demonstrates publishing a retained message."""
+"""This example demonstrates publishing a retained message,
+    then subscribing to the topic and receiving the retained message."""
 
+import argparse
 from queue import Queue
 
 from ohmqtt.client import Client
 from ohmqtt.packet import MQTTPublishPacket
 
 
-def main() -> None:
+def main(args: argparse.Namespace) -> None:
     with Client() as client:
 
         client.connect("localhost")
@@ -34,4 +36,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from .args import parser
+    args = parser.parse_args()
+    main(args)

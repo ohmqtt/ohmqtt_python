@@ -9,6 +9,8 @@ See the "rpc_caller" example for the request side of this RPC implementation.
 
 This also demonstrates running the client loop in the main thread."""
 
+import argparse
+
 from ohmqtt.client import Client
 from ohmqtt.packet import MQTTPublishPacket
 from ohmqtt.property import MQTTPublishProps
@@ -38,10 +40,10 @@ class RPCServer:
         client.publish(response_topic, response.encode(), qos=2, properties=response_props)
 
 
-def main() -> None:
+def main(args: argparse.Namespace) -> None:
     rpc_server = RPCServer()
     client = Client()
-    client.connect("localhost")
+    client.connect(args.address)
     print("*** Waiting for connection...")
     assert client.loop_until_connected(timeout=5.0), "Timeout waiting for connection"
 
@@ -55,4 +57,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from .args import parser
+    args = parser.parse_args()
+    main(args)
