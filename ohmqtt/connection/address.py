@@ -3,6 +3,8 @@ import socket
 from typing import Final, Mapping
 from urllib.parse import urlparse, ParseResult
 
+from ..platform import HAS_AF_UNIX
+
 
 DEFAULT_PORTS: Final[Mapping[str, int]] = {
     "mqtt": 1883,
@@ -22,7 +24,7 @@ def is_ipv6(hostname: str) -> bool:
 
 def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     """Get the address family based on the parsed URL scheme."""
-    if parsed.scheme == "unix" and hasattr(socket, "AF_UNIX"):
+    if HAS_AF_UNIX and parsed.scheme == "unix":
         return socket.AF_UNIX
     elif parsed.scheme in ("mqtt", "mqtts"):
         if not parsed.hostname:
@@ -49,7 +51,7 @@ class Address:
         if not address:
             return
         if address.startswith("unix:"):
-            if not hasattr(socket, "AF_UNIX"):
+            if not HAS_AF_UNIX:
                 raise ValueError("Unix socket support is not available on this platform")
         elif "//" not in address:
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
@@ -60,7 +62,7 @@ class Address:
         object.__setattr__(self, "host", parsed.hostname or parsed.path)
         if not self.host:
             raise ValueError("No path in address")
-        if self.family == socket.AF_UNIX and self.host == "/":
+        if HAS_AF_UNIX and self.family == socket.AF_UNIX and self.host == "/":
             raise ValueError("'/' is not a valid Unix socket path")
         object.__setattr__(self, "port", parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme])
         object.__setattr__(self, "username", parsed.username)

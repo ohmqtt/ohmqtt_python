@@ -3,6 +3,7 @@ import socket
 import pytest
 
 from ohmqtt.connection.address import Address
+from ohmqtt.platform import HAS_AF_UNIX
 
 
 def lookup_family(family: str) -> int:
@@ -11,7 +12,7 @@ def lookup_family(family: str) -> int:
         return socket.AF_INET
     elif family == "AF_INET6":
         return socket.AF_INET6
-    elif family == "AF_UNIX" and hasattr(socket, "AF_UNIX"):
+    elif family == "AF_UNIX" and HAS_AF_UNIX:
         return socket.AF_UNIX
     else:
         raise ValueError(f"Unsupported address family: {family}")
@@ -32,7 +33,7 @@ def test_address_valid(test_data):
 
 
 @pytest.mark.skipif(
-    not hasattr(socket, "AF_UNIX"),
+    not HAS_AF_UNIX,
     reason="Unix domain sockets are not available on this platform",
 )
 def test_address_unix(test_data):

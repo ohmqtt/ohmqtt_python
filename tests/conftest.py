@@ -9,6 +9,8 @@ import yaml
 
 from tests.util.selfsigned import generate_selfsigned_cert
 
+from ohmqtt.platform import HAS_AF_UNIX
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +110,7 @@ class LoopbackSocket:
         if optname == socket.TCP_NODELAY:
             # Where AF_UNIX exists, do not set TCP_NODELAY on either side of the socket.
             # We are spoofing TCP but the socketpair is a Unix domain socket.
-            if hasattr(socket, "AF_UNIX"):
+            if HAS_AF_UNIX:
                 logger.info("Not setting TCP_NODELAY on Unix domain socket")
                 return
         self.mocksock.setsockopt(level, optname, value)

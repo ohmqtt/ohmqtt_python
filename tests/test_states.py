@@ -35,6 +35,7 @@ from ohmqtt.packet import (
     PING,
     PONG,
 )
+from ohmqtt.platform import HAS_AF_UNIX
 from ohmqtt.property import MQTTConnectProps, MQTTConnAckProps, MQTTWillProps
 
 
@@ -115,7 +116,7 @@ def mock_read(mocker):
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, env, decoder, mock_select, mock_socket, mock_timeout):
-    if address.startswith("unix:") and not hasattr(socket, "AF_UNIX"):
+    if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
     fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
@@ -167,7 +168,7 @@ def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env, mock_timeout):
-    if address.startswith("unix:") and not hasattr(socket, "AF_UNIX"):
+    if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
     fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
@@ -186,7 +187,7 @@ def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connecting_error(address, max_wait, callbacks, state_data, env, mock_socket):
-    if address.startswith("unix:") and not hasattr(socket, "AF_UNIX"):
+    if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
     fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
