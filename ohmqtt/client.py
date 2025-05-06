@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import ssl
 import threading
 from typing import Final, Iterable, Sequence
@@ -200,7 +201,8 @@ class Client:
             reason_code=reason_code,
             properties=properties,
         )
-        logger.debug(f"---> {packet}")
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"---> {packet}")
         self.connection.send(packet.encode())
 
     def wait_for_connect(self, timeout: float | None = None) -> None:

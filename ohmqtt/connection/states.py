@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import socket
 import ssl
 from typing import cast, Final
@@ -126,7 +127,8 @@ class MQTTHandshakeConnectState(FSMState):
             username=params.address.username,
             password=params.address.password.encode() if params.address.password else None,
         )
-        logger.debug(f"---> {connect_packet}")
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"---> {connect_packet}")
         with fsm.selector:
             env.write_buffer.clear()
             env.write_buffer.extend(connect_packet.encode())
@@ -190,7 +192,8 @@ class MQTTHandshakeConnAckState(FSMState):
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
             packet = cast(MQTTConnAckPacket, packet)
-            logger.debug(f"<--- {packet}")
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug(f"<--- {packet}")
             state_data.connack = packet
             if packet.properties.ServerKeepAlive is not None:
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
@@ -283,13 +286,15 @@ class ConnectedState(FSMState):
             with fsm.selector:
                 env.write_buffer.extend(PONG)
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
-            logger.debug(f"<--- {packet}")
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug(f"<--- {packet}")
             logger.info("Broker sent DISCONNECT, closing connection")
             fsm.change_state(ClosingState)
             return True
         else:
             # All other packets are passed to the read callback.
-            logger.debug(f"<--- {packet}")
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug(f"<--- {packet}")
             try:
                 # To cast here, we must handle the exceptional case at runtime.
                 env.packet_callback(cast(RegisterablePacketT, packet))
@@ -392,7 +397,8 @@ class ClosedState(FSMState):
                     # Try to send a DISCONNECT packet, but no problem if we can't.
                     try:
                         state_data.sock.send(disconnect_packet.encode())
-                        logger.debug(f"---> {disconnect_packet}")
+                        if logger.getEffectiveLevel() <= logging.DEBUG:
+                            logger.debug(f"---> {disconnect_packet}")
                     except (BlockingIOError, ssl.SSLWantWriteError, OSError):
                         logger.debug("Failed to send DISCONNECT packet")
             if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:
