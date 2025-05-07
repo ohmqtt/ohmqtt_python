@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import logging
-from typing import Final
+from typing import Final, TypeAlias
 
 from .connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
 from .error import MQTTError
 from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode
 from .packet import (
-    MQTTPacket,
     MQTTConnAckPacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
@@ -24,6 +22,12 @@ from .persistence.sqlite import SQLitePersistence
 from .topic_alias import AliasPolicy, OutboundTopicAlias
 
 logger: Final = get_logger("session")
+
+SessionSendablePacketT: TypeAlias = (
+    MQTTPublishPacket |
+    MQTTPubRelPacket |
+    MQTTPubCompPacket
+)
 
 
 class SessionProtected(Protected):
@@ -149,11 +153,9 @@ class Session:
                 logger.debug("Failed to send QoS 0 packet (invalid connection state), ignoring")
             return UnreliablePublishHandle()
 
-    def _send_packet(self, packet: MQTTPacket) -> None:
+    def _send_packet(self, packet: SessionSendablePacketT) -> None:
         """Try to send a packet to the server."""
-        if logging.DEBUG >= logging.root.level:
-            logger.debug(f"---> {packet}")
-        self.connection.send(packet.encode())
+        self.connection.send(packet)
 
     def _send_aliased(
         self,

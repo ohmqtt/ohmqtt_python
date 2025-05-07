@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import deque
 from enum import IntEnum
-import logging
 from threading import Condition
 from typing import Callable, Final, Iterable, NamedTuple, Sequence, TYPE_CHECKING
 import weakref
@@ -215,9 +214,7 @@ class Subscriptions:
             packet = sub.render()
             packet.packet_id = self._get_next_sub_packet_id()
             try:
-                if logger.getEffectiveLevel() <= logging.DEBUG:
-                    logger.debug(f"---> {packet}")
-                self._connection.send(packet.encode())
+                self._connection.send(packet)
             except InvalidStateError:
                 logger.debug("Connection not ready, SUBSCRIBE not sent")
                 self._out_of_session.append(packet)
@@ -305,9 +302,7 @@ class Subscriptions:
                 if unsub_user_properties is not None:
                     packet.properties.UserProperty = tuple(unsub_user_properties)
                 try:
-                    if logger.getEffectiveLevel() <= logging.DEBUG:
-                        logger.debug(f"---> {packet}")
-                    self._connection.send(packet.encode())
+                    self._connection.send(packet)
                 except InvalidStateError:
                     logger.debug("Connection closed, UNSUBSCRIBE not sent")
                     self._out_of_session.append(packet)
@@ -358,14 +353,10 @@ class Subscriptions:
                     logger.exception("Unhandled exception in subscription callback")
         if packet.qos == 1:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"---> {ack_packet}")
-            self._connection.send(ack_packet.encode())
+            self._connection.send(ack_packet)
         elif packet.qos == 2:
             rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"---> {rec_packet}")
-            self._connection.send(rec_packet.encode())
+            self._connection.send(rec_packet)
 
     def handle_suback(self, packet: MQTTSubAckPacket) -> None:
         """Handle incoming SUBACK packets."""
@@ -424,9 +415,7 @@ class Subscriptions:
                 for sub in self._subscriptions[topic_filter]:
                     sub_packet = sub.render()
                     sub_packet.packet_id = self._get_next_sub_packet_id()
-                    if logger.getEffectiveLevel() <= logging.DEBUG:
-                        logger.debug(f"---> {sub_packet}")
-                    self._connection.send(sub_packet.encode())
+                    self._connection.send(sub_packet)
 
     def _replay_session_present(self) -> None:
         """Replay all subscriptions which were not sent to the broker."""
@@ -438,9 +427,7 @@ class Subscriptions:
                 else:
                     packet.packet_id = self._get_next_unsub_packet_id()
                 try:
-                    if logger.getEffectiveLevel() <= logging.DEBUG:
-                        logger.debug(f"---> {packet}")
-                    self._connection.send(packet.encode())
+                    self._connection.send(packet)
                 except InvalidStateError:
                     logger.debug("Connection not ready, packet not sent")
                     self._out_of_session.appendleft(packet)

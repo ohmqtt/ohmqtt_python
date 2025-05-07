@@ -5,10 +5,9 @@ import socket
 import ssl
 from typing import cast, Final
 
-from .types import ConnectParams, StateData, StateEnvironment
+from .types import ConnectParams, StateData, StateEnvironment, ReceivablePacketT
 from .fsm import FSM, FSMState
 from .decoder import ClosedSocketError
-from .handlers import RegisterablePacketT
 from ..error import MQTTError
 from ..logger import get_logger
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
@@ -297,7 +296,7 @@ class ConnectedState(FSMState):
                 logger.debug(f"<--- {packet}")
             try:
                 # To cast here, we must handle the exceptional case at runtime.
-                env.packet_callback(cast(RegisterablePacketT, packet))
+                env.packet_callback(cast(ReceivablePacketT, packet))
             except KeyError as exc:
                 raise MQTTError("Unexpected packet type", reason_code=MQTTReasonCode.ProtocolError) from exc
         return True

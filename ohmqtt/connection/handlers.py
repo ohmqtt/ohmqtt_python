@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, cast, Callable, TypeAlias, TypeVar
+from typing import Any, cast, Callable, TypeVar
 
+from .types import ReceivablePacketT
 from ..packet import (
     MQTTPacket,
     MQTTPublishPacket,
@@ -15,21 +16,7 @@ from ..packet import (
     MQTTAuthPacket,
     MQTTDisconnectPacket,
 )
-
-
-RegisterablePacketT: TypeAlias = (
-    MQTTPublishPacket |
-    MQTTPubAckPacket |
-    MQTTPubRecPacket |
-    MQTTPubRelPacket |
-    MQTTPubCompPacket |
-    MQTTSubAckPacket |
-    MQTTUnsubAckPacket |
-    MQTTConnAckPacket |
-    MQTTAuthPacket |
-    MQTTDisconnectPacket
-)
-PacketT = TypeVar("PacketT", bound=RegisterablePacketT)
+PacketT = TypeVar("PacketT", bound=ReceivablePacketT)
 
 
 class MessageHandlers:
@@ -79,7 +66,7 @@ class MessageHandlers:
             raise RuntimeError("Message handlers not in registration block")
         self._handlers[packet_type].append(handler)
 
-    def handle(self, packet: RegisterablePacketT) -> list[Exception]:
+    def handle(self, packet: ReceivablePacketT) -> list[Exception]:
         """Handle a packet by calling the appropriate handlers.
 
         Guarantees that all handlers are called in the order they were registered.

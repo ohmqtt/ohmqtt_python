@@ -3,19 +3,53 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import socket
 import ssl
-from typing import Callable
+from typing import Callable, TypeAlias
 
 from .address import Address
 from .decoder import IncrementalDecoder
-from .handlers import RegisterablePacketT
 from .keepalive import KeepAlive
 from .timeout import Timeout
 from ..mqtt_spec import MQTTReasonCode
-from ..packet import MQTTConnAckPacket
+from ..packet import (
+    MQTTConnAckPacket,
+    MQTTDisconnectPacket,
+    MQTTAuthPacket,
+    MQTTPublishPacket,
+    MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
+    MQTTSubscribePacket,
+    MQTTUnsubscribePacket,
+    MQTTSubAckPacket,
+    MQTTUnsubAckPacket,
+)
 from ..property import MQTTConnectProps, MQTTWillProps
 
 
-ConnectionReadCallback = Callable[[RegisterablePacketT], None]
+ReceivablePacketT: TypeAlias = (
+    MQTTConnAckPacket |
+    MQTTPublishPacket |
+    MQTTPubAckPacket |
+    MQTTPubRecPacket |
+    MQTTPubRelPacket |
+    MQTTPubCompPacket |
+    MQTTSubAckPacket |
+    MQTTUnsubAckPacket |
+    MQTTAuthPacket |
+    MQTTDisconnectPacket
+)
+SendablePacketT: TypeAlias = (
+    MQTTPublishPacket |
+    MQTTPubAckPacket |
+    MQTTPubRecPacket |
+    MQTTPubRelPacket |
+    MQTTPubCompPacket |
+    MQTTSubscribePacket |
+    MQTTUnsubscribePacket |
+    MQTTAuthPacket
+)
+ConnectionReadCallback: TypeAlias = Callable[[ReceivablePacketT], None]
 
 
 class ConnectionCloseCondition(Exception):

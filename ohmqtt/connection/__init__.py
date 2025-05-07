@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import logging
 from typing import Final
 
 from .address import Address as Address
 from .fsm import FSM
 from .fsm import InvalidStateError as InvalidStateError
 from .handlers import MessageHandlers as MessageHandlers
-from .handlers import RegisterablePacketT
 from .states import (
     ClosingState,
     ClosedState,
@@ -17,7 +17,7 @@ from .states import (
 )
 from .types import ConnectParams as ConnectParams
 from .types import ConnectionCloseCondition as ConnectionCloseCondition
-from .types import StateEnvironment
+from .types import StateEnvironment, ReceivablePacketT, SendablePacketT
 from ..error import MQTTError
 from ..logger import get_logger
 
@@ -33,7 +33,7 @@ class Connection:
         self.fsm = FSM(env=state_env, init_state=ClosedState, error_state=ShutdownState)
         self._handlers = handlers
 
-    def handle_packet(self, packet: RegisterablePacketT) -> None:
+    def handle_packet(self, packet: ReceivablePacketT) -> None:
         """Handle incoming packets by routing them to registered handlers."""
         exceptions = self._handlers.handle(packet)
         if exceptions:
@@ -50,12 +50,15 @@ class Connection:
             state = self.fsm.get_state()
             return state is ConnectedState
 
-    def send(self, data: bytes) -> None:
+    def send(self, packet: SendablePacketT) -> None:
         """Send data to the connection."""
         with self.fsm.lock:
             if not self.can_send():
                 state = self.fsm.get_state()
                 raise InvalidStateError(f"Cannot send data in state {state.__name__}")
+            if logger.getEffectiveLevel() <= logging.DEBUG:
+                logger.debug(f"---> {packet}")
+            data = packet.encode()
             self.fsm.env.write_buffer.extend(data)
             self.fsm.selector.interrupt()
 

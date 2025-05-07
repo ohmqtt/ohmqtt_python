@@ -32,7 +32,7 @@ def test_session_publish_qos0(mock_handlers, mock_connection):
     mock_connection.send.assert_called_with(MQTTPublishPacket(
         topic="test/topic",
         payload=b"test payload",
-    ).encode())
+    ))
     mock_connection.send.reset_mock()
     assert handle.is_acked() is False
     assert handle.wait_for_ack() is False
@@ -49,7 +49,7 @@ def test_session_publish_qos1(mock_handlers, mock_connection):
         payload=b"test payload",
         qos=1,
         packet_id=1,
-    ).encode())
+    ))
     mock_connection.send.reset_mock()
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
@@ -70,7 +70,7 @@ def test_session_publish_qos2(mock_handlers, mock_connection):
         payload=b"test payload",
         qos=2,
         packet_id=1,
-    ).encode())
+    ))
     mock_connection.send.reset_mock()
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
@@ -79,7 +79,7 @@ def test_session_publish_qos2(mock_handlers, mock_connection):
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
 
-    mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1).encode())
+    mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1))
     mock_connection.send.reset_mock()
 
     session.handle_pubcomp(MQTTPubCompPacket(packet_id=1))
@@ -102,7 +102,7 @@ def test_session_publish_alias(db_path, qos, mock_handlers, mock_connection):
         payload=b"test payload",
         qos=qos,
         packet_id=1 if qos > 0 else 0,
-    ).encode())
+    ))
     mock_connection.send.reset_mock()
 
     session.publish("test/topic2", b"test payload", qos=qos, alias_policy=AliasPolicy.TRY)
@@ -112,7 +112,7 @@ def test_session_publish_alias(db_path, qos, mock_handlers, mock_connection):
         qos=qos,
         packet_id=2 if qos > 0 else 0,
         properties=MQTTPublishProps(TopicAlias=1),
-    ).encode())
+    ))
     mock_connection.send.reset_mock()
 
     if qos > 0:
@@ -126,7 +126,7 @@ def test_session_publish_alias(db_path, qos, mock_handlers, mock_connection):
             qos=qos,
             packet_id=3 if qos > 0 else 0,
             properties=MQTTPublishProps(TopicAlias=2),
-        ).encode())
+        ))
         mock_connection.send.reset_mock()
 
 

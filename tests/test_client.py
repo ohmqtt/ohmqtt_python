@@ -146,7 +146,7 @@ def test_client_auth(mocker, mock_connection, mock_handlers, mock_session, mock_
             ReasonString="test_reason",
             UserProperty=[("key", "value")],
         ),
-    ).encode())
+    ))
 
 
 def test_client_wait_for_connect(mocker, mock_connection, mock_handlers, mock_session, mock_subscriptions):

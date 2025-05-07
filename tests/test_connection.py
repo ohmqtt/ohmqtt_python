@@ -81,12 +81,12 @@ def test_connection_send(mocker, mock_fsm, mock_handlers):
     connection = Connection(mock_handlers)
     mock_fsm.get_state.return_value = ConnectedState
     mock_fsm.env.write_buffer = bytearray()
-    data = b"test data"
-    connection.send(data)
-    assert mock_fsm.env.write_buffer == data
+    packet = MQTTPublishPacket(topic="test/topic", payload=b"test")
+    connection.send(packet)
+    assert mock_fsm.env.write_buffer == packet.encode()
     mock_fsm.get_state.return_value = ClosedState
     with pytest.raises(InvalidStateError):
-        connection.send(data)
+        connection.send(packet)
 
 
 def test_connection_connect(mocker, mock_fsm, mock_handlers):

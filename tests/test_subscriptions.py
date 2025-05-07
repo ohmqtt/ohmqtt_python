@@ -64,9 +64,9 @@ def test_subscriptions_subscribe_opts(mock_handlers, mock_client, mock_connectio
         packet_id=1,
         properties=MQTTSubscribeProps(
             SubscriptionIdentifier={23},
-            UserProperty=[("key", "value")],
+            UserProperty=(("key", "value"),),
         ),
-    ).encode())
+    ))
 
 
 def test_subscriptions_handle_unsubscribe(mock_handlers, mock_client, mock_connection):
@@ -77,14 +77,14 @@ def test_subscriptions_handle_unsubscribe(mock_handlers, mock_client, mock_conne
     mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
-    ).encode())
+    ))
 
     unsub_handle = sub_handle.unsubscribe()
     mock_connection.send.assert_called_with(MQTTUnsubscribePacket(
         topics=["test/topic"],
         packet_id=1,
         properties=MQTTUnsubscribeProps(),
-    ).encode())
+    ))
 
     unsuback_packet = MQTTUnsubAckPacket(packet_id=1)
     subscriptions.handle_unsuback(unsuback_packet)
@@ -129,7 +129,7 @@ def test_subscriptions_subscribe_failure(mock_handlers, mock_client, mock_connec
     mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
-    ).encode())
+    ))
     mock_connection.reset_mock()
 
     subscriptions.handle_connack(MQTTConnAckPacket(session_present=session_present))
@@ -139,7 +139,7 @@ def test_subscriptions_subscribe_failure(mock_handlers, mock_client, mock_connec
         mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
             topics=[("test/topic", 2)],
             packet_id=1,
-        ).encode())
+        ))
 
 
 @pytest.mark.parametrize("session_present", [True, False])
@@ -158,11 +158,11 @@ def test_subscriptions_multi_subscribe(mock_handlers, mock_client, mock_connecti
     assert mock_connection.send.call_args_list[0][0][0] == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
-    ).encode()
+    )
     assert mock_connection.send.call_args_list[1][0][0] == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=2,
-    ).encode()
+    )
     mock_connection.reset_mock()
 
     suback_packet = MQTTSubAckPacket(
@@ -188,11 +188,11 @@ def test_subscriptions_multi_subscribe(mock_handlers, mock_client, mock_connecti
         assert mock_connection.send.call_args_list[0][0][0] == MQTTSubscribePacket(
             topics=[("test/topic", 2)],
             packet_id=1,
-        ).encode()
+        )
         assert mock_connection.send.call_args_list[1][0][0] == MQTTSubscribePacket(
             topics=[("test/topic", 2)],
             packet_id=2,
-        ).encode()
+        )
         mock_connection.reset_mock()
 
 
