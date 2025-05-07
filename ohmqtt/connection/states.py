@@ -292,8 +292,6 @@ class ConnectedState(FSMState):
             return True
         else:
             # All other packets are passed to the read callback.
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"<--- {packet}")
             try:
                 # To cast here, we must handle the exceptional case at runtime.
                 env.packet_callback(cast(ReceivablePacketT, packet))

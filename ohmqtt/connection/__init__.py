@@ -35,6 +35,8 @@ class Connection:
 
     def handle_packet(self, packet: ReceivablePacketT) -> None:
         """Handle incoming packets by routing them to registered handlers."""
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            logger.debug(f"<--- {packet}")
         exceptions = self._handlers.handle(packet)
         if exceptions:
             if any(True for exc in exceptions if isinstance(exc, MQTTError)):
