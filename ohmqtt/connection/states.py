@@ -12,7 +12,7 @@ from ..error import MQTTError
 from ..logger import get_logger
 from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 from ..packet import MQTTConnectPacket, MQTTConnAckPacket, MQTTDisconnectPacket, PING, PONG
-from ..platform import HAS_AF_UNIX
+from ..platform import AF_UNIX, HAS_AF_UNIX
 
 logger: Final = get_logger("connection.states")
 
@@ -48,7 +48,7 @@ class ConnectingState(FSMState):
 
         try:
             address = params.address
-            if HAS_AF_UNIX and address.family == socket.AF_UNIX:
+            if HAS_AF_UNIX and address.family == AF_UNIX:
                 state_data.sock.connect(address.host)
             else:
                 state_data.sock.connect((address.host, address.port))
