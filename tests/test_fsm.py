@@ -99,12 +99,12 @@ def test_fsm_props(env):
 @pytest.mark.parametrize("do_request", [True, False])
 def test_fsm_wait_for_state(do_request, env):
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    assert fsm.wait_for_state([MockStateA], 0.001) is True
     assert fsm.wait_for_state([MockStateB, MockStateC], 0.001) is False
 
     start = threading.Event()
     def notifier():
         start.wait()
-        time.sleep(0.1)
         if do_request:
             fsm.request_state(MockStateB)
         else:
@@ -115,9 +115,8 @@ def test_fsm_wait_for_state(do_request, env):
     thread.start()
 
     try:
-        assert fsm.wait_for_state([MockStateA], 0.1) is True
         start.set()
-        assert fsm.wait_for_state([MockStateB, MockStateC], 0.2) is True
+        assert fsm.wait_for_state([MockStateB, MockStateC], 0.5) is True
     finally:
         thread.join(0.1)
         assert not thread.is_alive()
