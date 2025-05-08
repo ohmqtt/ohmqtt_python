@@ -245,18 +245,18 @@ class ConnectedState(FSMState):
 
         if state_data.sock in rlist:
             want_read = True
-            while want_read:  # Read all available packets.
-                try:
+            try:
+                while want_read:  # Read all available packets.
                     want_read = cls.read_packet(fsm, state_data, env, params)
-                except ClosedSocketError:
-                    logger.debug("Connection closed")
-                    fsm.change_state(ClosedState)
-                    return True
-                except MQTTError as exc:
-                    logger.error("There was a problem with data from broker, closing connection: %s", exc)
-                    state_data.disconnect_rc = exc.reason_code
-                    fsm.change_state(ClosedState)
-                    return True
+            except ClosedSocketError:
+                logger.debug("Connection closed")
+                fsm.change_state(ClosedState)
+                return True
+            except MQTTError as exc:
+                logger.error("There was a problem with data from broker, closing connection: %s", exc)
+                state_data.disconnect_rc = exc.reason_code
+                fsm.change_state(ClosedState)
+                return True
 
         return False
 

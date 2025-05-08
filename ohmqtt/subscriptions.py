@@ -342,7 +342,7 @@ class Subscriptions:
             for sub in subs:
                 try:
                     sub.callback(client, packet)
-                except Exception:
+                except Exception:  # noqa: PERF203
                     logger.exception("Unhandled exception in subscription callback")
         if packet.qos == 1:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
