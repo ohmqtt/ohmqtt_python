@@ -41,7 +41,7 @@ class Protected:
         self.release = self._lock.release
 
         if hasattr(self._lock, "_is_owned"):
-            self._is_owned = self._lock._is_owned
+            self._is_owned = self._lock._is_owned  # noqa: SLF001
         else:
             raise RuntimeError(f"{self.__class__.__name__} lock does not support _is_owned() method")
 

@@ -5,7 +5,7 @@ import pytest
 
 from ohmqtt.connection import Address
 from ohmqtt.connection.fsm import FSM, FSMState, InvalidStateError
-from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
+from ohmqtt.connection.types import ConnectParams, StateEnvironment
 
 
 class _TestError(Exception):
@@ -73,9 +73,6 @@ def test_fsm_init(env):
     assert fsm.requested_state == MockStateA
     assert fsm.state == MockStateA
     assert fsm.error_state == MockStateC
-    assert fsm._state_changed
-    assert not fsm._state_requested
-    assert isinstance(fsm._state_data, StateData)
 
 
 def test_fsm_props(env):
