@@ -132,7 +132,6 @@ def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> 
     if flags != FLAGS_PUBACKS[cls.packet_type]:
         raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode.MalformedPacket)
     # We will be kludging some types to make this work.
-    PropsT = cls.props_type
 
     offset = 0
     packet_id, packet_id_length = decode_uint16(data[offset:])
@@ -142,7 +141,7 @@ def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> 
         return cls(
             packet_id,
             MQTTReasonCode.Success,
-            PropsT(),  # type: ignore
+            cls.props_type(),  # type: ignore
         )
     reason_code = MQTTReasonCode(decode_uint8(data[offset:])[0])
     offset += 1
@@ -151,9 +150,9 @@ def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> 
         return cls(
             packet_id,
             reason_code,
-            PropsT(),  # type: ignore
+            cls.props_type(),  # type: ignore
         )
-    props, _ = PropsT.decode(data[offset:])
+    props, _ = cls.props_type.decode(data[offset:])
     return cls(
         packet_id,
         reason_code,
