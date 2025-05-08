@@ -25,6 +25,8 @@ class MessageHandlers:
     Handlers may only be registered within the context manager.
 
     The context manager may only be entered once."""
+    __slots__ = ("_handlers", "_registering", "_registered")
+
     def __init__(self) -> None:
         # Typing is kludged internally for brevity and speed.  But mostly speed.
         self._handlers: dict[type[MQTTPacket], list[Callable[[Any], None]]] = {
