@@ -85,7 +85,7 @@ class InMemoryPersistence(Persistence):
 
     def ack(self, packet_id: int) -> None:
         if packet_id not in self._messages:
-            logger.error(f"Packet ID {packet_id} not found in retention store")
+            logger.error("Packet ID %d not found in retention store", packet_id)
             return
         message = self._messages[packet_id]
         if message.qos == 1 or message.received:

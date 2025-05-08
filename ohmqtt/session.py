@@ -182,8 +182,8 @@ class Session:
     def handle_connack(self, packet: MQTTConnAckPacket) -> None:
         """Handle a connection open event."""
         if packet.reason_code >= 0x80:
-            logger.error(f"Connection failed: {packet.reason_code}")
-            raise MQTTError(f"Connection failed: {packet.reason_code}", packet.reason_code)
+            logger.error("Connection failed: %s", packet.reason_code)
+            raise MQTTError("Connection failed", packet.reason_code)
         with self.protected as protected:
             protected.inflight = 0
             protected.topic_alias.reset()
@@ -208,7 +208,7 @@ class Session:
     def handle_puback(self, packet: MQTTPubAckPacket) -> None:
         """Handle a PUBACK packet from the server."""
         if packet.reason_code >= 0x80:
-            logger.error(f"Received PUBACK with error code: {packet.reason_code}")
+            logger.error("Received PUBACK with error code: %s", packet.reason_code)
         with self.protected as protected:
             protected.persistence.ack(packet.packet_id)
             protected.inflight -= 1
@@ -217,7 +217,7 @@ class Session:
     def handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
         if packet.reason_code >= 0x80:
-            logger.error(f"Received PUBREC with error code: {packet.reason_code}")
+            logger.error("Received PUBREC with error code: %s", packet.reason_code)
         with self.protected as protected:
             protected.persistence.ack(packet.packet_id)
             protected.inflight -= 1
@@ -226,14 +226,14 @@ class Session:
     def handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
         """Handle a PUBREL packet from the server."""
         if packet.reason_code >= 0x80:
-            logger.error(f"Received PUBREL with error code: {packet.reason_code}")
+            logger.error("Received PUBREL with error code: %s", packet.reason_code)
         comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
         self._send_packet(comp_packet)
 
     def handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
         """Handle a PUBCOMP packet from the server."""
         if packet.reason_code >= 0x80:
-            logger.error(f"Received PUBCOMP with error code: {packet.reason_code}")
+            logger.error("Received PUBCOMP with error code: %s", packet.reason_code)
         with self.protected as protected:
             protected.persistence.ack(packet.packet_id)
             protected.inflight -= 1

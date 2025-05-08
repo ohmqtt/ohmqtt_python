@@ -84,9 +84,9 @@ class FSM:
         """Request a state change from outside the FSM."""
         with self.cond:
             if state not in self.state.transitions_to or self.state not in state.can_request_from:
-                logger.debug(f"Ignoring invalid request to change from {self.state.__name__} to {state.__name__}")
+                logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, state.__name__)
                 return
-            logger.debug(f"Requesting state change from {self.state.__name__} to {state.__name__}")
+            logger.debug("Requesting state change from %s to %s", self.state.__name__, state.__name__)
             self.requested_state = state
             self._state_requested = True
             self.cond.notify_all()
@@ -102,11 +102,11 @@ class FSM:
                 # Consume state change requests.
                 if self._state_requested:
                     if self.requested_state not in self.state.transitions_to or self.state not in self.requested_state.can_request_from:
-                        logger.debug(f"Ignoring invalid request to change from {self.state.__name__} to {self.requested_state.__name__}")
+                        logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, self.requested_state.__name__)
                         self._state_requested = False
                         self.requested_state = self.state
                     else:
-                        logger.debug(f"Handling request to change from {self.state.__name__} to {self.requested_state.__name__}")
+                        logger.debug("Handling request to change from %s to %s", self.state.__name__, self.requested_state.__name__)
                         self.previous_state = self.state
                         self.state = self.requested_state
                         self._state_requested = False
@@ -114,7 +114,7 @@ class FSM:
                 # Consume state changes, either from a state or from a request.
                 if self._state_changed:
                     self._state_changed = False
-                    logger.debug(f"Entering state {self.state.__name__}")
+                    logger.debug("Entering state %s", self.state.__name__)
                     self.state.enter(self, self._state_data, self.env, self.params)
                     return False  # Run the state on the next loop, unless it has changed.
 
@@ -125,9 +125,9 @@ class FSM:
             with self.cond:
                 if self.state != self.error_state:
                     if self.error_state not in self.state.transitions_to:
-                        logger.exception(f"Unhandled exception in FSM loop, cannot transition to {self.error_state.__name__}, exploding")
+                        logger.exception("Unhandled exception in FSM loop, cannot transition to %s, exploding", self.error_state.__name__)
                         raise
-                    logger.exception(f"Unhandled exception in FSM loop, going to {self.error_state.__name__}")
+                    logger.exception("Unhandled exception in FSM loop, going to %s", self.error_state.__name__)
                     self.previous_state = self.state
                     self.state = self.error_state
                     self._state_changed = True

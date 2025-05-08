@@ -268,10 +268,10 @@ class SQLitePersistence(Persistence):
             self._handles.clear()
 
     def open(self, client_id: str, clear: bool = False) -> None:
-        logger.debug(f"Opening SQLite persistence with client ID: {client_id} {clear=}")
+        logger.debug("Opening SQLite persistence with client ID: %s clear=%s", client_id, clear)
         with self._cond:
             if clear or client_id != self._get_client_id():
-                logger.debug(f"Clearing SQLite persistence for client ID: {client_id}")
+                logger.debug("Clearing SQLite persistence for client ID: %s", client_id)
                 self._set_client_id(client_id)
                 self.clear()
             else:

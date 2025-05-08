@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import socket
 import ssl
 from typing import cast, Final
@@ -53,7 +52,7 @@ class ConnectingState(FSMState):
             else:
                 state_data.sock.connect((address.host, address.port))
         except ConnectionError as exc:
-            logger.error(f"Failed to connect to broker: {exc}")
+            logger.error("Failed to connect to broker: %s", exc)
             fsm.change_state(ClosedState)
             return True
         except (BlockingIOError, OSError):
@@ -126,8 +125,7 @@ class MQTTHandshakeConnectState(FSMState):
             username=params.address.username,
             password=params.address.password.encode() if params.address.password else None,
         )
-        if logger.getEffectiveLevel() <= logging.DEBUG:
-            logger.debug(f"---> {connect_packet}")
+        logger.debug("---> %s", connect_packet)
         with fsm.selector:
             env.write_buffer.clear()
             env.write_buffer.extend(connect_packet.encode())
@@ -148,7 +146,7 @@ class MQTTHandshakeConnectState(FSMState):
                     return True
                 elif num_sent < len(env.write_buffer):
                     # Not all data was sent, wait for writable again.
-                    logger.debug(f"Not all CONNECT data was sent, waiting for writable again: {num_sent=}")
+                    logger.debug("Not all CONNECT data was sent, waiting for writable again: wrote: %d", num_sent)
                     del env.write_buffer[:num_sent]
                     return False
                 env.write_buffer.clear()
@@ -191,15 +189,15 @@ class MQTTHandshakeConnAckState(FSMState):
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
             packet = cast(MQTTConnAckPacket, packet)
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"<--- {packet}")
+            logger.debug("<--- %s", packet)
             state_data.connack = packet
             if packet.properties.ServerKeepAlive is not None:
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
             fsm.change_state(ConnectedState)
             return True
         else:
-            logger.error(f"Unexpected packet while waiting for CONNACK: {packet}")
+            pt = packet.packet_type.name if packet is not None else "None"
+            logger.error("Unexpected '%s' packet while waiting for CONNACK", pt)
             fsm.change_state(ClosedState)
             return True
 
@@ -256,7 +254,7 @@ class ConnectedState(FSMState):
                     fsm.change_state(ClosedState)
                     return True
                 except MQTTError as exc:
-                    logger.error(f"There was a problem with data from broker, closing connection: {exc}")
+                    logger.error("There was a problem with data from broker, closing connection: %s", exc)
                     state_data.disconnect_rc = exc.reason_code
                     fsm.change_state(ClosedState)
                     return True
@@ -285,8 +283,7 @@ class ConnectedState(FSMState):
             with fsm.selector:
                 env.write_buffer.extend(PONG)
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"<--- {packet}")
+            logger.debug("<--- %s", packet)
             logger.info("Broker sent DISCONNECT, closing connection")
             fsm.change_state(ClosingState)
             return True
@@ -348,7 +345,7 @@ class ClosingState(FSMState):
             try:
                 state_data.sock.shutdown(socket.SHUT_RD)
             except OSError as exc:
-                logger.debug(f"Error while shutting down socket reading: {exc}")
+                logger.debug("Error while shutting down socket reading: %s", exc)
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
@@ -394,8 +391,7 @@ class ClosedState(FSMState):
                     # Try to send a DISCONNECT packet, but no problem if we can't.
                     try:
                         state_data.sock.send(disconnect_packet.encode())
-                        if logger.getEffectiveLevel() <= logging.DEBUG:
-                            logger.debug(f"---> {disconnect_packet}")
+                        logger.debug("---> %s", disconnect_packet)
                     except (BlockingIOError, ssl.SSLWantWriteError, OSError):
                         logger.debug("Failed to send DISCONNECT packet")
             if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:
@@ -403,11 +399,11 @@ class ClosedState(FSMState):
         try:
             state_data.sock.shutdown(socket.SHUT_RDWR)
         except OSError as exc:
-            logger.debug(f"Error while shutting down socket: {exc}")
+            logger.debug("Error while shutting down socket: %s", exc)
         try:
             state_data.sock.close()
         except OSError as exc:
-            logger.debug(f"Error while closing socket: {exc}")
+            logger.debug("Error while closing socket: %s", exc)
         state_data.decoder.reset()
         with fsm.selector:
             env.write_buffer.clear()
@@ -424,7 +420,7 @@ class ShutdownState(FSMState):
         try:
             state_data.sock.close()
         except OSError as exc:
-            logger.debug(f"Error while closing socket: {exc}")
+            logger.debug("Error while closing socket: %s", exc)
         state_data.decoder.reset()
         with fsm.selector:
             env.write_buffer.clear()

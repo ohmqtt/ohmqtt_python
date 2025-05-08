@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Final
 
 from .address import Address as Address
@@ -34,8 +33,7 @@ class Connection:
 
     def handle_packet(self, packet: ReceivablePacketT) -> None:
         """Handle incoming packets by routing them to registered handlers."""
-        if logger.getEffectiveLevel() <= logging.DEBUG:
-            logger.debug(f"<--- {packet}")
+        logger.debug("<--- %s", packet)
         exceptions = self._handlers.handle(packet)
         if exceptions:
             if any(True for exc in exceptions if isinstance(exc, MQTTError)):
@@ -57,8 +55,7 @@ class Connection:
             if not self.can_send():
                 state = self.fsm.get_state()
                 raise InvalidStateError(f"Cannot send data in state {state.__name__}")
-            if logger.getEffectiveLevel() <= logging.DEBUG:
-                logger.debug(f"---> {packet}")
+            logger.debug("---> %s", packet)
             data = packet.encode()
             self.fsm.env.write_buffer.extend(data)
             self.fsm.selector.interrupt()

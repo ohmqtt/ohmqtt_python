@@ -362,7 +362,7 @@ class Subscriptions:
         """Handle incoming SUBACK packets."""
         if any(True for code in packet.reason_codes if code >= 0x80):
             errs = [hex(code) for code in packet.reason_codes if code >= 0x80]
-            logger.error(f"Errors found in SUBACK return: {errs}")
+            logger.error("Errors found in SUBACK return: %s", errs)
         with self._cond:
             handle = self._sub_handles.pop(packet.packet_id, None)
             if handle is not None:
@@ -373,7 +373,7 @@ class Subscriptions:
         """Handle incoming UNSUBACK packets."""
         if any(True for code in packet.reason_codes if code >= 0x80):
             errs = [hex(code) for code in packet.reason_codes if code >= 0x80]
-            logger.error(f"Errors found in UNSUBACK return: {errs}")
+            logger.error("Errors found in UNSUBACK return: %s", errs)
         with self._cond:
             handle = self._unsub_handles.pop(packet.packet_id, None)
             if handle is not None:
