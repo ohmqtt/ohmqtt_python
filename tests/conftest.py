@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 import pytest
 import socket
 import ssl
@@ -21,7 +21,8 @@ def test_data(request):
     The YAML file must be named after the test suite, and contain a mapping of test names to test data."""
     suite_name = request.module.__name__.split(".")[-1]
     test_name = request.node.name
-    with open(f"tests/data/{suite_name}.yml", encoding="utf-8") as f:
+    data_path = Path("tests") / "data" / f"{suite_name}.yml"
+    with data_path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data[test_name]
 
@@ -149,11 +150,11 @@ class LoopbackTLSSocket(LoopbackSocket):
         self.server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.cert_pem, key_pem = generate_selfsigned_cert("localhost")
         with tempfile.TemporaryDirectory() as tmpdir:
-            certfile = os.path.join(tmpdir, "cert.pem")
-            keyfile = os.path.join(tmpdir, "key.pem")
-            with open(certfile, "wb") as f:
+            certfile = Path(tmpdir) / "cert.pem"
+            keyfile = Path(tmpdir) / "key.pem"
+            with certfile.open("wb") as f:
                 f.write(self.cert_pem)
-            with open(keyfile, "wb") as f:
+            with keyfile.open("wb") as f:
                 f.write(key_pem)
             self.server_context.load_cert_chain(certfile, keyfile)
         self.testsock = self.server_context.wrap_socket(self.testsock, server_side=True, do_handshake_on_connect=False)
@@ -179,8 +180,8 @@ def ssl_client_context():
     def _ssl_client_context(cert_pem: bytes) -> ssl.SSLContext:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         with tempfile.TemporaryDirectory() as tmpdir:
-            certfile = os.path.join(tmpdir, "cert.pem")
-            with open(certfile, "wb") as f:
+            certfile = Path(tmpdir) / "cert.pem"
+            with certfile.open("wb") as f:
                 f.write(cert_pem)
             context.load_verify_locations(certfile)
         return context
