@@ -5,7 +5,7 @@ from ohmqtt.connection.timeout import Timeout
 
 @pytest.fixture
 def mock_time(mocker):
-    yield mocker.patch("ohmqtt.connection.timeout._time")
+    return mocker.patch("ohmqtt.connection.timeout._time")
 
 
 def test_timeout(mock_time):

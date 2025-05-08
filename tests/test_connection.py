@@ -34,7 +34,7 @@ def mock_fsm(mocker):
     mock_fsm.lock = mocker.MagicMock()
     mock_fsm.lock.__enter__.return_value = mock_fsm.lock
     mocker.patch("ohmqtt.connection.FSM", return_value=mock_fsm)
-    yield mock_fsm
+    return mock_fsm
 
 
 def test_connection_handle_packet(mocker):

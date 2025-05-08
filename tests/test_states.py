@@ -63,7 +63,7 @@ def env(callbacks):
 def mock_socket(mocker):
     mock_socket = mocker.Mock(spec=ssl.SSLSocket)
     mocker.patch("ohmqtt.connection.states._get_socket", return_value=mock_socket)
-    yield mock_socket
+    return mock_socket
 
 @pytest.fixture
 def decoder(mocker):
@@ -104,13 +104,13 @@ def mock_select(mocker):
     mock_select = mocker.Mock(spec=InterruptibleSelector.select)
     mock_select.return_value = ([], [], [])
     mocker.patch("ohmqtt.connection.selector.InterruptibleSelector.select", mock_select)
-    yield mock_select
+    return mock_select
 
 @pytest.fixture
 def mock_read(mocker):
     mock_read = mocker.Mock(spec=ConnectedState.read_packet)
     mocker.patch("ohmqtt.connection.states.ConnectedState.read_packet", mock_read)
-    yield mock_read
+    return mock_read
 
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])

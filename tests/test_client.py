@@ -16,7 +16,7 @@ def mock_connection(mocker):
     """Mock the Connection class."""
     mock_connection = mocker.Mock(spec=Connection)
     mocker.patch("ohmqtt.client.Connection", return_value=mock_connection)
-    yield mock_connection
+    return mock_connection
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def mock_handlers(mocker):
     mock_handlers = mocker.MagicMock(spec=MessageHandlers)
     mock_handlers.__enter__.return_value = mock_handlers
     mocker.patch("ohmqtt.connection.MessageHandlers", return_value=mock_handlers)
-    yield mock_handlers
+    return mock_handlers
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def mock_session(mocker):
     """Mock the Session class."""
     mock_session = mocker.Mock(spec=Session)
     mocker.patch("ohmqtt.client.Session", return_value=mock_session)
-    yield mock_session
+    return mock_session
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def mock_subscriptions(mocker):
     """Mock the Subscriptions class."""
     mock_subscriptions = mocker.Mock(spec=Subscriptions)
     mocker.patch("ohmqtt.client.Subscriptions", return_value=mock_subscriptions)
-    yield mock_subscriptions
+    return mock_subscriptions
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def mock_thread(mocker):
     """Mock the threading.Thread class."""
     mock_thread = mocker.Mock(threading.Thread)
     mocker.patch("threading.Thread", return_value=mock_thread)
-    yield mock_thread
+    return mock_thread
 
 
 def test_client_connect(mocker, mock_connection, mock_handlers, mock_session, mock_subscriptions):
