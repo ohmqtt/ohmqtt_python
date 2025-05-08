@@ -1,32 +1,20 @@
 name: nox
 
-on:
-  push:
-    branches: [ $default-branch ]
-  pull_request:
-    branches: [ $default-branch ]
+on: push
 
 jobs:
-  build_linux:
+  nox_linux:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install dependencies
-      run: |
-        pipx install nox uv
-    - name: nox
-      run: |
-        nox
+    - run: pipx install nox uv
+    - run: nox
 
-  build_windows:
+  nox_windows:
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install dependencies
-      run: |
-        pipx install nox uv
-    - name: nox
-      run: |
-        nox
+    - run: pipx install nox uv
+    - run: nox
