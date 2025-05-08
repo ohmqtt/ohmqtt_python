@@ -4,64 +4,64 @@ from ohmqtt.topic_filter import validate_topic_filter, validate_share_name, matc
 
 
 def test_topic_filter_empty_filter():
-    filter = ""
+    f = ""
     with pytest.raises(ValueError):
-        validate_topic_filter(filter)
+        validate_topic_filter(f)
 
 def test_topic_filter_empty_topic():
-    filter = "sport/tennis/player1"
+    f = "sport/tennis/player1"
     with pytest.raises(ValueError):
-        match_topic_filter(filter, "")
+        match_topic_filter(f, "")
 
 def test_topic_filter_null_character_filter():
     with pytest.raises(ValueError):
         validate_topic_filter("sport/tennis/\u0000player1")
 
 def test_topic_filter_null_character_topic():
-    filter = "sport/tennis/player1"
+    f = "sport/tennis/player1"
     with pytest.raises(ValueError):
-        match_topic_filter(filter, "sport/tennis/\u0000player1")
+        match_topic_filter(f, "sport/tennis/\u0000player1")
 
 def test_topic_filter_long_filter():
-    filter = "a" * 65536
+    f = "a" * 65536
     with pytest.raises(ValueError):
-        validate_topic_filter(filter)
+        validate_topic_filter(f)
 
 def test_topic_filter_long_topic():
-    filter = "sport/tennis/player1"
+    f = "sport/tennis/player1"
     long_topic = "a" * 65536
     with pytest.raises(ValueError):
-        match_topic_filter(filter, long_topic)
+        match_topic_filter(f, long_topic)
 
 def test_topic_filter_exact_match():
-    filter = "sport/tennis/player1"
-    assert match_topic_filter(filter, "sport/tennis/player1")
-    assert not match_topic_filter(filter, "sport/tennis/player2")
-    assert not match_topic_filter(filter, "sport/tennis")
-    assert not match_topic_filter(filter, "sport")
+    f = "sport/tennis/player1"
+    assert match_topic_filter(f, "sport/tennis/player1")
+    assert not match_topic_filter(f, "sport/tennis/player2")
+    assert not match_topic_filter(f, "sport/tennis")
+    assert not match_topic_filter(f, "sport")
 
 def test_topic_filter_multi_level_wildcard_match():
-    filter = "sport/tennis/player1/#"
-    assert match_topic_filter(filter, "sport/tennis/player1")
-    assert match_topic_filter(filter, "sport/tennis/player1/ranking")
-    assert match_topic_filter(filter, "sport/tennis/player1/score/wimbledon")
-    assert not match_topic_filter(filter, "sport/tennis/player2")
-    assert not match_topic_filter(filter, "sport/tennis")
-    assert not match_topic_filter(filter, "sport")
+    f = "sport/tennis/player1/#"
+    assert match_topic_filter(f, "sport/tennis/player1")
+    assert match_topic_filter(f, "sport/tennis/player1/ranking")
+    assert match_topic_filter(f, "sport/tennis/player1/score/wimbledon")
+    assert not match_topic_filter(f, "sport/tennis/player2")
+    assert not match_topic_filter(f, "sport/tennis")
+    assert not match_topic_filter(f, "sport")
 
 def test_topic_filter_multi_level_wildcard_match_hidden():
-    filter = "$SYS/#"
-    assert match_topic_filter(filter, "$SYS/monitor/Clients")
+    f = "$SYS/#"
+    assert match_topic_filter(f, "$SYS/monitor/Clients")
 
 def test_topic_filter_multi_level_wildcard_match_all():
-    filter = "#"
-    assert match_topic_filter(filter, "sport/tennis/player1")
-    assert match_topic_filter(filter, "sport/tennis/player1/ranking")
-    assert match_topic_filter(filter, "sport/tennis/player1/score/wimbledon")
-    assert match_topic_filter(filter, "sport/tennis/player2")
-    assert match_topic_filter(filter, "sport/tennis")
-    assert match_topic_filter(filter, "sport")
-    assert not match_topic_filter(filter, "$SYS/monitor/Clients")
+    f = "#"
+    assert match_topic_filter(f, "sport/tennis/player1")
+    assert match_topic_filter(f, "sport/tennis/player1/ranking")
+    assert match_topic_filter(f, "sport/tennis/player1/score/wimbledon")
+    assert match_topic_filter(f, "sport/tennis/player2")
+    assert match_topic_filter(f, "sport/tennis")
+    assert match_topic_filter(f, "sport")
+    assert not match_topic_filter(f, "$SYS/monitor/Clients")
 
 def test_topic_filter_multi_level_wildcard_invalid_filter():
     with pytest.raises(ValueError):
@@ -70,25 +70,25 @@ def test_topic_filter_multi_level_wildcard_invalid_filter():
         validate_topic_filter("sport/tennis/#/ranking")
 
 def test_topic_filter_multi_level_wildcard_invalid_topic():
-    filter = "sport/tennis/player1/#"
+    f = "sport/tennis/player1/#"
     with pytest.raises(ValueError):
-        match_topic_filter(filter, "sport/tennis/player1/#")
+        match_topic_filter(f, "sport/tennis/player1/#")
 
 def test_topic_filter_single_level_wildcard_match():
-    filter = "sport/tennis/+/ranking"
-    assert match_topic_filter(filter, "sport/tennis/player1/ranking")
-    assert match_topic_filter(filter, "sport/tennis/player2/ranking")
-    assert not match_topic_filter(filter, "sport/tennis/player1")
-    assert not match_topic_filter(filter, "sport/tennis/player1/score")
-    assert not match_topic_filter(filter, "sport/tennis/player1/score/wimbledon")
-    assert not match_topic_filter(filter, "sport/tennis/ranking")
+    f = "sport/tennis/+/ranking"
+    assert match_topic_filter(f, "sport/tennis/player1/ranking")
+    assert match_topic_filter(f, "sport/tennis/player2/ranking")
+    assert not match_topic_filter(f, "sport/tennis/player1")
+    assert not match_topic_filter(f, "sport/tennis/player1/score")
+    assert not match_topic_filter(f, "sport/tennis/player1/score/wimbledon")
+    assert not match_topic_filter(f, "sport/tennis/ranking")
 
 def test_topic_filter_single_level_wildcard_match_hidden():
-    filter = "$SYS/+/Clients"
-    assert match_topic_filter(filter, "$SYS/monitor/Clients")
+    f = "$SYS/+/Clients"
+    assert match_topic_filter(f, "$SYS/monitor/Clients")
 
-    filter = "+/monitor/Clients"
-    assert not match_topic_filter(filter, "$SYS/monitor/Clients")
+    f = "+/monitor/Clients"
+    assert not match_topic_filter(f, "$SYS/monitor/Clients")
 
 def test_topic_filter_validate_share_name():
     for share_name in ["", "a/b", "a" * 65536, "\u0000", "#", "+"]:
