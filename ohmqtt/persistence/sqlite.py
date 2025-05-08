@@ -1,3 +1,4 @@
+from contextlib import suppress
 import sqlite3
 from threading import Condition
 from typing import Final
@@ -36,14 +37,10 @@ class SQLitePersistence(Persistence):
 
     def __del__(self) -> None:
         # Ignore "already closed" errors while closing resources.
-        try:
+        with suppress(sqlite3.ProgrammingError):
             self._cursor.close()
-        except sqlite3.ProgrammingError:
-            pass
-        try:
+        with suppress(sqlite3.ProgrammingError):
             self._conn.close()
-        except sqlite3.ProgrammingError:
-            pass
 
     def __len__(self) -> int:
         """Return the number of messages in the persistence store."""
