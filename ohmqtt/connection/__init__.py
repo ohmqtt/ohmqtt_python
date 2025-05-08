@@ -16,7 +16,6 @@ from .states import (
     ShutdownState,
 )
 from .types import ConnectParams as ConnectParams
-from .types import ConnectionCloseCondition as ConnectionCloseCondition
 from .types import StateEnvironment, ReceivablePacketT, SendablePacketT
 from ..error import MQTTError
 from ..logger import get_logger

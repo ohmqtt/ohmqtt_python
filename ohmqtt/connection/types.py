@@ -52,11 +52,6 @@ SendablePacketT: TypeAlias = (
 ConnectionReadCallback: TypeAlias = Callable[[ReceivablePacketT], None]
 
 
-class ConnectionCloseCondition(Exception):
-    """Any exception which should cause the socket to close."""
-    pass
-
-
 @dataclass(slots=True, match_args=True, frozen=True)
 class ConnectParams:
     """Parameters for the MQTT connection."""
