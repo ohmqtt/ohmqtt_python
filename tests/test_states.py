@@ -265,7 +265,7 @@ def test_states_tls_handshake_timeout(max_wait, callbacks, state_data, env, mock
 
 
 @pytest.mark.parametrize(
-    "address,user,pwd", [
+    ("address", "user", "pwd"), [
         ("mqtt://testhost", None, None),
         ("mqtt://test_user:test_pass@testhost", "test_user", "test_pass"),
     ],
