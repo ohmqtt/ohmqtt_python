@@ -3,13 +3,15 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from typing import ClassVar, Sequence, Type, TYPE_CHECKING
 
+from ..mqtt_spec import MQTTPacketType
+
 if TYPE_CHECKING:
     from ..property import MQTTProperties  # pragma: no cover
 
 
 class MQTTPacket(metaclass=ABCMeta):
     """Base class for MQTT packets."""
-    packet_type: ClassVar[int]
+    packet_type: ClassVar[MQTTPacketType]
     props_type: ClassVar[Type[MQTTProperties]]
     __slots__: Sequence[str] = tuple()
 
