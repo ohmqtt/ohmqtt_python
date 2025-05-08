@@ -111,7 +111,7 @@ class Client:
             properties=properties,
             alias_policy=alias_policy,
         )
-    
+
     def subscribe(
         self,
         topic_filter: str,

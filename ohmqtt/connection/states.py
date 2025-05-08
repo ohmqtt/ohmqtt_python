@@ -89,7 +89,7 @@ class TLSHandshakeState(FSMState):
             logger.debug("TLS handshake timeout")
             fsm.change_state(ClosedState)
             return True
-        
+
         timeout = state_data.timeout.get_timeout(max_wait)
         sock = cast(ssl.SSLSocket, state_data.sock)
         try:
@@ -138,7 +138,7 @@ class MQTTHandshakeConnectState(FSMState):
             logger.debug("MQTT CONNECT keepalive timeout")
             fsm.change_state(ClosedState)
             return True
-        
+
         try:
             with fsm.selector:
                 num_sent = state_data.sock.send(env.write_buffer)
@@ -181,7 +181,7 @@ class MQTTHandshakeConnAckState(FSMState):
             logger.exception("Socket was closed")
             fsm.change_state(ClosedState)
             return True
-        
+
         if want_read:
             # Incomplete packet, wait for more data.
             with fsm.selector:
@@ -266,10 +266,10 @@ class ConnectedState(FSMState):
     @classmethod
     def read_packet(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
         """Called by the underlying SocketWrapper when the socket is ready to read.
-        
+
         Incrementally reads and decodes a packet from the socket.
         Complete packets are passed up to the read callback.
-        
+
         Returns False if an incomplete packet was read, True if a complete packet was read."""
         packet = state_data.decoder.decode(state_data.sock)
         if packet is None:

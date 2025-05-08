@@ -44,7 +44,7 @@ class MQTTAuthPacket(MQTTPacket):
         encoded.append(self.reason_code.value)
         encoded.extend(props)
         return bytes(encoded)
-    
+
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTAuthPacket:
         if flags != 0:

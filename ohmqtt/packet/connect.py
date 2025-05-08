@@ -102,7 +102,7 @@ class MQTTConnectPacket(MQTTPacket):
         encoded.extend(length)
         encoded.extend(data)
         return bytes(encoded)
-    
+
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTConnectPacket:
         if flags != 0:
@@ -114,7 +114,7 @@ class MQTTConnectPacket(MQTTPacket):
 
         if protocol_name != b"MQTT":
             raise MQTTError("Invalid protocol name", MQTTReasonCode.ProtocolError)
-        
+
         protocol_version, sz = decode_uint8(data[offset:])
         offset += sz
 
@@ -151,7 +151,7 @@ class MQTTConnectPacket(MQTTPacket):
             will_props = MQTTWillProps()
             will_topic = ""
             will_payload = b""
-        
+
         if username_flag:
             username, sz = decode_string(data[offset:])
             offset += sz
@@ -195,7 +195,7 @@ class MQTTConnAckPacket(MQTTPacket):
             f"properties={self.properties}",
         ]
         return f"CONNACK[{', '.join(attrs)}]"
-    
+
     def encode(self) -> bytes:
         head = HEAD_CONNACK
         data = encode_bool(self.session_present) + encode_uint8(self.reason_code.value) + self.properties.encode()
@@ -239,7 +239,7 @@ class MQTTDisconnectPacket(MQTTPacket):
         encoded.append(self.reason_code.value)
         encoded.extend(props)
         return bytes(encoded)
-    
+
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTDisconnectPacket:
         if flags != 0:

@@ -23,7 +23,7 @@ def encode_bool(x: bool) -> bytes:
 
 def decode_bool(data: memoryview) -> tuple[bool, int]:
     """Decode a boolean from a buffer.
-    
+
     Returns a tuple of the decoded boolean and the number of bytes consumed."""
     try:
         if data[0] not in (0, 1):
@@ -42,7 +42,7 @@ def encode_uint8(x: int) -> bytes:
 
 def decode_uint8(data: memoryview) -> tuple[int, int]:
     """Decode an 8-bit integer from a buffer.
-    
+
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
         return UInt8Packer.unpack_from(data)[0], 1
@@ -57,7 +57,7 @@ def encode_uint16(x: int) -> bytes:
 
 def decode_uint16(data: memoryview) -> tuple[int, int]:
     """Decode a 16-bit integer from a buffer.
-    
+
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
         return UInt16Packer.unpack_from(data)[0], 2
@@ -72,7 +72,7 @@ def encode_uint32(x: int) -> bytes:
 
 def decode_uint32(data: memoryview) -> tuple[int, int]:
     """Decode a 32-bit integer from a buffer.
-    
+
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
         return UInt32Packer.unpack_from(data)[0], 4
@@ -88,7 +88,7 @@ def encode_string(s: str) -> bytes:
 
 def decode_string(data: memoryview) -> tuple[str, int]:
     """Decode a UTF-8 string from a buffer.
-    
+
     Returns a tuple of the decoded string and the number of bytes consumed."""
     try:
         length = UInt16Packer.unpack_from(data)[0]
@@ -114,7 +114,7 @@ def encode_string_pair(values: tuple[str, str]) -> bytes:
 
 def decode_string_pair(data: memoryview) -> tuple[tuple[str, str], int]:
     """Decode a UTF-8 string pair from a buffer.
-    
+
     Returns a tuple of the decoded string pair and the number of bytes consumed."""
     try:
         key, key_length = decode_string(data)
@@ -131,7 +131,7 @@ def encode_binary(data: bytes) -> bytes:
 
 def decode_binary(data: memoryview) -> tuple[bytes, int]:
     """Decode binary data from a buffer.
-    
+
     Returns a tuple of the decoded data and the number of bytes consumed."""
     try:
         length = UInt16Packer.unpack_from(data)[0]
@@ -162,7 +162,7 @@ def encode_varint(x: int) -> bytes:
 
 def decode_varint(data: memoryview) -> tuple[int, int]:
     """Decode a variable length integer from a buffer.
-    
+
     Returns a tuple of the decoded integer and the number of bytes consumed."""
     try:
         result = 0

@@ -50,7 +50,7 @@ class MessageHandlers:
             raise RuntimeError("Message handlers already registered")
         self._registering = True
         return self
-    
+
     def __exit__(self, *args: object) -> None:
         """Stop registering the message handlers."""
         self._registering = False

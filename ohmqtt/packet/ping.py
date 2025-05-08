@@ -19,7 +19,7 @@ class MQTTPingReqPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         return b"\xc0\x00"  # PINGREQ is a fixed header with no payload.
-    
+
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPingReqPacket:
         if flags != 0:
@@ -27,7 +27,7 @@ class MQTTPingReqPacket(MQTTPacket):
         if len(data) != 0:
             raise MQTTError(f"Invalid length, expected 0 but got {len(data)}", MQTTReasonCode.MalformedPacket)
         return MQTTPingReqPacket()
-    
+
 
 @dataclass(match_args=True, slots=True)
 class MQTTPingRespPacket(MQTTPacket):
@@ -38,7 +38,7 @@ class MQTTPingRespPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         return b"\xd0\x00"  # PINGRESP is a fixed header with no payload.
-    
+
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPingRespPacket:
         if flags != 0:

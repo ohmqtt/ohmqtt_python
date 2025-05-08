@@ -16,7 +16,7 @@ class MaxOutboundAliasError(Exception):
 
 class AliasPolicy(IntEnum):
     """Topic alias policy.
-    
+
     NEVER: Never use topic aliases.
 
     TRY: Use topic aliases if possible.
@@ -33,12 +33,12 @@ class AliasPolicy(IntEnum):
 
 class OutboundLookupResult(NamedTuple):
     """Result of an outbound lookup.
-    
+
     If the alias is 0, a topic alias should not be used in the publish packet.
-    
+
     If the alias is not 0 and existed is False,
         the alias and topic should both be sent in the publish packet.
-    
+
     If the alias is not 0 and existed is True,
         the alias should be sent in the publish packet and the topic should not be sent."""
     alias: int
@@ -113,9 +113,9 @@ class OutboundTopicAlias:
 
     def lookup(self, topic: str, policy: AliasPolicy) -> OutboundLookupResult:
         """Get the topic alias for a given topic from the client.
-        
+
         An alias integer and a boolean indicating if the alias already existed will be returned.
-        
+
         If the alias integer is 0, the alias was not created and the topic is not in the store.
         In this case, the topic alias must not be used in the publish packet."""
         if policy == AliasPolicy.NEVER:

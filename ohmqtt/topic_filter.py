@@ -13,7 +13,7 @@ def validate_topic(topic: str) -> None:
         raise ValueError("Topic name cannot contain wildcards '#' or '+'")
     if len(topic.encode("utf-8")) > 65535:
         raise ValueError("Topic name is too long (> 65535 bytes encoded as UTF-8)")
-    
+
 
 def validate_topic_filter(topic_filter: str) -> None:
     """Validate an MQTT topic filter.

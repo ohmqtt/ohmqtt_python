@@ -68,7 +68,7 @@ class FSM:
 
     def change_state(self, state: Type[FSMState]) -> None:
         """Change to a new state.
-        
+
         This method must only be called from within a state."""
         with self.cond:
             if state is self.state:

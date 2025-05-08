@@ -57,7 +57,7 @@ class ReliablePublishHandle(PublishHandle):
         with self._cond:
             self._cond.wait_for(self.is_acked, timeout)
         return self.acked
-    
+
 
 class RenderedPacket(NamedTuple):
     """Represents a rendered packet."""
@@ -100,7 +100,7 @@ class Persistence(metaclass=ABCMeta):
     @abstractmethod
     def render(self, packet_id: int) -> RenderedPacket:
         """Render a PUBLISH message from the persistence store.
-        
+
         This also indicates to the persistence store that the message is inflight."""
         ...  # pragma: no cover
 
@@ -112,7 +112,7 @@ class Persistence(metaclass=ABCMeta):
     @abstractmethod
     def open(self, client_id: str, clear: bool = False) -> None:
         """Indicate to the persistence store that the broker has acknowledged our connection.
-        
+
         This may clear the persistence store if the client_id is different from the persisted,
         or if clear is True."""
         ...  # pragma: no cover
