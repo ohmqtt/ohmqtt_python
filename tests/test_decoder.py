@@ -47,12 +47,9 @@ def test_decoder_bad_length(loopback_socket):
     loopback_socket.setblocking(False)
     decoder = IncrementalDecoder()
     loopback_socket.test_sendall(b"\xf0\xff\xff\xff\xff\xff")
-    try:
+    with pytest.raises(MQTTError) as excinfo:
         decoder.decode(loopback_socket)
-    except MQTTError as exc:
-        assert exc.reason_code == MQTTReasonCode.MalformedPacket
-    else:
-        pytest.fail("Expected MQTTError")
+    assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
 
 
 def test_decoder_empty_reads(mocker):

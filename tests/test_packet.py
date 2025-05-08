@@ -125,12 +125,9 @@ def run_encode_cases(cls, test_data, binary_args=tuple(), transform_args=None):
 
 def run_decode_error_cases(test_data):
     for case in test_data:
-        try:
+        with pytest.raises(MQTTError) as excinfo:
             decode_packet(bytes.fromhex(case["raw"]))
-        except MQTTError as e:
-            assert e.reason_code == case["reason_code"]
-        else:
-            pytest.fail(f"Expected MQTT error: {hex(case['reason_code'])}")
+        assert excinfo.value.reason_code == case["reason_code"]
 
 
 def test_packet_connect_encode(test_data):
@@ -299,18 +296,12 @@ def test_packet_comparison():
 
 def test_packet_decode_packet_errors():
     for case in (b"\x00", b"\x20\x01"):
-        try:
+        with pytest.raises(MQTTError) as excinfo:
             decode_packet(case)
-        except MQTTError as e:
-            assert e.reason_code == MQTTReasonCode.MalformedPacket
-        else:
-            pytest.fail("Expected MQTT error")
+        assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
 
 
 def test_packet_decode_packet_from_parts_errors():
-    try:
+    with pytest.raises(MQTTError) as excinfo:
         decode_packet_from_parts(0, b"\x00")
-    except MQTTError as e:
-        assert e.reason_code == MQTTReasonCode.MalformedPacket
-    else:
-        pytest.fail("Expected MQTT error")
+    assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
