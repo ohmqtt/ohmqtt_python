@@ -23,7 +23,7 @@ def test_decoder_drip_feed(loopback_socket):
     assert out_packet == in_packet
 
 
-@pytest.mark.parametrize("available_bytes", [n for n in range(0, 6)])
+@pytest.mark.parametrize("available_bytes", [n for n in range(6)])
 def test_decoder_drip_partial_closures(available_bytes, loopback_socket):
     """Feed the decoder partial data, then close the socket."""
     loopback_socket.setblocking(False)

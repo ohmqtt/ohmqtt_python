@@ -11,7 +11,6 @@ from .packet import MQTTPublishPacket
 
 class MaxOutboundAliasError(Exception):
     """Exception raised when the maximum number of topic aliases is reached."""
-    pass
 
 
 class AliasPolicy(IntEnum):

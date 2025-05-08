@@ -14,7 +14,6 @@ logger: Final = get_logger("connection.fsm")
 
 class InvalidStateError(Exception):
     """Exception raised when an operation is performed in an invalid state."""
-    pass
 
 
 @dataclass(slots=True, init=False)
@@ -170,7 +169,6 @@ class FSMState:
         """Called when entering the state.
 
         This method must not block."""
-        pass
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:

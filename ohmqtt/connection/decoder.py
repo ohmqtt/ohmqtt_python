@@ -26,12 +26,10 @@ InitVarintDecodeState: Final = VarintDecodeResult(0, 1, False)
 
 class ClosedSocketError(Exception):
     """Exception raised when the socket is closed."""
-    pass
 
 
 class WantReadError(Exception):
     """Indicates that the socket is not ready for reading."""
-    pass
 
 
 @dataclass(slots=True)

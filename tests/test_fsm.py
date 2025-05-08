@@ -10,7 +10,6 @@ from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 
 class _TestError(Exception):
     """Custom exception for testing purposes."""
-    pass
 
 
 class MockState(FSMState):
@@ -22,10 +21,8 @@ class MockState(FSMState):
         return True
 class MockStateA(MockState):
     """This is set up like initial state."""
-    pass
 class MockStateB(MockState):
     """This is an intermediate state."""
-    pass
 class MockStateC(MockState):
     """This state is final."""
     @classmethod

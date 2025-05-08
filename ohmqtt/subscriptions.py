@@ -32,7 +32,6 @@ SubscribeCallback = Callable[["Client", MQTTPublishPacket], None]
 
 class NoMatchingSubscriptionError(Exception):
     """Exception raised when no matching subscription is found when unsubscribing."""
-    pass
 
 
 class RetainPolicy(IntEnum):
