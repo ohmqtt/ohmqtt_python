@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: pipx install nox uv
-    - run: nox
+    - run: nox -p 3.13  # Only test on 3.13 because Windows CI is so slow.
 
   nox_macos:
     runs-on: macos-latest
