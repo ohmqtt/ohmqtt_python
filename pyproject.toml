@@ -10,17 +10,15 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "complexipy>=2.1.1",
+    "complexipy>=2.1.1; platform_system != 'Windows'",
     "cryptography>=44.0.2",
     "mypy>=1.15.0",
-    "pympler>=1.1",
     "pytest>=8.3.5",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
     "pyyaml>=6.0.2",
     "ruff>=0.11.2",
     "typos>=1.31.1",
-    "yappi>=1.6.10",
 ]
 
 [tool.mypy]
