@@ -203,9 +203,9 @@ def test_packet_subscribe_decode_errors(test_data):
 
 def test_packet_suback_encode(test_data):
     run_encode_cases(MQTTSubAckPacket, test_data)
-        
 
-def test_packet_suback_decode_errors(test_data):    
+
+def test_packet_suback_decode_errors(test_data):
     run_decode_error_cases(test_data)
 
 

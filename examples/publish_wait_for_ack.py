@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """This example demonstrates waiting for a published message to be fully acknowledged by the broker
 before proceeding to send the next message.
-  
-It also demonstrates the debug logging output of the client.  
+
+It also demonstrates the debug logging output of the client.
 """
 
 import argparse
@@ -17,7 +17,7 @@ def main(args: argparse.Namespace) -> None:
 
         client.connect(args.address)
         client.wait_for_connect(timeout=5.0)
-        
+
         for n in range(1, 9):
             publish_handle = client.publish("ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=2)
             assert publish_handle.wait_for_ack()

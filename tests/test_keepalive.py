@@ -33,7 +33,7 @@ def test_keepalive_slots():
 def test_keepalive_no_interval(mock_keepalive_time):
     """When interval is 0, keepalive should be inert."""
     keepalive = KeepAlive()
-    
+
     mock_keepalive_time.return_value = 0.0
     keepalive.mark_init()
     assert keepalive.get_next_timeout() is None
@@ -47,7 +47,7 @@ def test_keepalive_no_interval(mock_keepalive_time):
 def test_keepalive_dark_forest(mock_keepalive_time):
     """When interval is set and no data from server, close after a ping."""
     keepalive = KeepAlive()
-    
+
     mock_keepalive_time.return_value = 0.0
     keepalive.mark_init()
     keepalive.keepalive_interval = 10
@@ -73,7 +73,7 @@ def test_keepalive_dark_forest(mock_keepalive_time):
 def test_keepalive_send(mock_keepalive_time):
     """When interval is set and data is sent, no pings should be sent."""
     keepalive = KeepAlive()
-    
+
     mock_keepalive_time.return_value = 0.0
     keepalive.mark_init()
     keepalive.keepalive_interval = 10
@@ -89,7 +89,7 @@ def test_keepalive_send(mock_keepalive_time):
 def test_keepalive_pingpong(mock_keepalive_time):
     """When interval is set now data is sent, exchange pings and pongs."""
     keepalive = KeepAlive()
-    
+
     mock_keepalive_time.return_value = 0.0
     keepalive.mark_init()
     keepalive.keepalive_interval = 10

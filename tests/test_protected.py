@@ -41,7 +41,7 @@ def test_protected_class():
         obj.value
     with pytest.raises(RuntimeError):
         obj.value = 42
-    
+
     with obj as p:
         p.set_value(99)
         assert p.get_value() == 99

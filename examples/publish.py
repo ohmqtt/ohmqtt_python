@@ -15,7 +15,7 @@ def main(args: argparse.Namespace) -> None:
 
         client.wait_for_connect(timeout=5.0)
         print("*** Connected to broker")
-        
+
         for n in range(1, 9):
             client.publish("ohmqtt/examples/publish", b"test_payload: " + str(n).encode(), qos=0)
             print(f"*** Published message {n}")

@@ -27,7 +27,7 @@ class RPCServer:
             print("Request was missing required response topic property")
             return
         response_topic = msg.properties.ResponseTopic
-        
+
         response_props = MQTTPublishProps()
         # If the request includes correlation data, send it back in the response.
         if msg.properties.CorrelationData is not None:

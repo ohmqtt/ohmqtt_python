@@ -18,8 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# WARNING: the code in the gist generates self-signed certs, for the purposes of testing in development. 
-# Do not use these certs in production, or You Will Have A Bad Time. 
+# WARNING: the code in the gist generates self-signed certs, for the purposes of testing in development.
+# Do not use these certs in production, or You Will Have A Bad Time.
 #
 # Caveat emptor
 #
@@ -35,7 +35,7 @@ def generate_selfsigned_cert(hostname, ip_addresses=None, key=None):
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
-    
+
     # Generate our key
     if key is None:
         key = rsa.generate_private_key(
@@ -43,15 +43,15 @@ def generate_selfsigned_cert(hostname, ip_addresses=None, key=None):
             key_size=2048,
             backend=default_backend(),
         )
-    
+
     name = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, hostname)
     ])
- 
-    # best practice seem to be to include the hostname in the SAN, which *SHOULD* mean COMMON_NAME is ignored.    
+
+    # best practice seem to be to include the hostname in the SAN, which *SHOULD* mean COMMON_NAME is ignored.
     alt_names = [x509.DNSName(hostname)]
-    
-    # allow addressing by IP, for when you don't have real DNS (common in most testing scenarios 
+
+    # allow addressing by IP, for when you don't have real DNS (common in most testing scenarios
     if ip_addresses:
         for addr in ip_addresses:
             # openssl wants DNSnames for ips...
@@ -59,9 +59,9 @@ def generate_selfsigned_cert(hostname, ip_addresses=None, key=None):
             # ... whereas golang's crypto/tls is stricter, and needs IPAddresses
             # note: older versions of cryptography do not understand ip_address objects
             alt_names.append(x509.IPAddress(ipaddress.ip_address(addr)))
-    
+
     san = x509.SubjectAlternativeName(alt_names)
-    
+
     # path_len=0 means this cert can only sign itself, not other certs.
     basic_constraints = x509.BasicConstraints(ca=True, path_length=0)
     now = datetime.now(timezone.utc)

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def test_data(request):
     """Load test data from a YAML file.
-    
+
     The YAML file must be named after the test suite, and contain a mapping of test names to test data."""
     suite_name = request.module.__name__.split(".")[-1]
     test_name = request.node.name
@@ -28,7 +28,7 @@ def test_data(request):
 
 class LoopbackSocket:
     """A pair of connected sockets for testing.
-    
+
     Return an instance of this class from a mock to use as a socket in tests."""
     def __init__(self):
         self.reset()
@@ -86,7 +86,7 @@ class LoopbackSocket:
 
     def gettimeout(self, *args, **kwargs):
         return self.mocksock.gettimeout(*args, **kwargs)
-    
+
     @property
     def proto(self) -> int:
         return self.mocksock.proto
@@ -131,9 +131,9 @@ def loopback_socket():
 
 class LoopbackTLSSocket(LoopbackSocket):
     """A pair of connected sockets for testing. The test side is wrapped in an SSL context.
-    
+
     Return an instance of this class from a mock to use as a socket in tests.
-    
+
     You must call test_do_handshake() before using either end of the socket."""
     def __init__(self):
         super().__init__()
