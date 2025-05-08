@@ -59,9 +59,9 @@ class MQTTPropertyId(IntEnum):
 
 # Indicates the result of an operation.
 class MQTTReasonCode(IntEnum):
-    GrantedQoS0 = 0x00
-    NormalDisconnection = 0x00
     Success = 0x00
+    NormalDisconnection = 0x00
+    GrantedQoS0 = 0x00
     GrantedQoS1 = 0x01
     GrantedQoS2 = 0x02
     DisconnectWithWillMessage = 0x04
