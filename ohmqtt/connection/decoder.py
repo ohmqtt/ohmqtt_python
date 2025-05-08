@@ -29,7 +29,7 @@ class ClosedSocketError(Exception):
     pass
 
 
-class WantRead(Exception):
+class WantReadError(Exception):
     """Indicates that the socket is not ready for reading."""
     pass
 
@@ -71,7 +71,7 @@ class IncrementalDecoder:
         try:
             data = sock.recv(1)
         except (BlockingIOError, ssl.SSLWantReadError):
-            raise WantRead("Socket not ready for reading")
+            raise WantReadError("Socket not ready for reading")
         if not data:
             raise ClosedSocketError("Socket closed")
         return data[0]
@@ -96,7 +96,7 @@ class IncrementalDecoder:
         while True:
             try:
                 byte = self._recv_one_byte(sock)
-            except WantRead:
+            except WantReadError:
                 # Not done yet, the socket is neither closed nor ready for reading.
                 # Save the partial state and return.
                 self._state.length = VarintDecodeResult(result, mult, False)
@@ -130,7 +130,7 @@ class IncrementalDecoder:
             self._extract_head(sock)
             self._extract_length(sock)
             self._extract_data(sock)
-        except (BlockingIOError, ssl.SSLWantReadError, WantRead):
+        except (BlockingIOError, ssl.SSLWantReadError, WantReadError):
             # If the socket is open but doesn't have enough data for us, we need to wait for more.
             return None
         except OSError as exc:
