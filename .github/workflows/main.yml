@@ -18,3 +18,11 @@ jobs:
     - uses: actions/checkout@v4
     - run: pipx install nox uv
     - run: nox
+
+  nox_macos:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - run: pipx install nox uv
+    - run: nox
