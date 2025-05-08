@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Final, Sequence
 
 from .base import MQTTPacket
 from ..error import MQTTError
@@ -24,10 +24,10 @@ from ..serialization import (
     decode_string,
 )
 
-HEAD_SUBSCRIBE = (MQTTPacketType.SUBSCRIBE << 4) + 0x02
-HEAD_SUBACK = MQTTPacketType.SUBACK << 4
-HEAD_UNSUBSCRIBE = (MQTTPacketType.UNSUBSCRIBE << 4) + 0x02
-HEAD_UNSUBACK = MQTTPacketType.UNSUBACK << 4
+HEAD_SUBSCRIBE: Final = (MQTTPacketType.SUBSCRIBE << 4) + 0x02
+HEAD_SUBACK: Final = MQTTPacketType.SUBACK << 4
+HEAD_UNSUBSCRIBE: Final = (MQTTPacketType.UNSUBSCRIBE << 4) + 0x02
+HEAD_UNSUBACK: Final = MQTTPacketType.UNSUBACK << 4
 
 
 @dataclass(match_args=True, slots=True)

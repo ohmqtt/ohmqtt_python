@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Final
 
 from .base import MQTTPacket
 from ..error import MQTTError
@@ -28,9 +29,9 @@ from ..serialization import (
 )
 
 
-HEAD_CONNECT = MQTTPacketType.CONNECT << 4
-HEAD_CONNACK = MQTTPacketType.CONNACK << 4
-HEAD_DISCONNECT = MQTTPacketType.DISCONNECT << 4
+HEAD_CONNECT: Final = MQTTPacketType.CONNECT << 4
+HEAD_CONNACK: Final = MQTTPacketType.CONNACK << 4
+HEAD_DISCONNECT: Final = MQTTPacketType.DISCONNECT << 4
 
 
 @dataclass(match_args=True, slots=True)

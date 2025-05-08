@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Final
 
 from .base import MQTTPacket
 from ..error import MQTTError
@@ -15,7 +16,7 @@ from ..serialization import (
     decode_uint8,
 )
 
-HEAD_AUTH = MQTTPacketType.AUTH << 4
+HEAD_AUTH: Final = MQTTPacketType.AUTH << 4
 
 
 @dataclass(match_args=True, slots=True)
