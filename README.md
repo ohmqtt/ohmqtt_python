@@ -1,6 +1,6 @@
 # ΩQTT
 
-*pron. "ohm cue tee tee" or "ohm cutie"*
+*pron. "ohm cue tee tee" or "omega cutie"*
 
 A reliable and persistent MQTT 5.0 client library for Python.
 
