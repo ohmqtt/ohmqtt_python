@@ -1,4 +1,3 @@
-import logging
 import threading
 import time
 
@@ -19,7 +18,6 @@ class MockState(FSMState):
     @classmethod
     def handle(cls, fsm, data, env, params, max_wait):
         with fsm.cond:
-            logging.debug(f"Waiting {max_wait=} in {cls.__name__} handle")
             fsm.cond.wait(max_wait)
         return True
 class MockStateA(MockState):
