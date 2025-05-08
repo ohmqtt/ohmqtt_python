@@ -26,14 +26,13 @@ def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     """Get the address family based on the parsed URL scheme."""
     if HAS_AF_UNIX and parsed.scheme == "unix":
         return AF_UNIX
-    elif parsed.scheme in ("mqtt", "mqtts"):
+    if parsed.scheme in ("mqtt", "mqtts"):
         if not parsed.hostname:
             raise ValueError("Hostname is required for mqtt and mqtts schemes")
         if is_ipv6(parsed.hostname):
             return socket.AF_INET6
         return socket.AF_INET
-    else:
-        raise ValueError(f"Unsupported scheme: {parsed.scheme}")
+    raise ValueError(f"Unsupported scheme: {parsed.scheme}")
 
 
 @dataclass(slots=True, init=False, frozen=True, repr=False)

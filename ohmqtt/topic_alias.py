@@ -71,8 +71,7 @@ class InboundTopicAlias:
                     "Topic alias not found and topic is empty",
                     reason_code=MQTTReasonCode.ProtocolError,
                 )
-            else:
-                return
+            return
         if alias > self.max_alias:
             raise MQTTError(
                 f"Topic alias {alias} out of range",
@@ -124,8 +123,7 @@ class OutboundTopicAlias:
         if self.next_alias > self.max_alias:
             if policy == AliasPolicy.ALWAYS:
                 raise MaxOutboundAliasError("Out of topic aliases and policy is ALWAYS")
-            else:
-                return OutboundLookupResult(0, False)
+            return OutboundLookupResult(0, False)
         alias = self.next_alias
         self.aliases[topic] = alias
         self.next_alias += 1

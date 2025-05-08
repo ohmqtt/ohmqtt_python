@@ -144,7 +144,7 @@ class MQTTHandshakeConnectState(FSMState):
                     logger.error("MQTT CONNECT send returned 0 bytes, closing connection")
                     fsm.change_state(ClosedState)
                     return True
-                elif num_sent < len(env.write_buffer):
+                if num_sent < len(env.write_buffer):
                     # Not all data was sent, wait for writable again.
                     logger.debug("Not all CONNECT data was sent, waiting for writable again: wrote: %d", num_sent)
                     del env.write_buffer[:num_sent]
@@ -195,11 +195,10 @@ class MQTTHandshakeConnAckState(FSMState):
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
             fsm.change_state(ConnectedState)
             return True
-        else:
-            pt = packet.packet_type.name if packet is not None else "None"
-            logger.error("Unexpected '%s' packet while waiting for CONNACK", pt)
-            fsm.change_state(ClosedState)
-            return True
+        pt = packet.packet_type.name if packet is not None else "None"
+        logger.error("Unexpected '%s' packet while waiting for CONNACK", pt)
+        fsm.change_state(ClosedState)
+        return True
 
 
 class ConnectedState(FSMState):

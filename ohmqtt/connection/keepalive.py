@@ -78,8 +78,7 @@ class KeepAlive:
         if self._pong_deadline > 0.0 and now >= self._pong_deadline:
             # No PINGRESP received after sending PINGREQ
             return True
-        else:
-            return False
+        return False
 
     def should_send_ping(self) -> bool:
         """Check if a PINGREQ packet should be sent."""

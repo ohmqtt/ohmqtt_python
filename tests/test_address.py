@@ -10,12 +10,11 @@ def lookup_family(family: str) -> int:
     """Convert family string to socket address family."""
     if family == "AF_INET":
         return socket.AF_INET
-    elif family == "AF_INET6":
+    if family == "AF_INET6":
         return socket.AF_INET6
-    elif family == "AF_UNIX" and HAS_AF_UNIX:
+    if family == "AF_UNIX" and HAS_AF_UNIX:
         return socket.AF_UNIX
-    else:
-        raise ValueError(f"Unsupported address family: {family}")
+    raise ValueError(f"Unsupported address family: {family}")
 
 
 def test_address_valid(test_data):

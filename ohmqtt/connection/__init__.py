@@ -39,9 +39,8 @@ class Connection:
             if any(True for exc in exceptions if isinstance(exc, MQTTError)):
                 # If there is an MQTTError, raise it.
                 raise next(exc for exc in exceptions if isinstance(exc, MQTTError))
-            else:
-                # Otherwise. raise the first exception.
-                raise exceptions[0]
+            # Otherwise. raise the first exception.
+            raise exceptions[0]
 
     def can_send(self) -> bool:
         """Check if the connection is in a state where data can be sent."""

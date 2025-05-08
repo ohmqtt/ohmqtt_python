@@ -69,8 +69,7 @@ class SubscribeHandle:
         subscriptions = self._subscriptions()
         if subscriptions is not None:
             return subscriptions.unsubscribe(**(self._data._asdict()))
-        else:
-            return None
+        return None
 
     def wait_for_ack(self, timeout: float | None = None) -> MQTTSubAckPacket | None:
         """Wait for the subscription acknowledgement.
@@ -81,8 +80,7 @@ class SubscribeHandle:
         subscriptions = self._subscriptions()
         if subscriptions is not None:
             return subscriptions.wait_for_suback(self, timeout=timeout)
-        else:
-            return None
+        return None
 
 
 class UnsubscribeHandle:
@@ -105,8 +103,7 @@ class UnsubscribeHandle:
         subscriptions = self._subscriptions()
         if subscriptions is not None:
             return subscriptions.wait_for_unsuback(self, timeout=timeout)
-        else:
-            return None
+        return None
 
 
 class Subscription(NamedTuple):
@@ -244,8 +241,7 @@ class Subscriptions:
         with self._cond:
             if self._cond.wait_for(lambda: handle.ack is not None or handle.failed, timeout=timeout):
                 return handle.ack
-            else:
-                return None
+            return None
 
     def unsubscribe(
         # This method must have the same signature as the subscribe method.
@@ -290,26 +286,25 @@ class Subscriptions:
             if remaining > 0:
                 # There are still subscriptions left for this topic filter.
                 return None
+            # Nothing left, send UNSUBSCRIBE.
+            del self._subscriptions[topic_filter]
+            packet = MQTTUnsubscribePacket(
+                topics=[join_share(topic_filter, share_name)],
+                packet_id=self._get_next_unsub_packet_id(),
+                properties=MQTTUnsubscribeProps(),
+            )
+            if unsub_user_properties is not None:
+                packet.properties.UserProperty = tuple(unsub_user_properties)
+            try:
+                self._connection.send(packet)
+            except InvalidStateError:
+                logger.debug("Connection closed, UNSUBSCRIBE not sent")
+                self._out_of_session.append(packet)
+                return None
             else:
-                # Nothing left, send UNSUBSCRIBE.
-                del self._subscriptions[topic_filter]
-                packet = MQTTUnsubscribePacket(
-                    topics=[join_share(topic_filter, share_name)],
-                    packet_id=self._get_next_unsub_packet_id(),
-                    properties=MQTTUnsubscribeProps(),
-                )
-                if unsub_user_properties is not None:
-                    packet.properties.UserProperty = tuple(unsub_user_properties)
-                try:
-                    self._connection.send(packet)
-                except InvalidStateError:
-                    logger.debug("Connection closed, UNSUBSCRIBE not sent")
-                    self._out_of_session.append(packet)
-                    return None
-                else:
-                    handle = UnsubscribeHandle(weakref.ref(self))
-                    self._unsub_handles[packet.packet_id] = handle
-                    return handle
+                handle = UnsubscribeHandle(weakref.ref(self))
+                self._unsub_handles[packet.packet_id] = handle
+                return handle
 
     def _get_next_unsub_packet_id(self) -> int:
         """Get the next UNSUBSCRIBE packet identifier."""
@@ -332,8 +327,7 @@ class Subscriptions:
         with self._cond:
             if self._cond.wait_for(lambda: handle.ack is not None or handle.failed, timeout=timeout):
                 return handle.ack
-            else:
-                return None
+            return None
 
     def handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle incoming PUBLISH packets."""

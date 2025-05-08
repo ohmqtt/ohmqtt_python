@@ -27,9 +27,8 @@ class Timeout:
         if max_wait is not None:
             if self.interval is None:
                 return max_wait
-            else:
-                return min(max_wait, self.interval - (now - self._mark))
-        elif self.interval is None:
+            return min(max_wait, self.interval - (now - self._mark))
+        if self.interval is None:
             return None
         return max(0, self.interval - (now - self._mark))
 
