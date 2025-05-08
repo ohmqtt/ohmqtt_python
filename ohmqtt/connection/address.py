@@ -36,7 +36,7 @@ def _get_family(parsed: ParseResult) -> socket.AddressFamily:
         raise ValueError(f"Unsupported scheme: {parsed.scheme}")
 
 
-@dataclass(slots=True, init=False, frozen=True)
+@dataclass(slots=True, init=False, frozen=True, repr=False)
 class Address:
     scheme: str
     family: socket.AddressFamily
@@ -68,7 +68,25 @@ class Address:
         object.__setattr__(self, "username", parsed.username)
         object.__setattr__(self, "password", parsed.password)
 
+    def __repr__(self) -> str:
+        """Return a string representation of the address."""
+        if not hasattr(self, "scheme"):
+            # Handle the empty case.
+            return "Address()"
+        userpw = ""
+        if self.username:
+            userpw = self.username
+        if self.password:
+            userpw += ":<hidden>"
+        if userpw:
+            host = f"{userpw}@{self.host}"
+        else:
+            host = self.host
+        if self.scheme != "unix":
+            host = f"{host}:{self.port}"
+        return f"Address({self.scheme}://{host})"
+
     @property
     def use_tls(self) -> bool:
         """Check if the address uses TLS."""
-        return self.scheme == "mqtts"
+        return getattr(self, "scheme", None) == "mqtts"

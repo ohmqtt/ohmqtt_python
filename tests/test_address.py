@@ -30,6 +30,9 @@ def test_address_valid(test_data):
         assert address.username == case.get("username", None), f"username for {case_addr}"
         assert address.password == case.get("password", None), f"password for {case_addr}"
         assert address.use_tls is case.get("use_tls", False), f"use_tls for {case_addr}"
+        assert repr(address)
+        if case.get("password", None) is not None:
+            assert case["password"] not in repr(address), f"password not hidden for {case_addr}"
 
 
 @pytest.mark.skipif(
@@ -58,3 +61,5 @@ def test_address_empty():
     address = Address("")
     for attr in Address.__slots__:
         assert not hasattr(address, attr), attr
+    assert not address.use_tls
+    repr(address)
