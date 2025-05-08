@@ -34,13 +34,13 @@ from ..serialization import (
 
 
 HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
-HEAD_PUBACKS: Final[Mapping[int, int]] = {
+HEAD_PUBACKS: Final[Mapping[MQTTPacketType, int]] = {
     MQTTPacketType.PUBACK: MQTTPacketType.PUBACK << 4,
     MQTTPacketType.PUBREC: MQTTPacketType.PUBREC << 4,
     MQTTPacketType.PUBREL: (MQTTPacketType.PUBREL << 4) + 0x02,
     MQTTPacketType.PUBCOMP: MQTTPacketType.PUBCOMP << 4,
 }
-FLAGS_PUBACKS: Final[Mapping[int, int]] = {
+FLAGS_PUBACKS: Final[Mapping[MQTTPacketType, int]] = {
     MQTTPacketType.PUBACK: 0,
     MQTTPacketType.PUBREC: 0,
     MQTTPacketType.PUBREL: 2,
