@@ -58,11 +58,13 @@ You're not using Python because it's fast, but it can't hurt.
 
 ## Development
 
-* uv
-* nox
+This project uses `nox` and `uv` to run the tests against all supported Python versions.
 
-### Running the Tests
+To do all of this in a venv:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install nox uv
 nox
 ```
