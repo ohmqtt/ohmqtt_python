@@ -3,6 +3,7 @@ import weakref
 
 from ohmqtt.client import Client
 from ohmqtt.connection import Connection, MessageHandlers, InvalidStateError
+from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
     MQTTPublishPacket,
     MQTTSubscribePacket,
@@ -102,7 +103,7 @@ def test_subscriptions_wait_for_suback(mock_handlers, mock_client, mock_connecti
     # Simulate receiving a SUBACK packet
     suback_packet = MQTTSubAckPacket(
         packet_id=1,
-        reason_codes=[0],
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
         properties=MQTTSubscribeProps(),
     )
     subscriptions.handle_suback(suback_packet)
@@ -167,7 +168,7 @@ def test_subscriptions_multi_subscribe(mock_handlers, mock_client, mock_connecti
 
     suback_packet = MQTTSubAckPacket(
         packet_id=1,
-        reason_codes=[0],
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
         properties=MQTTSubscribeProps(),
     )
     subscriptions.handle_suback(suback_packet)

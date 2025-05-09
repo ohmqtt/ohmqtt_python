@@ -353,8 +353,8 @@ class Subscriptions:
 
     def handle_suback(self, packet: MQTTSubAckPacket) -> None:
         """Handle incoming SUBACK packets."""
-        if any(True for code in packet.reason_codes if code >= 0x80):
-            errs = [hex(code) for code in packet.reason_codes if code >= 0x80]
+        if any(True for code in packet.reason_codes if code.is_error()):
+            errs = [hex(code) for code in packet.reason_codes if code.is_error()]
             logger.error("Errors found in SUBACK return: %s", errs)
         with self._cond:
             handle = self._sub_handles.pop(packet.packet_id, None)
@@ -364,8 +364,8 @@ class Subscriptions:
 
     def handle_unsuback(self, packet: MQTTUnsubAckPacket) -> None:
         """Handle incoming UNSUBACK packets."""
-        if any(True for code in packet.reason_codes if code >= 0x80):
-            errs = [hex(code) for code in packet.reason_codes if code >= 0x80]
+        if any(True for code in packet.reason_codes if code.is_error()):
+            errs = [hex(code) for code in packet.reason_codes if code.is_error()]
             logger.error("Errors found in UNSUBACK return: %s", errs)
         with self._cond:
             handle = self._unsub_handles.pop(packet.packet_id, None)

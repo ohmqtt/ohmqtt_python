@@ -147,8 +147,8 @@ class Session:
 
     def handle_connack(self, packet: MQTTConnAckPacket) -> None:
         """Handle a connection open event."""
-        if packet.reason_code >= 0x80:
-            logger.error("Connection failed: %s", packet.reason_code)
+        if packet.reason_code.is_error():
+            logger.error("CONNACK error code: %s", packet.reason_code)
             raise MQTTError("Connection failed", packet.reason_code)
         with self._lock:
             self.inflight = 0
@@ -173,7 +173,7 @@ class Session:
 
     def handle_puback(self, packet: MQTTPubAckPacket) -> None:
         """Handle a PUBACK packet from the server."""
-        if packet.reason_code >= 0x80:
+        if packet.reason_code.is_error():
             logger.error("Received PUBACK with error code: %s", packet.reason_code)
         with self._lock:
             self.persistence.ack(packet.packet_id)
@@ -182,7 +182,7 @@ class Session:
 
     def handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
-        if packet.reason_code >= 0x80:
+        if packet.reason_code.is_error():
             logger.error("Received PUBREC with error code: %s", packet.reason_code)
         with self._lock:
             self.persistence.ack(packet.packet_id)
@@ -191,14 +191,14 @@ class Session:
 
     def handle_pubrel(self, packet: MQTTPubRelPacket) -> None:
         """Handle a PUBREL packet from the server."""
-        if packet.reason_code >= 0x80:
+        if packet.reason_code.is_error():
             logger.error("Received PUBREL with error code: %s", packet.reason_code)
         comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
         self._send_packet(comp_packet)
 
     def handle_pubcomp(self, packet: MQTTPubCompPacket) -> None:
         """Handle a PUBCOMP packet from the server."""
-        if packet.reason_code >= 0x80:
+        if packet.reason_code.is_error():
             logger.error("Received PUBCOMP with error code: %s", packet.reason_code)
         with self._lock:
             self.persistence.ack(packet.packet_id)

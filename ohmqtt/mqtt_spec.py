@@ -104,3 +104,7 @@ class MQTTReasonCode(IntEnum):
     MaximumConnectTime = 0xA0
     SubscriptionIdentifiersNotSupported = 0xA1
     WildcardSubscriptionsNotSupported = 0xA2
+
+    def is_error(self) -> bool:
+        """Check if the reason code indicates an error."""
+        return self >= 0x80
