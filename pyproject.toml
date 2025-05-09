@@ -60,7 +60,7 @@ select = [
     "SLOT",
     "W",
     "N",
-    "UP037",
+    "UP037", "UP006",
     "Q",
 ]
 ignore = ["PLC0414", "PT011"]
