@@ -51,6 +51,7 @@ select = [
     "LOG",
     "PERF",
     "PIE",
+    "PLC", "PLE", "PLW",
     "PT",
     "PTH",
     "RET",
@@ -61,10 +62,10 @@ select = [
     "N",
     "Q",
 ]
-ignore = ["PT011"]
+ignore = ["PLC0414", "PT011"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["E731", "PERF"]
+"tests/**/*.py" = ["E731", "PERF", "PL"]
 
 [tool.pytest.ini_options]
 filterwarnings = [
