@@ -61,7 +61,7 @@ def test_decoder_bad_length(bad_data, loopback_socket):
     loopback_socket.setblocking(False)
     decoder = IncrementalDecoder()
     loopback_socket.test_sendall(bad_data)
-    with pytest.raises(MQTTError) as excinfo:
+    with pytest.raises(MQTTError, match=r"Varint overflow") as excinfo:
         decoder.decode(loopback_socket)
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
 
