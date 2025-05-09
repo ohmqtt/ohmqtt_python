@@ -65,7 +65,7 @@ class InterruptibleSelector(Protected):
         if self._closed:
             raise RuntimeError("Selector is closed")
         self._in_select = True
-        _rlist = [self._interrupt_r] + rlist
+        _rlist = [self._interrupt_r, *rlist]
         self.release()
         try:
             readable, writable, exc = select.select(_rlist, wlist, xlist, timeout)
