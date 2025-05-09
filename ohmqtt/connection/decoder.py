@@ -33,8 +33,8 @@ class WantReadError(Exception):
 
 
 @dataclass(slots=True)
-class DecoderState:
-    """State of the decoder.
+class IncrementalDecoder:
+    """Incremental decoder for MQTT messages coming in from a socket.
 
     Attributes:
         head: The first byte of the packet.
@@ -45,20 +45,11 @@ class DecoderState:
     length: VarintDecodeResult = field(default=InitVarintDecodeState, init=False)
     data: bytearray = field(init=False, default_factory=bytearray)
 
-
-class IncrementalDecoder:
-    """Incremental decoder for MQTT messages coming in from a socket."""
-    __slots__ = ("_state",)
-
-    def __init__(self) -> None:
-        self._state: DecoderState = DecoderState()
-        self.reset()
-
     def reset(self) -> None:
         """Reset the decoder state."""
-        self._state.head = -1
-        self._state.length = InitVarintDecodeState
-        self._state.data.clear()
+        self.head = -1
+        self.length = InitVarintDecodeState
+        self.data.clear()
 
     def _recv_one_byte(self, sock: socket.socket | ssl.SSLSocket) -> int:
         """Receive one byte from the socket.
@@ -76,20 +67,20 @@ class IncrementalDecoder:
 
     def _extract_head(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Extract the head byte of the next packet from the socket, if needed."""
-        if self._state.head != -1:
+        if self.head != -1:
             return
-        self._state.head = self._recv_one_byte(sock)
+        self.head = self._recv_one_byte(sock)
 
     def _extract_length(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Incrementally decode a variable length integer from a socket, if needed.
 
         Raises WantRead if the socket is not ready for reading."""
         # See ohmqtt.serialization.decode_varint for a cleaner implementation.
-        assert self._state.head != -1  # We shouldn't be here unless we have a head byte.
-        if self._state.length.complete:
+        assert self.head != -1  # We shouldn't be here unless we have a head byte.
+        if self.length.complete:
             return
-        result = self._state.length.value
-        mult = self._state.length.multiplier
+        result = self.length.value
+        mult = self.length.multiplier
         sz = 0
         while True:
             try:
@@ -97,7 +88,7 @@ class IncrementalDecoder:
             except WantReadError:
                 # Not done yet, the socket is neither closed nor ready for reading.
                 # Save the partial state and return.
-                self._state.length = VarintDecodeResult(result, mult, False)
+                self.length = VarintDecodeResult(result, mult, False)
                 raise
             sz += 1
             result += byte % 0x80 * mult
@@ -105,18 +96,18 @@ class IncrementalDecoder:
                 raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
             if byte < 0x80:
                 # We have the complete varint.
-                self._state.length = VarintDecodeResult(result, mult, True)
+                self.length = VarintDecodeResult(result, mult, True)
                 return
             mult *= 0x80
 
     def _extract_data(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Extract all data after the packet length from the socket, if needed."""
-        assert self._state.length.complete  # We shouldn't be here unless we have a complete length.
-        while len(self._state.data) < self._state.length.value:
-            data = sock.recv(self._state.length.value - len(self._state.data))
+        assert self.length.complete  # We shouldn't be here unless we have a complete length.
+        while len(self.data) < self.length.value:
+            data = sock.recv(self.length.value - len(self.data))
             if not data:
                 raise ClosedSocketError("Socket closed")
-            self._state.data.extend(data)
+            self.data.extend(data)
 
     def decode(self, sock: socket.socket | ssl.SSLSocket) -> MQTTPacket | None:
         """Decode a single packet straight from the socket.
@@ -135,8 +126,8 @@ class IncrementalDecoder:
             raise ClosedSocketError("Socket closed") from exc
 
         # We have a complete packet, decode it and clear the read buffer.
-        packet_head = self._state.head
-        packet_data = memoryview(self._state.data)
+        packet_head = self.head
+        packet_data = memoryview(self.data)
         packet_data.toreadonly()
         try:
             return decode_packet_from_parts(packet_head, packet_data)

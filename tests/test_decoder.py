@@ -6,6 +6,16 @@ from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import MQTTPublishPacket
 
 
+def test_decoder_defaults():
+    """reset() should set the decoder to its default state."""
+    decoder = IncrementalDecoder()
+    decoder2 = IncrementalDecoder()
+    decoder2.reset()
+    assert decoder.head == decoder2.head
+    assert decoder.length == decoder2.length
+    assert decoder.data == decoder2.data
+
+
 def test_decoder_drip_feed(loopback_socket):
     """Feed the decoder one byte at a time."""
     loopback_socket.setblocking(False)
