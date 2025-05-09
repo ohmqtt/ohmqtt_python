@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import sys
-from typing import ClassVar, Final, Mapping, Type, TypeAlias
+from typing import ClassVar, Final, Mapping, TypeAlias
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -127,7 +127,7 @@ def _encode_pubacklike(packet: PubAckLikeT) -> bytes:
     return bytes(encoded)
 
 
-def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> tuple[int, int, PubAckLikePropsT]:
+def _decode_pubacklike(cls: type[PubAckLikeT], flags: int, data: memoryview) -> tuple[int, int, PubAckLikePropsT]:
     """Decode a PUBACK, PUBREC, PUBREL, or PUBCOMP packet."""
     if flags != FLAGS_PUBACKS[cls.packet_type]:
         raise MQTTError(f"Invalid flags, expected {FLAGS_PUBACKS[cls.packet_type]} but got {flags}", MQTTReasonCode.MalformedPacket)
@@ -163,7 +163,7 @@ def _decode_pubacklike(cls: Type[PubAckLikeT], flags: int, data: memoryview) -> 
 @dataclass(match_args=True, slots=True)
 class MQTTPubAckPacket(MQTTPacket):
     packet_type = MQTTPacketType.PUBACK
-    props_type: ClassVar[Type[MQTTProperties]] = MQTTPubAckProps
+    props_type: ClassVar[type[MQTTProperties]] = MQTTPubAckProps
     packet_id: int
     reason_code: MQTTReasonCode = MQTTReasonCode.Success
     properties: MQTTPubAckProps = field(default_factory=MQTTPubAckProps)

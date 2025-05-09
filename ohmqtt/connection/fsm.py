@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import threading
-from typing import ClassVar, Final, Sequence, Type
+from typing import ClassVar, Final, Sequence
 
 from .selector import InterruptibleSelector
 from .timeout import Timeout
@@ -20,10 +20,10 @@ class InvalidStateError(Exception):
 class FSM:
     """Threadsafe Finite State Machine."""
     env: StateEnvironment
-    previous_state: Type[FSMState]
-    requested_state: Type[FSMState]
-    state: Type[FSMState]
-    error_state: Type[FSMState]
+    previous_state: type[FSMState]
+    requested_state: type[FSMState]
+    state: type[FSMState]
+    error_state: type[FSMState]
     lock: threading.RLock
     cond: threading.Condition
     selector: InterruptibleSelector
@@ -32,7 +32,7 @@ class FSM:
     _state_requested: bool
     _state_data: StateData
 
-    def __init__(self, env: StateEnvironment, init_state: Type[FSMState], error_state: Type[FSMState]) -> None:
+    def __init__(self, env: StateEnvironment, init_state: type[FSMState], error_state: type[FSMState]) -> None:
         self.env = env
         self.previous_state = init_state
         self.requested_state = init_state
@@ -51,12 +51,12 @@ class FSM:
         with self.lock:
             self.params = params
 
-    def get_state(self) -> Type[FSMState]:
+    def get_state(self) -> type[FSMState]:
         """Get the current state."""
         with self.lock:
             return self.state
 
-    def wait_for_state(self, states: Sequence[Type[FSMState]], timeout: float | None = None) -> bool:
+    def wait_for_state(self, states: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Wait for a specific state to be reached.
 
         Returns True if the state is reached, False if the timeout is reached."""
@@ -65,7 +65,7 @@ class FSM:
                 return True
             return self.cond.wait_for(lambda: self.state in states, timeout)
 
-    def change_state(self, state: Type[FSMState]) -> None:
+    def change_state(self, state: type[FSMState]) -> None:
         """Change to a new state.
 
         This method must only be called from within a state."""
@@ -79,7 +79,7 @@ class FSM:
             self._state_changed = True
             self.cond.notify_all()
 
-    def request_state(self, state: Type[FSMState]) -> None:
+    def request_state(self, state: type[FSMState]) -> None:
         """Request a state change from outside the FSM."""
         with self.cond:
             if state not in self.state.transitions_to or self.state not in state.can_request_from:
@@ -134,7 +134,7 @@ class FSM:
                     self.cond.notify_all()
             raise
 
-    def loop_until_state(self, targets: Sequence[Type[FSMState]], timeout: float | None = None) -> bool:
+    def loop_until_state(self, targets: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Run the state machine until a specific state(s) has been entered.
 
         Return True if a target state is reached, False if another final state was finished."""
@@ -157,8 +157,8 @@ class FSM:
 
 class FSMState:
     """A finite state in the FSM."""
-    can_request_from: ClassVar[Sequence[Type[FSMState]]] = ()
-    transitions_to: ClassVar[Sequence[Type[FSMState]]] = ()
+    can_request_from: ClassVar[Sequence[type[FSMState]]] = ()
+    transitions_to: ClassVar[Sequence[type[FSMState]]] = ()
 
     def __init__(self) -> None:
         raise TypeError("Do not instantiate FSMStates")
