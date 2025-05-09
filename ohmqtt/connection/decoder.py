@@ -54,7 +54,7 @@ class IncrementalDecoder:
     def _recv_one_byte(self, sock: socket.socket | ssl.SSLSocket) -> int:
         """Receive one byte from the socket.
 
-        Raises WantRead if the socket is not ready for reading.
+        Raises WantReadError if the socket is not ready for reading.
 
         Raises ClosedSocketError if the socket is closed."""
         try:
@@ -74,7 +74,7 @@ class IncrementalDecoder:
     def _extract_length(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Incrementally decode a variable length integer from a socket, if needed.
 
-        Raises WantRead if the socket is not ready for reading."""
+        Raises WantReadError if the socket is not ready for reading."""
         # See ohmqtt.serialization.decode_varint for a cleaner implementation.
         assert self.head != -1  # We shouldn't be here unless we have a head byte.
         if self.length.complete:
