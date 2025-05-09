@@ -56,6 +56,7 @@ select = [
     "PT",
     "PTH",
     "RET",
+    "RUF",
     "SIM105", "SIM107", "SIM300",
     "SLF",
     "SLOT",
