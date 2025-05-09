@@ -82,23 +82,23 @@ class IncrementalDecoder:
         result = self.length.value
         mult = self.length.multiplier
         sz = 0
-        while True:
-            try:
+        try:
+            while True:
                 byte = self._recv_one_byte(sock)
-            except WantReadError:
-                # Not done yet, the socket is neither closed nor ready for reading.
-                # Save the partial state and return.
-                self.length = VarintDecodeResult(result, mult, False)
-                raise
-            sz += 1
-            result += byte % 0x80 * mult
-            if result > MAX_VARINT:
-                raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
-            if byte < 0x80:
-                # We have the complete varint.
-                self.length = VarintDecodeResult(result, mult, True)
-                return
-            mult *= 0x80
+                sz += 1
+                result += byte % 0x80 * mult
+                if result > MAX_VARINT:
+                    raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
+                if byte < 0x80:
+                    # We have the complete varint.
+                    self.length = VarintDecodeResult(result, mult, True)
+                    return
+                mult *= 0x80
+        except WantReadError:
+            # Not done yet, the socket is neither closed nor ready for reading.
+            # Save the partial state and return.
+            self.length = VarintDecodeResult(result, mult, False)
+            raise
 
     def _extract_data(self, sock: socket.socket | ssl.SSLSocket) -> None:
         """Extract all data after the packet length from the socket, if needed."""
