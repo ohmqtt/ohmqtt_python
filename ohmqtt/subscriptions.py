@@ -54,7 +54,7 @@ class SubscribeHandle:
     ack: MQTTSubAckPacket | None
     failed: bool
     _data: Subscription
-    _subscriptions: weakref.ReferenceType["Subscriptions"]
+    _subscriptions: weakref.ReferenceType[Subscriptions]
 
     def __init__(self, data: Subscription, subscriptions: weakref.ReferenceType[Subscriptions]) -> None:
         self._data = data
@@ -89,7 +89,7 @@ class UnsubscribeHandle:
 
     ack: MQTTUnsubAckPacket | None
     failed: bool
-    _subscriptions: weakref.ReferenceType["Subscriptions"]
+    _subscriptions: weakref.ReferenceType[Subscriptions]
 
     def __init__(self, subscriptions: weakref.ReferenceType[Subscriptions]) -> None:
         self.ack = None
