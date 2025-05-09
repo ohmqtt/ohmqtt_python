@@ -29,9 +29,9 @@ Set an alias policy when publishing a message and a topic alias will be generate
 ΩQTT is built on a toolkit for efficiently serializing MQTT control messages.
 Use it to build your own custom implementation, or to serialize your own payloads.
 
-### Compatibility
+### Portability
 
-ΩQTT is tested on Linux and Windows with CPython versions 3.10-3.13.
+ΩQTT is tested on Linux, Windows and MacOS with CPython versions 3.10-3.13.
 It should work on any platform that CPython runs on.
 
 ### Reliability
