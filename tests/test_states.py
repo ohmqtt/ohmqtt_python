@@ -551,9 +551,10 @@ def test_states_connected_keepalive(max_wait, callbacks, state_data, env, mock_k
     callbacks.assert_not_called()
 
 
-@pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("block_exc", [ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("fatal_exc", [BrokenPipeError, ConnectionResetError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_send_errors(max_wait, exc, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+def test_states_connected_send_errors(max_wait, block_exc, fatal_exc, callbacks, state_data, env, mock_read, mock_select, mock_socket):
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
@@ -564,7 +565,7 @@ def test_states_connected_send_errors(max_wait, exc, callbacks, state_data, env,
     mock_read.return_value = False
     mock_select.return_value = ([mock_socket], [mock_socket], [])
 
-    mock_socket.send.side_effect = exc("TEST")
+    mock_socket.send.side_effect = block_exc("TEST")
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
     mock_read.assert_called_once()
@@ -572,7 +573,7 @@ def test_states_connected_send_errors(max_wait, exc, callbacks, state_data, env,
     assert fsm.state is ConnectedState
 
     mock_select.return_value = ([mock_socket], [mock_socket], [])
-    mock_socket.send.side_effect = BrokenPipeError("TEST")
+    mock_socket.send.side_effect = fatal_exc("TEST")
     ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     mock_read.assert_not_called()
