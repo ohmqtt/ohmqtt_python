@@ -20,7 +20,7 @@ class RPCServer:
     """A simple stateless RPC server."""
     def handle_request(self, client: Client, msg: MQTTPublishPacket) -> None:
         """Handle incoming RPC requests."""
-        print(f"*** Received RPC request: {str(msg)}")
+        print(f"*** Received RPC request: {msg!s}")
 
         # Find the response topic in the message properties.
         if not msg.properties.ResponseTopic:

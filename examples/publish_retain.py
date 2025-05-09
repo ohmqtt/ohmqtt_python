@@ -28,7 +28,7 @@ def main(args: argparse.Namespace) -> None:
         assert msg.payload == b"test_payload"
         assert msg.qos == 1
         assert msg.retain
-        print(f"*** Received retained message: {str(msg)}")
+        print(f"*** Received retained message: {msg!s}")
 
         client.disconnect()
         client.wait_for_disconnect(timeout=5.0)
