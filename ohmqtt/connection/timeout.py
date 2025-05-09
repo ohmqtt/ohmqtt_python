@@ -5,7 +5,7 @@ _time = time.monotonic
 
 class Timeout:
     """A simple timer class for getting timeouts since the last event."""
-    __slots__ = ("interval", "_mark")
+    __slots__ = ("_mark", "interval")
 
     def __init__(self, interval: float | None = None) -> None:
         self.interval = interval

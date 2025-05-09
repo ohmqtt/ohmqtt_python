@@ -77,9 +77,9 @@ class SessionProtected(Protected):
 
 class Session:
     __slots__ = (
-        "server_receive_maximum",
         "connection",
         "protected",
+        "server_receive_maximum",
     )
 
     def __init__(

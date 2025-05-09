@@ -24,7 +24,7 @@ logger: Final = get_logger("connection")
 
 class Connection:
     """Interface for the MQTT connection."""
-    __slots__ = ("fsm", "_handlers")
+    __slots__ = ("_handlers", "fsm")
 
     def __init__(self, handlers: MessageHandlers) -> None:
         state_env = StateEnvironment(packet_callback=self.handle_packet)

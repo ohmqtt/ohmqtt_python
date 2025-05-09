@@ -18,7 +18,7 @@ class InterruptibleSelector(Protected):
     """A select() method which can be interrupted by a call to interrupt().
 
     This can be used to interrupt a blocking select() call from another thread."""
-    __slots__ = ("_closed", "_in_select", "_interrupted", "_interrupt_r", "_interrupt_w")
+    __slots__ = ("_closed", "_in_select", "_interrupt_r", "_interrupt_w", "_interrupted")
 
     def __init__(self, lock: LockLike | None = None) -> None:
         super().__init__(lock if lock is not None else threading.RLock())

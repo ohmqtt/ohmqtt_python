@@ -44,7 +44,7 @@ class UnreliablePublishHandle(PublishHandle):
 
 class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
-    __slots__ = ("_cond", "acked", "__weakref__")
+    __slots__ = ("__weakref__", "_cond", "acked")
 
     def __init__(self, cond: Condition) -> None:
         self._cond = cond

@@ -21,11 +21,11 @@ logger: Final = get_logger("client")
 class Client:
     """High level interface for the MQTT client."""
     __slots__ = (
+        "__weakref__",
         "_thread",
         "connection",
-        "subscriptions",
         "session",
-        "__weakref__",
+        "subscriptions",
     )
 
     def __init__(self, db_path: str = "", *, db_fast: bool = False) -> None:

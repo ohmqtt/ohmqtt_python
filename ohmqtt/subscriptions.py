@@ -49,7 +49,7 @@ class RetainPolicy(IntEnum):
 
 class SubscribeHandle:
     """Represents a subscription to a topic filter with a callback."""
-    __slots__ = ("ack", "failed", "_data", "_subscriptions")
+    __slots__ = ("_data", "_subscriptions", "ack", "failed")
 
     ack: MQTTSubAckPacket | None
     failed: bool
@@ -85,7 +85,7 @@ class SubscribeHandle:
 
 class UnsubscribeHandle:
     """Represents an unsubscribe request which was sent to the broker."""
-    __slots__ = ("ack", "failed", "_subscriptions")
+    __slots__ = ("_subscriptions", "ack", "failed")
 
     ack: MQTTUnsubAckPacket | None
     failed: bool
@@ -136,17 +136,17 @@ class Subscription(NamedTuple):
 class Subscriptions:
     """Container for MQTT subscriptions and their callbacks."""
     __slots__ = (
-        "_connection",
+        "__weakref__",
         "_client",
         "_cond",
-        "_topic_alias",
-        "_subscriptions",
-        "_sub_handles",
-        "_unsub_handles",
+        "_connection",
         "_next_sub_packet_id",
         "_next_unsub_packet_id",
         "_out_of_session",
-        "__weakref__",
+        "_sub_handles",
+        "_subscriptions",
+        "_topic_alias",
+        "_unsub_handles",
     )
 
     def __init__(
