@@ -7,7 +7,6 @@ from ..error import MQTTError
 from ..logger import get_logger
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import decode_packet_from_parts, MQTTPacket
-from ..serialization import MAX_VARINT
 
 logger: Final = get_logger("connection.decoder")
 
@@ -81,19 +80,16 @@ class IncrementalDecoder:
             return
         result = self.length.value
         mult = self.length.multiplier
-        sz = 0
         try:
-            while True:
+            while mult < 0x200000:  # This magic is the mult value after pulling 4 bytes.
                 byte = self._recv_one_byte(sock)
-                sz += 1
                 result += byte % 0x80 * mult
-                if result > MAX_VARINT:
-                    raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
                 if byte < 0x80:
                     # We have the complete varint.
                     self.length = VarintDecodeResult(result, mult, True)
                     return
                 mult *= 0x80
+            raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
         except WantReadError:
             # Not done yet, the socket is neither closed nor ready for reading.
             # Save the partial state and return.

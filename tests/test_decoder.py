@@ -52,11 +52,15 @@ def test_decoder_drip_partial_closures(available_bytes, loopback_socket):
         decoder.decode(loopback_socket)
 
 
-def test_decoder_bad_length(loopback_socket):
+@pytest.mark.parametrize("bad_data", [
+    b"\xf0\x80\x80\x80\x80",
+    b"\xf0\xff\xff\xff\xff",
+])
+def test_decoder_bad_length(bad_data, loopback_socket):
     """Feed the decoder a bad varint length."""
     loopback_socket.setblocking(False)
     decoder = IncrementalDecoder()
-    loopback_socket.test_sendall(b"\xf0\xff\xff\xff\xff\xff")
+    loopback_socket.test_sendall(bad_data)
     with pytest.raises(MQTTError) as excinfo:
         decoder.decode(loopback_socket)
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
