@@ -71,7 +71,7 @@ class Client:
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
             tcp_nodelay=tcp_nodelay,
-            tls_context=tls_context if tls_context is not None else ssl.create_default_context(),
+            tls_context=tls_context,
             tls_hostname=tls_hostname,
             will_topic=will_topic,
             will_payload=will_payload,

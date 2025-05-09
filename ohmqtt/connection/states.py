@@ -78,7 +78,8 @@ class TLSHandshakeState(FSMState):
     """Performing TLS handshake with the broker."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        state_data.sock = params.tls_context.wrap_socket(
+        tls_context = params.tls_context if params.tls_context else ssl.create_default_context()
+        state_data.sock = tls_context.wrap_socket(
             state_data.sock,
             server_hostname=params.tls_hostname if params.tls_hostname else params.address.host,
             do_handshake_on_connect=False,

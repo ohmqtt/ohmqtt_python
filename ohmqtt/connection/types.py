@@ -61,7 +61,7 @@ class ConnectParams:
     reconnect_delay: int = 0
     keepalive_interval: int = 0
     tcp_nodelay: bool = True
-    tls_context: ssl.SSLContext = field(default_factory=ssl.create_default_context)
+    tls_context: ssl.SSLContext | None = None
     tls_hostname: str = ""
     protocol_version: int = 5
     clean_start: bool = False
