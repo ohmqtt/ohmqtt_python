@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import sys
 from types import SimpleNamespace
-from typing import Callable, Final, Mapping, NamedTuple, Sequence, TypeAlias, TypedDict
+from typing import Callable, cast, Final, Mapping, NamedTuple, Sequence, TypeAlias
 
 if sys.version_info >= (3, 11):
     from typing import dataclass_transform, Self
 else:
     from typing_extensions import dataclass_transform, Self
 
-from .mqtt_spec import MQTTPropertyId
+from .error import MQTTError
+from .mqtt_spec import MQTTPropertyId, MQTTReasonCode
 from .serialization import (
     encode_bool,
     decode_bool,
@@ -30,84 +31,54 @@ from .serialization import (
 )
 
 
-class MQTTPropertyDict(TypedDict, total=False):
-    """Internal representation of MQTT properties."""
-    PayloadFormatIndicator: int
-    MessageExpiryInterval: int
-    ContentType: str
-    ResponseTopic: str
-    CorrelationData: bytes
-    SubscriptionIdentifier: set[int]
-    SessionExpiryInterval: int
-    AssignedClientIdentifier: str
-    ServerKeepAlive: int
-    AuthenticationMethod: str
-    AuthenticationData: bytes
-    RequestProblemInformation: bool
-    WillDelayInterval: int
-    RequestResponseInformation: bool
-    ResponseInformation: str
-    ServerReference: str
-    ReasonString: str
-    ReceiveMaximum: int
-    TopicAliasMaximum: int
-    TopicAlias: int
-    MaximumQoS: int
-    RetainAvailable: bool
-    UserProperty: Sequence[tuple[str, str]]
-    MaximumPacketSize: int
-    WildcardSubscriptionAvailable: bool
-    SubscriptionIdentifierAvailable: bool
-    SharedSubscriptionAvailable: bool
-
-
-@dataclass_transform()
+@dataclass_transform(kw_only_default=True)
 class MQTTPropertiesBase(SimpleNamespace):
     """Represents MQTT packet properties."""
     def __len__(self) -> int:
         return len(self.__dict__)
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}({', '.join(f'{key}={value}' for key, value in self.__dict__.items())})"
 
-    def __str__(self) -> str:
-        return self.__repr__()
+
+BoolFieldT: TypeAlias = bool
+IntFieldT: TypeAlias = int
+StrFieldT: TypeAlias = str
+BytesFieldT: TypeAlias = bytes
+SetIntFieldT: TypeAlias = set[int]
+SeqStrPairFieldT: TypeAlias = Sequence[tuple[str, str]]
+AnyFieldT: TypeAlias = IntFieldT | StrFieldT | BytesFieldT | BoolFieldT | SetIntFieldT | SeqStrPairFieldT
+
+PayloadFormatIndicatorT: TypeAlias = IntFieldT | None
+MessageExpiryIntervalT: TypeAlias = IntFieldT | None
+ContentTypeT: TypeAlias = StrFieldT | None
+ResponseTopicT: TypeAlias = StrFieldT | None
+CorrelationDataT: TypeAlias = BytesFieldT | None
+SubscriptionIdentifierT: TypeAlias = SetIntFieldT | None
+TopicAliasT: TypeAlias = IntFieldT | None
+SessionExpiryIntervalT: TypeAlias = IntFieldT | None
+AssignedClientIdentifierT: TypeAlias = StrFieldT | None
+ServerKeepAliveT: TypeAlias = IntFieldT | None
+AuthenticationMethodT: TypeAlias = StrFieldT | None
+AuthenticationDataT: TypeAlias = BytesFieldT | None
+RequestProblemInformationT: TypeAlias = BoolFieldT | None
+WillDelayIntervalT: TypeAlias = IntFieldT | None
+RequestResponseInformationT: TypeAlias = BoolFieldT | None
+ResponseInformationT: TypeAlias = StrFieldT | None
+ServerReferenceT: TypeAlias = StrFieldT | None
+ReasonStringT: TypeAlias = StrFieldT | None
+ReceiveMaximumT: TypeAlias = IntFieldT | None
+TopicAliasMaximumT: TypeAlias = IntFieldT | None
+MaximumQoST: TypeAlias = IntFieldT | None
+RetainAvailableT: TypeAlias = BoolFieldT | None
+UserPropertyT: TypeAlias = SeqStrPairFieldT | None
+MaximumPacketSizeT: TypeAlias = IntFieldT | None
+WildcardSubscriptionAvailableT: TypeAlias = BoolFieldT | None
+SubscriptionIdentifierAvailableT: TypeAlias = BoolFieldT | None
+SharedSubscriptionAvailableT: TypeAlias = BoolFieldT | None
 
 
-IntFieldT: TypeAlias = int | None
-StrFieldT: TypeAlias = str | None
-BytesFieldT: TypeAlias = bytes | None
-BoolFieldT: TypeAlias = bool | None
-
-PayloadFormatIndicatorT: TypeAlias = IntFieldT
-MessageExpiryIntervalT: TypeAlias = IntFieldT
-ContentTypeT: TypeAlias = StrFieldT
-ResponseTopicT: TypeAlias = StrFieldT
-CorrelationDataT: TypeAlias = BytesFieldT
-SubscriptionIdentifierT: TypeAlias = set[int] | None
-TopicAliasT: TypeAlias = IntFieldT
-SessionExpiryIntervalT: TypeAlias = IntFieldT
-AssignedClientIdentifierT: TypeAlias = StrFieldT
-ServerKeepAliveT: TypeAlias = IntFieldT
-AuthenticationMethodT: TypeAlias = StrFieldT
-AuthenticationDataT: TypeAlias = BytesFieldT
-RequestProblemInformationT: TypeAlias = BoolFieldT
-WillDelayIntervalT: TypeAlias = IntFieldT
-RequestResponseInformationT: TypeAlias = BoolFieldT
-ResponseInformationT: TypeAlias = StrFieldT
-ServerReferenceT: TypeAlias = StrFieldT
-ReasonStringT: TypeAlias = StrFieldT
-ReceiveMaximumT: TypeAlias = IntFieldT
-TopicAliasMaximumT: TypeAlias = IntFieldT
-MaximumQoST: TypeAlias = IntFieldT
-RetainAvailableT: TypeAlias = BoolFieldT
-UserPropertyT: TypeAlias = Sequence[tuple[str, str]] | None
-MaximumPacketSizeT: TypeAlias = IntFieldT
-WildcardSubscriptionAvailableT: TypeAlias = BoolFieldT
-SubscriptionIdentifierAvailableT: TypeAlias = BoolFieldT
-SharedSubscriptionAvailableT: TypeAlias = BoolFieldT
-
-
+# Build some data structures for fast serialization/deserialization of properties.
 _SerializerTypes: TypeAlias = (
     Callable[[bool], bytes] |
     Callable[[int], bytes] |
@@ -126,8 +97,6 @@ class _SerializerPair(NamedTuple):
     """Pair of serializer and deserializer functions for a property."""
     serializer: _SerializerTypes
     deserializer: _DeserializerTypes
-
-
 _BoolSerializer: Final = _SerializerPair(serializer=encode_bool, deserializer=decode_bool)
 _UInt8Serializer: Final = _SerializerPair(serializer=encode_uint8, deserializer=decode_uint8)
 _UInt16Serializer: Final = _SerializerPair(serializer=encode_uint16, deserializer=decode_uint16)
@@ -137,14 +106,13 @@ _BinarySerializer: Final = _SerializerPair(serializer=encode_binary, deserialize
 _StringSerializer: Final = _SerializerPair(serializer=encode_string, deserializer=decode_string)
 _StringPairSerializer: Final = _SerializerPair(serializer=encode_string_pair, deserializer=decode_string_pair)
 
-
 _PropertySerializers: Final[Mapping[str, _SerializerPair]] = {
     MQTTPropertyId.PayloadFormatIndicator.name: _UInt8Serializer,
     MQTTPropertyId.MessageExpiryInterval.name: _UInt32Serializer,
     MQTTPropertyId.ContentType.name: _StringSerializer,
     MQTTPropertyId.ResponseTopic.name: _StringSerializer,
     MQTTPropertyId.CorrelationData.name: _BinarySerializer,
-    MQTTPropertyId.SubscriptionIdentifier.name: _VarIntSerializer,
+    MQTTPropertyId.SubscriptionIdentifier.name: _VarIntSerializer,  # This serializer is used for each set element.
     MQTTPropertyId.SessionExpiryInterval.name: _UInt32Serializer,
     MQTTPropertyId.AssignedClientIdentifier.name: _StringSerializer,
     MQTTPropertyId.ServerKeepAlive.name: _UInt16Serializer,
@@ -161,7 +129,7 @@ _PropertySerializers: Final[Mapping[str, _SerializerPair]] = {
     MQTTPropertyId.TopicAlias.name: _UInt16Serializer,
     MQTTPropertyId.MaximumQoS.name: _UInt8Serializer,
     MQTTPropertyId.RetainAvailable.name: _BoolSerializer,
-    MQTTPropertyId.UserProperty.name: _StringPairSerializer,
+    MQTTPropertyId.UserProperty.name: _StringPairSerializer,  # This serializer is used for each Sequence element.
     MQTTPropertyId.MaximumPacketSize.name: _UInt32Serializer,
     MQTTPropertyId.WildcardSubscriptionAvailable.name: _BoolSerializer,
     MQTTPropertyId.SubscriptionIdentifierAvailable.name: _BoolSerializer,
@@ -210,7 +178,7 @@ class MQTTProperties(MQTTPropertiesBase):
             return cls(), 1
         data = data[length_sz:]
         remaining = length
-        properties: MQTTPropertyDict = {}
+        properties: dict[str, AnyFieldT] = {}
         while remaining:
             # The spec calls for a variable integer for the property ID,
             #   but we know that the IDs are all 1 byte long,
@@ -223,20 +191,21 @@ class MQTTProperties(MQTTPropertiesBase):
             value, sz = deserializer(data)
             data = data[sz:]
             remaining -= sz
-            # Ignore typing below because mypy doesn't support non-literal TypedDict keys.
             if prop_name == "SubscriptionIdentifier":
                 # This property may appear multiple times, in any order.
                 if prop_name not in properties:
-                    properties[prop_name] = set() # type: ignore
-                properties[prop_name].add(value) # type: ignore
+                    properties[prop_name] = set()
+                cast(SetIntFieldT, properties[prop_name]).add(cast(int, value))
             elif prop_name == "UserProperty":
                 # This property may appear multiple times, in any order.
                 if prop_name not in properties:
-                    properties[prop_name] = [] # type: ignore
-                properties[prop_name].append(value) # type: ignore
-            else:
+                    properties[prop_name] = []
+                cast(list[tuple[str, str]], properties[prop_name]).append(cast(tuple[str, str], value))
+            elif prop_name in properties:
                 # Other properties must appear exactly once.
-                properties[prop_name] = value # type: ignore
+                raise MQTTError(f"Duplicate property {prop_name}", MQTTReasonCode.MalformedPacket)
+            else:
+                properties[prop_name] = value  # type: ignore[assignment]
         return cls(**properties), length + length_sz
 
 
