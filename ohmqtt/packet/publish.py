@@ -3,13 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import sys
 from typing import ClassVar, Final, Mapping, TypeAlias
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 from .base import MQTTPacket
 from ..error import MQTTError
@@ -30,7 +24,6 @@ from ..serialization import (
     decode_uint8,
     decode_uint16,
 )
-
 
 
 HEAD_PUBLISH: Final = MQTTPacketType.PUBLISH << 4
@@ -180,7 +173,7 @@ class MQTTPubAckPacket(MQTTPacket):
         return _encode_pubacklike(self)
 
     @classmethod
-    def decode(cls, flags: int, data: memoryview) -> Self:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPubAckPacket:
         return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
@@ -204,7 +197,7 @@ class MQTTPubRecPacket(MQTTPacket):
         return _encode_pubacklike(self)
 
     @classmethod
-    def decode(cls, flags: int, data: memoryview) -> Self:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPubRecPacket:
         return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
@@ -228,7 +221,7 @@ class MQTTPubRelPacket(MQTTPacket):
         return _encode_pubacklike(self)
 
     @classmethod
-    def decode(cls, flags: int, data: memoryview) -> Self:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPubRelPacket:
         return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
@@ -252,7 +245,7 @@ class MQTTPubCompPacket(MQTTPacket):
         return _encode_pubacklike(self)
 
     @classmethod
-    def decode(cls, flags: int, data: memoryview) -> Self:
+    def decode(cls, flags: int, data: memoryview) -> MQTTPubCompPacket:
         return _decode_pubacklike(cls, flags, data)  # type: ignore
 
 
