@@ -12,17 +12,21 @@ A reliable and persistent MQTT 5.0 client library for Python.
 When not persisting QoS >0 messages, a fast (but volatile) in memory store is used.
 Either way, publishing a message returns a handle with a method to wait for the message to be fully acknowledged by the broker.
 
-### TLS
+### Connectivity
 
-Optionally use TLS and provide your own TLS context when connecting to a broker.
+Connect to a remote broker with optional TLS over TCP over IPV4 or IPV6.
+Connect to a local broker with either TCP or Unix domain socket.
 
 ### Properties
 
-ΩQTT gives you complete access to all PUBLISH, SUBSCRIBE, AUTH and CONNECT optional properties.
+Access all optional properties of all MQTT control packet types.
+If you ever wanted to check the user properties of SUBACK and UNSUBACK (among others), welcome home.
 
 ### Automatic Topic Alias
 
 Set an alias policy when publishing a message and a topic alias will be generated, if allowed by the broker.
+If bandwidth is tight, set your QoS 0 publications to require a topic alias.
+In this case, an error will be raised if the server does not offer enough alias values.
 
 ### Toolkit
 
@@ -37,6 +41,7 @@ It should work on any platform that CPython runs on.
 ### Reliability
 
 ΩQTT has been implemented to a high standard of test coverage and static analysis, from the beginning.
+It continues to improve.
 
 ### Performance
 
