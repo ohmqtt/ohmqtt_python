@@ -94,18 +94,16 @@ class InterruptibleSelector(Protected):
         if wanted_events == 0:
             raise ValueError("Must select either read or write or both")
         self._selector.modify(self._sock, wanted_events)
-        readable = False
-        writable = False
+        readable, writable = False, False
         self._in_select = True
         self._interrupted = False
         self.release()
         try:
             events = self._selector.select(timeout)
             for key, event in events:
-                if key.fileobj == self._interrupt_r:
-                    continue
-                readable = bool(event & selectors.EVENT_READ)
-                writable = bool(event & selectors.EVENT_WRITE)
+                if key.fileobj is self._sock:
+                    readable = bool(event & selectors.EVENT_READ)
+                    writable = bool(event & selectors.EVENT_WRITE)
         finally:
             self.acquire()
             if self._interrupted:
