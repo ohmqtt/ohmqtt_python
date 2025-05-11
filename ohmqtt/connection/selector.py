@@ -42,9 +42,9 @@ class InterruptibleSelector(Protected):
 
     def _drain(self) -> None:
         """Drain the interrupt socket."""
-        data = self._interrupt_r.recv(0xFF)
+        data = self._interrupt_r.recv(2)
         if len(data) > 1:
-            logger.warning("Expected 1 interrupt per select, got %d", len(data))
+            raise RuntimeError(f"Expected 1 interrupt per select, got {len(data)}")
 
     @protect
     def close(self) -> None:
@@ -103,12 +103,13 @@ class InterruptibleSelector(Protected):
             events = self._selector.select(timeout)
             for key, event in events:
                 if key.fileobj == self._interrupt_r:
-                    self._drain()
                     continue
                 readable = bool(event & selectors.EVENT_READ)
                 writable = bool(event & selectors.EVENT_WRITE)
         finally:
             self.acquire()
+            if self._interrupted:
+                self._drain()
             self._in_select = False
             self._interrupted = False
         return readable, writable
