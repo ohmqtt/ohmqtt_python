@@ -17,7 +17,6 @@ class SQLitePersistence(Persistence):
     """SQLite persistence for MQTT messages.
 
     This class provides a SQLite-based persistence layer for MQTT messages.
-    It allows storing and retrieving messages from a SQLite database.
     """
     __slots__ = ("_cond", "_conn", "_cursor", "_db_path", "_handles")
     def __init__(self, db_path: str, *, db_fast: bool = False) -> None:
