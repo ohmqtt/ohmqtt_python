@@ -8,6 +8,7 @@ import weakref
 
 from .connection import Connection, InvalidStateError, MessageHandlers
 from .logger import get_logger
+from .mqtt_spec import MAX_PACKET_ID
 from .packet import (
     MQTTPublishPacket,
     MQTTPubAckPacket,
@@ -224,7 +225,7 @@ class Subscriptions:
         """Get the next SUBSCRIBE packet identifier."""
         sub_id = self._next_sub_packet_id
         self._next_sub_packet_id += 1
-        if self._next_sub_packet_id > 0xFFFF:
+        if self._next_sub_packet_id > MAX_PACKET_ID:
             self._next_sub_packet_id = 1
         return sub_id
 
@@ -310,7 +311,7 @@ class Subscriptions:
         """Get the next UNSUBSCRIBE packet identifier."""
         unsub_id = self._next_unsub_packet_id
         self._next_unsub_packet_id += 1
-        if self._next_unsub_packet_id > 0xFFFF:
+        if self._next_unsub_packet_id > MAX_PACKET_ID:
             self._next_unsub_packet_id = 1
         return unsub_id
 

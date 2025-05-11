@@ -6,6 +6,7 @@ import weakref
 
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
+from ..mqtt_spec import MAX_PACKET_ID
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -193,7 +194,7 @@ class SQLitePersistence(Persistence):
             packet_id = 1
             if row is not None:
                 packet_id = row[0]
-                packet_id = packet_id + 1 if packet_id < 65535 else 1
+                packet_id = packet_id + 1 if packet_id < MAX_PACKET_ID else 1
             return packet_id
 
     def render(self, message_id: int) -> RenderedPacket:
