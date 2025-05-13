@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import socket
 import ssl
 from threading import Condition
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection import Address
 from ohmqtt.connection.decoder import IncrementalDecoder, ClosedSocketError
@@ -39,54 +44,56 @@ from ohmqtt.platform import HAS_AF_UNIX
 from ohmqtt.property import MQTTConnectProps, MQTTConnAckProps, MQTTWillProps
 
 
+class EnvironmentCallbacks:
+    """Container for StateEnvironment callbacks."""
+    def __init__(self, mocker: MockerFixture) -> None:
+        self.packet = mocker.Mock()
+
+    def reset(self) -> None:
+        self.packet.reset_mock()
+
+    def assert_not_called(self) -> None:
+        self.packet.assert_not_called()
+
+
 @pytest.fixture
-def callbacks(mocker):
-    class EnvironmentCallbacks:
-        """Container for StateEnvironment callbacks."""
-        def __init__(self, mocker):
-            self.packet = mocker.Mock()
-
-        def reset(self):
-            self.packet.reset_mock()
-
-        def assert_not_called(self):
-            self.packet.assert_not_called()
+def callbacks(mocker: MockerFixture) -> EnvironmentCallbacks:
     return EnvironmentCallbacks(mocker)
 
 @pytest.fixture
-def env(callbacks):
+def env(callbacks: EnvironmentCallbacks) -> StateEnvironment:
     return StateEnvironment(
         packet_callback=callbacks.packet,
     )
 
 @pytest.fixture
-def mock_socket(mocker):
+def mock_socket(mocker: MockerFixture) -> Mock:
     mock_socket = mocker.Mock(spec=ssl.SSLSocket)
     mocker.patch("ohmqtt.connection.states._get_socket", return_value=mock_socket)
-    return mock_socket
+    return mock_socket  # type: ignore[no-any-return]
 
 @pytest.fixture
-def decoder(mocker):
-    return mocker.Mock(spec=IncrementalDecoder)
+def decoder(mocker: MockerFixture) -> Mock:
+    return mocker.Mock(spec=IncrementalDecoder)  # type: ignore[no-any-return]
 
 @pytest.fixture
-def mock_keepalive(mocker):
+def mock_keepalive(mocker: MockerFixture) -> Mock:
     mock_keepalive = mocker.Mock(spec=KeepAlive)
     mock_keepalive.get_next_timeout.return_value = 1
     mock_keepalive.should_close.return_value = False
     mock_keepalive.should_send_ping.return_value = False
-    return mock_keepalive
+    return mock_keepalive  # type: ignore[no-any-return]
 
 @pytest.fixture
-def mock_timeout(mocker):
+def mock_timeout(mocker: MockerFixture) -> Mock:
     mock_timeout = mocker.Mock(spec=Timeout)
     mock_timeout.interval = None
     mock_timeout.get_timeout.return_value = 1
     mock_timeout.exceeded.return_value = False
-    return mock_timeout
+    return mock_timeout  # type: ignore[no-any-return]
 
 @pytest.fixture
-def state_data(decoder, mock_socket, mock_keepalive, mock_timeout):
+def state_data(decoder: Mock, mock_socket: Mock, mock_keepalive: Mock, mock_timeout: Mock) -> StateData:
     data = StateData()
     data.decoder = decoder
     data.keepalive = mock_keepalive
@@ -96,19 +103,19 @@ def state_data(decoder, mock_socket, mock_keepalive, mock_timeout):
     return data
 
 @pytest.fixture
-def params():
+def params() -> ConnectParams:
     return ConnectParams(address=Address("mqtt://testhost"))
 
 @pytest.fixture
-def mock_select(mocker):
+def mock_select(mocker: MockerFixture) -> Mock:
     mock_select = mocker.MagicMock(spec=InterruptibleSelector)
     mock_select.__enter__.return_value = mock_select
     mock_select.select.return_value = (False, False)
     mocker.patch("ohmqtt.connection.fsm.InterruptibleSelector", return_value=mock_select)
-    return mock_select
+    return mock_select  # type: ignore[no-any-return]
 
 @pytest.fixture
-def mock_read(mocker):
+def mock_read(mocker: MockerFixture) -> Mock:
     mock_read = mocker.patch.object(ConnectedState, "read_packet", autospec=True)
     mock_read.return_value = False
     return mock_read
@@ -116,7 +123,17 @@ def mock_read(mocker):
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, env, decoder, mock_select, mock_socket, mock_timeout):
+def test_states_connecting_happy_path(
+    address: str,
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    decoder: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock
+) -> None:
     if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
@@ -169,7 +186,15 @@ def test_states_connecting_happy_path(address, max_wait, callbacks, state_data, 
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env, mock_select, mock_timeout):
+def test_states_connecting_timeout(
+    address: str,
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_timeout: Mock
+) -> None:
     if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
@@ -188,7 +213,15 @@ def test_states_connecting_timeout(address, max_wait, callbacks, state_data, env
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connecting_error(address, max_wait, callbacks, state_data, env, mock_select, mock_socket):
+def test_states_connecting_error(
+    address: str,
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
     if address.startswith("unix:") and not HAS_AF_UNIX:
         pytest.skip("Unix socket not supported on this platform")
     params = ConnectParams(address=Address(address))
@@ -204,15 +237,24 @@ def test_states_connecting_error(address, max_wait, callbacks, state_data, env, 
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_tls_handshake_happy_path(max_wait, callbacks, state_data, env, mock_select, mock_socket, mock_timeout, mocker):
+def test_states_tls_handshake_happy_path(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+    mocker: MockerFixture
+) -> None:
     params = ConnectParams(address=Address("mqtts://testhost"), tls_context=mocker.Mock())
     fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
     mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
 
     # Enter state.
-    params.tls_context.wrap_socket.return_value = mock_socket
+    params.tls_context.wrap_socket.return_value = mock_socket  # type: ignore[union-attr]
     TLSHandshakeState.enter(fsm, state_data, env, params)
-    params.tls_context.wrap_socket.assert_called_once_with(
+    params.tls_context.wrap_socket.assert_called_once_with(  # type: ignore[union-attr]
         mock_socket,
         server_hostname=params.address.host,
         do_handshake_on_connect=False,
@@ -253,7 +295,15 @@ def test_states_tls_handshake_happy_path(max_wait, callbacks, state_data, env, m
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_tls_handshake_timeout(max_wait, callbacks, state_data, env, mocker, mock_select, mock_timeout):
+def test_states_tls_handshake_timeout(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mocker: MockerFixture,
+    mock_select: Mock,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtts://testhost"), tls_context=mocker.Mock())
     fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
 
@@ -274,7 +324,19 @@ def test_states_tls_handshake_timeout(max_wait, callbacks, state_data, env, mock
     ],
 )
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connect_happy_path(address, user, pwd, max_wait, callbacks, state_data, env, mock_select, mock_socket, mock_timeout, mocker):
+def test_states_mqtt_connect_happy_path(
+    address: str,
+    user: str | None,
+    pwd: str | None,
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+    mocker: MockerFixture
+) -> None:
     env.write_buffer = mocker.Mock()
     params = ConnectParams(
         address=Address(address),
@@ -339,7 +401,13 @@ def test_states_mqtt_connect_happy_path(address, user, pwd, max_wait, callbacks,
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connect_timeout(max_wait, callbacks, state_data, env, mock_timeout):
+def test_states_mqtt_connect_timeout(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
 
@@ -354,7 +422,15 @@ def test_states_mqtt_connect_timeout(max_wait, callbacks, state_data, env, mock_
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connect_partial(max_wait, callbacks, state_data, env, mock_socket, mock_timeout, mocker):
+def test_states_mqtt_connect_partial(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+    mocker: MockerFixture
+) -> None:
     env.write_buffer = mocker.Mock()
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
@@ -387,7 +463,13 @@ def test_states_mqtt_connect_partial(max_wait, callbacks, state_data, env, mock_
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connect_error(max_wait, callbacks, state_data, env, mock_socket):
+def test_states_mqtt_connect_error(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
 
@@ -401,7 +483,16 @@ def test_states_mqtt_connect_error(max_wait, callbacks, state_data, env, mock_so
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connack_happy_path(max_wait, callbacks, state_data, env, decoder, mock_select, mock_socket, mock_timeout):
+def test_states_mqtt_connack_happy_path(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    decoder: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
     mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
@@ -433,7 +524,13 @@ def test_states_mqtt_connack_happy_path(max_wait, callbacks, state_data, env, de
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connack_timeout(max_wait, callbacks, state_data, env, mock_timeout):
+def test_states_mqtt_connack_timeout(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
@@ -448,7 +545,14 @@ def test_states_mqtt_connack_timeout(max_wait, callbacks, state_data, env, mock_
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connack_closed_socket(max_wait, callbacks, decoder, state_data, env, mock_socket):
+def test_states_mqtt_connack_closed_socket(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    decoder: Mock,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
@@ -462,7 +566,13 @@ def test_states_mqtt_connack_closed_socket(max_wait, callbacks, decoder, state_d
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_mqtt_connack_unexpected(max_wait, callbacks, decoder, state_data, env):
+def test_states_mqtt_connack_unexpected(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    decoder: Mock,
+    state_data: StateData,
+    env: StateEnvironment
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
 
@@ -476,14 +586,24 @@ def test_states_mqtt_connack_unexpected(max_wait, callbacks, decoder, state_data
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_keepalive, mock_select, mock_socket, mock_read, mocker):
+def test_states_connected_happy_path(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: Mock,
+    mock_keepalive: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_read: Mock,
+    mocker: MockerFixture
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
     mock_keepalive.get_next_timeout.return_value = 1 if max_wait is None else max_wait
 
     # Enter state.
     ConnectedState.enter(fsm, state_data, env, params)
-    state_data.keepalive.mark_init.assert_called_once()
+    mock_keepalive.mark_init.assert_called_once()
     callbacks.packet.assert_called_once_with(state_data.connack)
     callbacks.reset()
     assert state_data.open_called is True
@@ -508,7 +628,7 @@ def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_
     mock_socket.send.assert_called_once_with(env.write_buffer)
     mock_socket.reset_mock()
     assert len(env.write_buffer) == 0
-    state_data.keepalive.mark_send.assert_called_once()
+    mock_keepalive.mark_send.assert_called_once()
     assert fsm.state is ConnectedState
 
     # Third handle, read data.
@@ -524,7 +644,15 @@ def test_states_connected_happy_path(max_wait, callbacks, state_data, env, mock_
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_keepalive(max_wait, callbacks, state_data, env, mock_keepalive, mock_select, mock_socket):
+def test_states_connected_keepalive(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_keepalive: Mock,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
@@ -557,7 +685,17 @@ def test_states_connected_keepalive(max_wait, callbacks, state_data, env, mock_k
 @pytest.mark.parametrize("block_exc", [ssl.SSLWantWriteError, BlockingIOError])
 @pytest.mark.parametrize("fatal_exc", [BrokenPipeError, ConnectionResetError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_send_errors(max_wait, block_exc, fatal_exc, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+def test_states_connected_send_errors(
+    max_wait: float | None,
+    block_exc: type[Exception],
+    fatal_exc: type[Exception],
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_read: Mock,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
@@ -586,7 +724,15 @@ def test_states_connected_send_errors(max_wait, block_exc, fatal_exc, callbacks,
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_read_closed(max_wait, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+def test_states_connected_read_closed(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_read: Mock,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
@@ -603,7 +749,15 @@ def test_states_connected_read_closed(max_wait, callbacks, state_data, env, mock
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_connected_read_mqtt_error(max_wait, callbacks, state_data, env, mock_read, mock_select, mock_socket):
+def test_states_connected_read_mqtt_error(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_read: Mock,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
@@ -620,7 +774,13 @@ def test_states_connected_read_mqtt_error(max_wait, callbacks, state_data, env, 
     callbacks.assert_not_called()
 
 
-def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_keepalive):
+def test_states_connected_read_packet(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    decoder: Mock,
+    mock_keepalive: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
 
@@ -633,19 +793,19 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
     assert fsm.state is ConnectedState
 
     # Handle complete PUBLISH packet.
-    packet = MQTTPublishPacket(topic="test/topic", payload=b"test_payload")
-    decoder.decode.return_value = packet
+    pub_packet = MQTTPublishPacket(topic="test/topic", payload=b"test_payload")
+    decoder.decode.return_value = pub_packet
     ret = ConnectedState.read_packet(fsm, state_data, env, params)
     assert ret is True
     decoder.decode.assert_called_once()
     decoder.reset_mock()
-    callbacks.packet.assert_called_once_with(packet)
+    callbacks.packet.assert_called_once_with(pub_packet)
     callbacks.reset()
     assert fsm.state is ConnectedState
 
     # Handle complete PINGRESP packet.
-    packet = MQTTPingRespPacket()
-    decoder.decode.return_value = packet
+    pong_packet = MQTTPingRespPacket()
+    decoder.decode.return_value = pong_packet
     ret = ConnectedState.read_packet(fsm, state_data, env, params)
     assert ret is True
     decoder.decode.assert_called_once()
@@ -655,8 +815,8 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
     assert fsm.state is ConnectedState
 
     # Handle complete PINGREQ packet.
-    packet = MQTTPingReqPacket()
-    decoder.decode.return_value = packet
+    ping_packet = MQTTPingReqPacket()
+    decoder.decode.return_value = ping_packet
     ret = ConnectedState.read_packet(fsm, state_data, env, params)
     assert ret is True
     decoder.decode.assert_called_once()
@@ -667,8 +827,8 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
     assert fsm.state is ConnectedState
 
     # Handle complete DISCONNECT packet.
-    packet = MQTTDisconnectPacket()
-    decoder.decode.return_value = packet
+    dc_packet = MQTTDisconnectPacket()
+    decoder.decode.return_value = dc_packet
     ret = ConnectedState.read_packet(fsm, state_data, env, params)
     assert ret is True
     decoder.decode.assert_called_once()
@@ -678,7 +838,14 @@ def test_states_connected_read_packet(callbacks, state_data, env, decoder, mock_
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_reconnect_wait_happy_path(max_wait, callbacks, state_data, env, mocker, mock_timeout):
+def test_states_reconnect_wait_happy_path(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mocker: MockerFixture,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
     mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
@@ -689,33 +856,38 @@ def test_states_reconnect_wait_happy_path(max_wait, callbacks, state_data, env, 
 
     ReconnectWaitState.enter(fsm, state_data, env, params)
     assert mock_timeout.interval == params.reconnect_delay
-    state_data.timeout.mark.assert_called_once()
-    state_data.timeout.reset_mock()
+    mock_timeout.mark.assert_called_once()
+    mock_timeout.reset_mock()
 
     # First handle, waiting.
     ret = ReconnectWaitState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
-    state_data.timeout.exceeded.assert_called_once()
-    state_data.timeout.reset_mock()
+    mock_timeout.exceeded.assert_called_once()
+    mock_timeout.reset_mock()
     if max_wait is None:
-        fsm.cond.wait.assert_called_once_with(state_data.timeout.get_timeout.return_value)
-        fsm.cond.wait.reset_mock()
+        mock_cond.wait.assert_called_once_with(mock_timeout.get_timeout.return_value)
+        mock_cond.wait.reset_mock()
     else:
-        fsm.cond.wait.assert_not_called()
+        mock_cond.wait.assert_not_called()
     assert fsm.state is ReconnectWaitState
 
     # Second handle, transition.
-    state_data.timeout.exceeded.return_value = True
+    mock_timeout.exceeded.return_value = True
     ret = ReconnectWaitState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
-    state_data.timeout.exceeded.assert_called_once()
-    fsm.cond.wait.assert_not_called()
+    mock_timeout.exceeded.assert_called_once()
+    mock_cond.wait.assert_not_called()
     assert fsm.state is ConnectingState
 
     callbacks.assert_not_called()
 
 
-def test_states_reconnect_wait_race(callbacks, state_data, env, mocker):
+def test_states_reconnect_wait_race(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mocker: MockerFixture
+) -> None:
     """Check for a race condition between state changes and waiting for state changes."""
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
@@ -734,7 +906,16 @@ def test_states_reconnect_wait_race(callbacks, state_data, env, mocker):
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_closing_happy_path(address, max_wait, callbacks, state_data, env, mock_select, mock_socket, mock_timeout):
+def test_states_closing_happy_path(
+    address: str,
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address(address), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
     mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
@@ -785,7 +966,13 @@ def test_states_closing_happy_path(address, max_wait, callbacks, state_data, env
     MQTTHandshakeConnAckState,
     ReconnectWaitState,
 ])
-def test_states_closing_skip(prev_state, callbacks, state_data, env, mock_socket):
+def test_states_closing_skip(
+    prev_state: Any,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
 
@@ -798,7 +985,13 @@ def test_states_closing_skip(prev_state, callbacks, state_data, env, mock_socket
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_closing_timeout(max_wait, callbacks, state_data, env, mock_timeout):
+def test_states_closing_timeout(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_timeout: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
 
@@ -812,7 +1005,12 @@ def test_states_closing_timeout(max_wait, callbacks, state_data, env, mock_timeo
     callbacks.assert_not_called()
 
 
-def test_states_closing_shutdown_error(callbacks, state_data, env, mock_socket):
+def test_states_closing_shutdown_error(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
 
@@ -827,7 +1025,15 @@ def test_states_closing_shutdown_error(callbacks, state_data, env, mock_socket):
 
 @pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
-def test_states_closing_send_error(max_wait, exc, callbacks, state_data, env, mock_select, mock_socket):
+def test_states_closing_send_error(
+    max_wait: float | None,
+    exc: type[Exception],
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
     fsm = FSM(env=env, init_state=ClosingState, error_state=ShutdownState)
 
@@ -852,7 +1058,16 @@ def test_states_closing_send_error(max_wait, exc, callbacks, state_data, env, mo
 @pytest.mark.parametrize("open_called", [True, False])
 @pytest.mark.parametrize("rc", [None, MQTTReasonCode.NormalDisconnection])
 @pytest.mark.parametrize("reconn_delay", [0, 1])
-def test_states_closed_happy_path(open_called, rc, reconn_delay, callbacks, state_data, env, decoder, mock_socket):
+def test_states_closed_happy_path(
+    open_called: bool,
+    rc: MQTTReasonCode | None,
+    reconn_delay: int,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    decoder: Mock,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=reconn_delay)
     fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
 
@@ -861,8 +1076,6 @@ def test_states_closed_happy_path(open_called, rc, reconn_delay, callbacks, stat
     state_data.open_called = open_called
     ClosedState.enter(fsm, state_data, env, params)
     if open_called:
-        #callbacks.close.assert_called_once()
-        #callbacks.reset()
         if rc is not None:
             mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
     mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
@@ -878,7 +1091,13 @@ def test_states_closed_happy_path(open_called, rc, reconn_delay, callbacks, stat
 
 
 @pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError, OSError])
-def test_states_closed_errors(exc, callbacks, state_data, env, mock_socket):
+def test_states_closed_errors(
+    exc: type[Exception],
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
 
@@ -892,15 +1111,18 @@ def test_states_closed_errors(exc, callbacks, state_data, env, mock_socket):
     mock_socket.send.assert_called_once_with(MQTTDisconnectPacket().encode())
     mock_socket.shutdown.assert_called_once_with(socket.SHUT_RDWR)
     mock_socket.close.assert_called_once()
-    #callbacks.close.assert_called_once()
-    #callbacks.reset()
     assert state_data.open_called is False
     assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
 
 
-def test_states_closed_write_buffer_not_empty(callbacks, state_data, env, mock_socket):
+def test_states_closed_write_buffer_not_empty(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
 
@@ -916,7 +1138,16 @@ def test_states_closed_write_buffer_not_empty(callbacks, state_data, env, mock_s
 
 @pytest.mark.parametrize("close_exc", [OSError, None])
 @pytest.mark.parametrize("open_called", [True, False])
-def test_states_shutdown_enter(open_called, close_exc, callbacks, state_data, env, decoder, mocker, mock_socket):
+def test_states_shutdown_enter(
+    open_called: bool,
+    close_exc: type[Exception] | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: Mock,
+    decoder: Mock,
+    mocker: MockerFixture,
+    mock_socket: Mock
+) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"))
     fsm = FSM(env=env, init_state=ShutdownState, error_state=ShutdownState)
 
@@ -926,8 +1157,6 @@ def test_states_shutdown_enter(open_called, close_exc, callbacks, state_data, en
     ShutdownState.enter(fsm, state_data, env, params)
     if open_called:
         pass
-        #callbacks.close.assert_called_once()
-        #callbacks.reset()
     mock_socket.close.assert_called_once()
     decoder.reset.assert_called_once()
     env.write_buffer.clear.assert_called_once()
