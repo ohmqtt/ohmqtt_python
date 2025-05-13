@@ -6,7 +6,7 @@ from ohmqtt.property import MQTTPublishProps
 from ohmqtt.serialization import encode_varint, encode_uint16
 
 
-def test_property_duplicate_key():
+def test_property_duplicate_key() -> None:
     data = bytearray(encode_varint(MQTTPropertyId.TopicAlias) + encode_uint16(1))
     data.extend(encode_varint(MQTTPropertyId.TopicAlias) + encode_uint16(2))
     data[0:0] = encode_varint(len(data))
