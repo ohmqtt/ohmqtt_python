@@ -26,8 +26,14 @@
 
 from datetime import datetime, timedelta, timezone
 import ipaddress
+from typing import Any, Sequence
 
-def generate_selfsigned_cert(hostname, ip_addresses=None, key=None):
+
+def generate_selfsigned_cert(
+    hostname: str,
+    ip_addresses: Sequence[str] | None = None,
+    key: Any = None,
+) -> tuple[bytes, bytes]:
     """Generates self signed certificate for a hostname, and optional IP addresses."""
     from cryptography import x509
     from cryptography.x509.oid import NameOID
@@ -49,7 +55,7 @@ def generate_selfsigned_cert(hostname, ip_addresses=None, key=None):
     ])
 
     # best practice seem to be to include the hostname in the SAN, which *SHOULD* mean COMMON_NAME is ignored.
-    alt_names = [x509.DNSName(hostname)]
+    alt_names: list[x509.DNSName | x509.IPAddress] = [x509.DNSName(hostname)]
 
     # allow addressing by IP, for when you don't have real DNS (common in most testing scenarios
     if ip_addresses:
