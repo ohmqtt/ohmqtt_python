@@ -682,7 +682,7 @@ def test_states_connected_keepalive(
     callbacks.assert_not_called()
 
 
-@pytest.mark.parametrize("block_exc", [ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("block_exc", [ssl.SSLWantReadError, ssl.SSLWantWriteError, BlockingIOError])
 @pytest.mark.parametrize("fatal_exc", [BrokenPipeError, ConnectionResetError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connected_send_errors(
@@ -1023,7 +1023,7 @@ def test_states_closing_shutdown_error(
     callbacks.assert_not_called()
 
 
-@pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("exc", [ssl.SSLWantReadError, ssl.SSLWantWriteError, BlockingIOError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_closing_send_error(
     max_wait: float | None,
@@ -1090,7 +1090,7 @@ def test_states_closed_happy_path(
     callbacks.assert_not_called()
 
 
-@pytest.mark.parametrize("exc", [ssl.SSLWantWriteError, BlockingIOError, OSError])
+@pytest.mark.parametrize("exc", [ssl.SSLWantReadError, ssl.SSLWantWriteError, BlockingIOError, OSError])
 def test_states_closed_errors(
     exc: type[Exception],
     callbacks: EnvironmentCallbacks,

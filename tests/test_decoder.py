@@ -27,7 +27,7 @@ def test_decoder_defaults() -> None:
     assert decoder.data == decoder2.data
 
 
-@pytest.mark.parametrize("exc", [BlockingIOError, ssl.SSLWantReadError])
+@pytest.mark.parametrize("exc", [BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError])
 def test_decoder_drip_feed(exc: Exception, mock_socket: Mock) -> None:
     """Feed the decoder one byte at a time."""
     decoder = IncrementalDecoder()
@@ -47,7 +47,7 @@ def test_decoder_drip_feed(exc: Exception, mock_socket: Mock) -> None:
     assert out_packet == in_packet
 
 
-@pytest.mark.parametrize("exc", [BlockingIOError, ssl.SSLWantReadError])
+@pytest.mark.parametrize("exc", [BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError])
 @pytest.mark.parametrize("closer", [b"", OSError])
 @pytest.mark.parametrize("available_bytes", [n for n in range(6)])
 def test_decoder_drip_partial_closures(exc: Exception, closer: bytes | Exception,

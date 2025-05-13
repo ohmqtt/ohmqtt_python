@@ -58,7 +58,7 @@ class IncrementalDecoder:
         Raises ClosedSocketError if the socket is closed."""
         try:
             data = sock.recv(1)
-        except (BlockingIOError, ssl.SSLWantReadError):
+        except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
             raise WantReadError("Socket not ready for reading")
         if not data:
             raise ClosedSocketError("Socket closed")
@@ -115,7 +115,7 @@ class IncrementalDecoder:
             self._extract_head(sock)
             self._extract_length(sock)
             self._extract_data(sock)
-        except (BlockingIOError, ssl.SSLWantReadError, WantReadError):
+        except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError, WantReadError):
             # If the socket is open but doesn't have enough data for us, we need to wait for more.
             return None
         except OSError as exc:

@@ -157,7 +157,7 @@ class MQTTHandshakeConnectState(FSMState):
                 env.write_buffer.clear()
             fsm.change_state(MQTTHandshakeConnAckState)
             return True
-        except (BlockingIOError, ssl.SSLWantWriteError):
+        except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
             # The write was blocked, wait for the socket to be writable.
             if max_wait is None or max_wait > 0.0:
                 with fsm.selector:
@@ -241,7 +241,7 @@ class ConnectedState(FSMState):
                     sent = state_data.sock.send(env.write_buffer)
                     del env.write_buffer[:sent]
                 state_data.keepalive.mark_send()
-            except (BlockingIOError, ssl.SSLWantWriteError):
+            except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
                 pass
             except (BrokenPipeError, ConnectionResetError) as exc:
                 logger.error("MQTT connection was closed: %s", exc)
@@ -372,7 +372,7 @@ class ClosingState(FSMState):
                     sent = state_data.sock.send(env.write_buffer)
                     del env.write_buffer[:sent]
                     state_data.keepalive.mark_send()
-                except (BlockingIOError, ssl.SSLWantWriteError):
+                except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
                     pass
                 except BrokenPipeError:
                     logger.error("Socket lost while closing")
@@ -396,7 +396,7 @@ class ClosedState(FSMState):
                     try:
                         state_data.sock.send(disconnect_packet.encode())
                         logger.debug("---> %s", disconnect_packet)
-                    except (BlockingIOError, ssl.SSLWantWriteError, OSError):
+                    except OSError:
                         logger.debug("Failed to send DISCONNECT packet")
             if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:
                 fsm.change_state(ReconnectWaitState)
