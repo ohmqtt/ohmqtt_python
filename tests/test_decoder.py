@@ -1,4 +1,9 @@
+import socket
+import ssl
+from unittest.mock import Mock
+
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection.decoder import IncrementalDecoder, ClosedSocketError
 from ohmqtt.error import MQTTError
@@ -6,7 +11,13 @@ from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import MQTTPublishPacket
 
 
-def test_decoder_defaults():
+@pytest.fixture
+def mock_socket(mocker: MockerFixture) -> Mock:
+    """Return a mock socket for testing."""
+    return mocker.Mock(spec=socket.socket)  # type: ignore[no-any-return]
+
+
+def test_decoder_defaults() -> None:
     """reset() should set the decoder to its default state."""
     decoder = IncrementalDecoder()
     decoder2 = IncrementalDecoder()
@@ -16,59 +27,66 @@ def test_decoder_defaults():
     assert decoder.data == decoder2.data
 
 
-def test_decoder_drip_feed(loopback_socket):
+@pytest.mark.parametrize("exc", [BlockingIOError, ssl.SSLWantReadError])
+def test_decoder_drip_feed(exc: Exception, mock_socket: Mock) -> None:
     """Feed the decoder one byte at a time."""
-    loopback_socket.setblocking(False)
     decoder = IncrementalDecoder()
     # Use a packet with a payload of 255 bytes to ensure we have to read
     # multiple bytes for the length varint.
     in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=1, packet_id=66)
     data = in_packet.encode()
-    for i in range(len(data) - 1):
-        loopback_socket.test_sendall(data[i:i+1])
-        assert decoder.decode(loopback_socket) is None
 
-    loopback_socket.test_sendall(data[-1:])
-    out_packet = decoder.decode(loopback_socket)
+    # Setup mock to return one byte at a time
+    for i in range(len(data) - 1):
+        mock_socket.recv.side_effect = [data[i:i+1], exc]
+        assert decoder.decode(mock_socket) is None
+
+    # Final byte completes the packet
+    mock_socket.recv.side_effect = [data[-1:]]
+    out_packet = decoder.decode(mock_socket)
     assert out_packet == in_packet
 
 
+@pytest.mark.parametrize("exc", [BlockingIOError, ssl.SSLWantReadError])
+@pytest.mark.parametrize("closer", [b"", OSError])
 @pytest.mark.parametrize("available_bytes", [n for n in range(6)])
-def test_decoder_drip_partial_closures(available_bytes, loopback_socket):
+def test_decoder_drip_partial_closures(exc: Exception, closer: bytes | Exception,
+                                       available_bytes: int, mock_socket: Mock) -> None:
     """Feed the decoder partial data, then close the socket."""
-    loopback_socket.setblocking(False)
     decoder = IncrementalDecoder()
     # Use a packet with a payload of 255 bytes to ensure we have to read
     # multiple bytes for the length varint.
     in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=1, packet_id=66)
     data = in_packet.encode()
 
-    # Send a few bytes.
-    loopback_socket.test_sendall(data[:available_bytes])
-    assert decoder.decode(loopback_socket) is None
+    # Send a few bytes then simulate closed socket
+    if available_bytes > 0:
+        mock_socket.recv.side_effect = [data[:available_bytes], exc]
+    else:
+        mock_socket.recv.side_effect = [exc]
 
-    loopback_socket.close()
+    assert decoder.decode(mock_socket) is None
+
+    mock_socket.recv.side_effect = [closer]
     with pytest.raises(ClosedSocketError):
-        decoder.decode(loopback_socket)
+        decoder.decode(mock_socket)
 
 
 @pytest.mark.parametrize("bad_data", [
     b"\xf0\x80\x80\x80\x80",
     b"\xf0\xff\xff\xff\xff",
 ])
-def test_decoder_bad_length(bad_data, loopback_socket):
+def test_decoder_bad_length(bad_data: bytes, mock_socket: Mock) -> None:
     """Feed the decoder a bad varint length."""
-    loopback_socket.setblocking(False)
     decoder = IncrementalDecoder()
-    loopback_socket.test_sendall(bad_data)
+    mock_socket.recv.return_value = bad_data
     with pytest.raises(MQTTError, match=r"Varint overflow") as excinfo:
-        decoder.decode(loopback_socket)
+        decoder.decode(mock_socket)
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
 
 
-def test_decoder_empty_reads(mocker):
+def test_decoder_empty_reads(mock_socket: Mock) -> None:
     """Feed the decoder empty reads."""
-    mock_socket = mocker.Mock()
     decoder = IncrementalDecoder()
     # Use a packet with a payload of 255 bytes to ensure we have to read
     # multiple bytes for the length varint.
