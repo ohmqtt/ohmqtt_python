@@ -1,15 +1,18 @@
+from unittest.mock import Mock
+
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection.keepalive import KeepAlive, MIN_TIMEOUT
 
 
 @pytest.fixture
-def mock_keepalive_time(mocker):
+def mock_keepalive_time(mocker: MockerFixture) -> Mock:
     """Mock the keepalive module's time method to control the passage of time."""
     return mocker.patch("ohmqtt.connection.keepalive._time")
 
 
-def test_keepalive_props():
+def test_keepalive_props() -> None:
     """Test the properties of the KeepAlive class."""
     keepalive = KeepAlive()
     assert keepalive.keepalive_interval == 0
@@ -21,7 +24,7 @@ def test_keepalive_props():
         keepalive.keepalive_interval = 65536
 
 
-def test_keepalive_slots():
+def test_keepalive_slots() -> None:
     """Ensure slots match attributes exactly."""
     keepalive = KeepAlive()
     assert not hasattr(keepalive, "__dict__")
@@ -29,7 +32,7 @@ def test_keepalive_slots():
         [attr for attr in keepalive.__slots__ if not hasattr(keepalive, attr)]
 
 
-def test_keepalive_no_interval(mock_keepalive_time):
+def test_keepalive_no_interval(mock_keepalive_time: Mock) -> None:
     """When interval is 0, keepalive should be inert."""
     keepalive = KeepAlive()
 
@@ -43,7 +46,7 @@ def test_keepalive_no_interval(mock_keepalive_time):
     assert keepalive.get_next_timeout() is None
 
 
-def test_keepalive_dark_forest(mock_keepalive_time):
+def test_keepalive_dark_forest(mock_keepalive_time: Mock) -> None:
     """When interval is set and no data from server, close after a ping."""
     keepalive = KeepAlive()
 
@@ -69,7 +72,7 @@ def test_keepalive_dark_forest(mock_keepalive_time):
     assert keepalive.get_next_timeout() == MIN_TIMEOUT
 
 
-def test_keepalive_send(mock_keepalive_time):
+def test_keepalive_send(mock_keepalive_time: Mock) -> None:
     """When interval is set and data is sent, no pings should be sent."""
     keepalive = KeepAlive()
 
@@ -85,7 +88,7 @@ def test_keepalive_send(mock_keepalive_time):
         assert keepalive.get_next_timeout() == 10.0
 
 
-def test_keepalive_pingpong(mock_keepalive_time):
+def test_keepalive_pingpong(mock_keepalive_time: Mock) -> None:
     """When interval is set now data is sent, exchange pings and pongs."""
     keepalive = KeepAlive()
 
