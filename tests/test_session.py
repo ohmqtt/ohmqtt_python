@@ -1,4 +1,7 @@
+from unittest.mock import Mock
+
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection import Connection, ConnectParams, MessageHandlers
 from ohmqtt.packet import (
@@ -15,16 +18,16 @@ from ohmqtt.topic_alias import AliasPolicy
 
 
 @pytest.fixture
-def mock_handlers(mocker):
-    return mocker.Mock(spec=MessageHandlers)
+def mock_handlers(mocker: MockerFixture) -> Mock:
+    return mocker.Mock(spec=MessageHandlers)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
-def mock_connection(mocker):
-    return mocker.Mock(spec=Connection)
+def mock_connection(mocker: MockerFixture) -> Mock:
+    return mocker.Mock(spec=Connection)  # type: ignore[no-any-return]
 
 
-def test_session_publish_qos0(mock_handlers, mock_connection):
+def test_session_publish_qos0(mock_handlers: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_connection)
     mock_connection.can_send.return_value = True
 
@@ -38,7 +41,7 @@ def test_session_publish_qos0(mock_handlers, mock_connection):
     assert handle.wait_for_ack() is False
 
 
-def test_session_publish_qos1(mock_handlers, mock_connection):
+def test_session_publish_qos1(mock_handlers: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_connection)
     session.server_receive_maximum = 20
     mock_connection.can_send.return_value = True
@@ -59,7 +62,7 @@ def test_session_publish_qos1(mock_handlers, mock_connection):
     assert handle.wait_for_ack(0.001) is True
 
 
-def test_session_publish_qos2(mock_handlers, mock_connection):
+def test_session_publish_qos2(mock_handlers: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_connection)
     session.server_receive_maximum = 20
     mock_connection.can_send.return_value = True
@@ -89,7 +92,7 @@ def test_session_publish_qos2(mock_handlers, mock_connection):
 
 @pytest.mark.parametrize("db_path", [":memory:", ""])
 @pytest.mark.parametrize("qos", [0, 1, 2])
-def test_session_publish_alias(db_path, qos, mock_handlers, mock_connection):
+def test_session_publish_alias(db_path: str, qos: int, mock_handlers: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_connection, db_path=db_path)
     session.set_params(ConnectParams(client_id="test_client", clean_start=True))
     mock_connection.can_send.return_value = True
@@ -130,7 +133,7 @@ def test_session_publish_alias(db_path, qos, mock_handlers, mock_connection):
         mock_connection.send.reset_mock()
 
 
-def test_session_slots(mock_handlers, mock_connection):
+def test_session_slots(mock_handlers: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_connection)
     assert not hasattr(session, "__dict__")
     assert all(hasattr(session, attr) for attr in session.__slots__), \
