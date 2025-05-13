@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import threading
 import time
+from typing import Any
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection import Address
 from ohmqtt.connection.fsm import FSM, FSMState, InvalidStateError
-from ohmqtt.connection.types import ConnectParams, StateEnvironment
+from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 
 
 class _TestError(Exception):
@@ -15,26 +19,32 @@ class _TestError(Exception):
 class MockState(FSMState):
     """Simulate a blocking state."""
     @classmethod
-    def handle(cls, fsm, data, env, params, max_wait):
+    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment,
+               params: ConnectParams, max_wait: float | None) -> bool:
         with fsm.cond:
             fsm.cond.wait(max_wait)
         return True
+
 class MockStateA(MockState):
     """This is set up like initial state."""
+
 class MockStateB(MockState):
     """This is an intermediate state."""
+
 class MockStateC(MockState):
     """This state is final."""
     @classmethod
-    def handle(*args, **kwargs):
+    def handle(cls, *args: Any, **kwargs: Any) -> bool:
         return True
+
 class MockStateErr(MockState):
     """This state is just broken."""
     @classmethod
-    def enter(cls, *args, **kwargs):
+    def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         raise _TestError("TEST Error in state enter")
+
     @classmethod
-    def handle(cls, *args, **kwargs):
+    def handle(cls, *args: Any, **kwargs: Any) -> bool:
         raise _TestError("TEST Error in state handler")
 
 
@@ -49,24 +59,26 @@ MockStateErr.transitions_to = (MockStateC,)
 MockStateErr.can_request_from = (MockStateA, MockStateB)
 
 
+class EnvironmentCallbacks:
+    """Container for StateEnvironment callbacks."""
+    def __init__(self, mocker: MockerFixture) -> None:
+        self.packet = mocker.Mock()
+
+
 @pytest.fixture
-def callbacks(mocker):
-    class EnvironmentCallbacks:
-        """Container for StateEnvironment callbacks."""
-        def __init__(self, mocker):
-            self.packet = mocker.Mock()
+def callbacks(mocker: MockerFixture) -> EnvironmentCallbacks:
     return EnvironmentCallbacks(mocker)
 
 
 @pytest.fixture
-def env(callbacks):
+def env(callbacks: EnvironmentCallbacks) -> StateEnvironment:
     """Fixture to create a StateEnvironment."""
     return StateEnvironment(
         packet_callback=callbacks.packet,
     )
 
 
-def test_fsm_init(env):
+def test_fsm_init(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
     assert fsm.env == env
     assert fsm.previous_state == MockStateA
@@ -75,7 +87,7 @@ def test_fsm_init(env):
     assert fsm.error_state == MockStateC
 
 
-def test_fsm_props(env):
+def test_fsm_props(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
     params = ConnectParams(address=Address("test_address"))
@@ -89,13 +101,13 @@ def test_fsm_props(env):
 
 
 @pytest.mark.parametrize("do_request", [True, False])
-def test_fsm_wait_for_state(do_request, env):
+def test_fsm_wait_for_state(do_request: bool, env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
     assert fsm.wait_for_state([MockStateA], 0.001) is True
     assert fsm.wait_for_state([MockStateB, MockStateC], 0.001) is False
 
     start = threading.Event()
-    def notifier():
+    def notifier() -> None:
         start.wait()
         if do_request:
             fsm.request_state(MockStateB)
@@ -115,11 +127,11 @@ def test_fsm_wait_for_state(do_request, env):
 
 
 @pytest.mark.parametrize("do_request", [True, False])
-def test_fsm_loop_until_state(do_request, env):
+def test_fsm_loop_until_state(do_request: bool, env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
     start = threading.Event()
-    def notifier():
+    def notifier() -> None:
         start.wait()
         time.sleep(0.1)
         if do_request:
@@ -138,7 +150,7 @@ def test_fsm_loop_until_state(do_request, env):
         assert not thread.is_alive()
 
 
-def test_fsm_loop_until_state_timeout(env):
+def test_fsm_loop_until_state_timeout(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
     t0 = time.monotonic()
     assert fsm.loop_until_state([MockStateC], timeout=0.001) is False
@@ -146,11 +158,11 @@ def test_fsm_loop_until_state_timeout(env):
 
 
 @pytest.mark.parametrize("do_request", [True, False])
-def test_fsm_loop_until_state_error(do_request, env):
+def test_fsm_loop_until_state_error(do_request: bool, env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
     start = threading.Event()
-    def notifier():
+    def notifier() -> None:
         start.wait()
         time.sleep(0.1)
         if do_request:
@@ -171,11 +183,11 @@ def test_fsm_loop_until_state_error(do_request, env):
 
 
 @pytest.mark.parametrize("do_request", [True, False])
-def test_fsm_loop_until_state_final(do_request, env):
+def test_fsm_loop_until_state_final(do_request: bool, env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
     start = threading.Event()
-    def notifier():
+    def notifier() -> None:
         start.wait()
         time.sleep(0.1)
         if do_request:
@@ -194,7 +206,7 @@ def test_fsm_loop_until_state_final(do_request, env):
         assert not thread.is_alive()
 
 
-def test_fsm_loop_once_error(env):
+def test_fsm_loop_once_error(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateErr, error_state=MockStateC)
 
     with pytest.raises(_TestError):
@@ -203,7 +215,7 @@ def test_fsm_loop_once_error(env):
     assert fsm.previous_state == MockStateErr
 
 
-def test_fsm_change_state(env):
+def test_fsm_change_state(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
     # Redundant calls should not break the state machine.
@@ -216,7 +228,7 @@ def test_fsm_change_state(env):
         fsm.change_state(MockStateA)
 
 
-def test_fsm_request_state(env):
+def test_fsm_request_state(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
     # Redundant calls should not break the state machine.
@@ -240,7 +252,7 @@ def test_fsm_request_state(env):
     assert fsm.previous_state == MockStateB
 
 
-def test_fsm_loop_error_explosion(env):
+def test_fsm_loop_error_explosion(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateErr, error_state=MockStateA)
 
     # We can't reach the error state from the broken initial state.
@@ -250,11 +262,11 @@ def test_fsm_loop_error_explosion(env):
     assert fsm.previous_state == MockStateErr
 
 
-def test_fsm_loop_idle(env):
+def test_fsm_loop_idle(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateC, error_state=MockStateC)
 
     start = threading.Event()
-    def wakeup():
+    def wakeup() -> None:
         start.wait()
         time.sleep(0.1)
         with fsm.cond:
