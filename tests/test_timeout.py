@@ -1,14 +1,17 @@
+from unittest.mock import Mock
+
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection.timeout import Timeout
 
 
 @pytest.fixture
-def mock_time(mocker):
+def mock_time(mocker: MockerFixture) -> Mock:
     return mocker.patch("ohmqtt.connection.timeout._time")
 
 
-def test_timeout(mock_time):
+def test_timeout(mock_time: Mock) -> None:
     mock_time.return_value = 0.0
     timeout = Timeout()
 
@@ -33,7 +36,7 @@ def test_timeout(mock_time):
     assert not timeout.exceeded()
 
 
-def test_timeout_max_wait(mock_time):
+def test_timeout_max_wait(mock_time: Mock) -> None:
     mock_time.return_value = 0.0
     timeout = Timeout()
 
