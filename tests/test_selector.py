@@ -6,7 +6,7 @@ import pytest
 from ohmqtt.connection.selector import InterruptibleSelector
 
 
-def test_selector_protection():
+def test_selector_protection() -> None:
     selector = InterruptibleSelector()
 
     with pytest.raises(RuntimeError):
@@ -15,11 +15,11 @@ def test_selector_protection():
         selector.interrupt()
 
 
-def test_selector_interrupt(loopback_socket):
+def test_selector_interrupt(loopback_socket: socket.socket) -> None:
     selector = InterruptibleSelector()
 
     start = threading.Event()
-    def wait_for_interrupt():
+    def wait_for_interrupt() -> None:
         with selector:
             selector.change_sock(loopback_socket)
             start.set()
@@ -36,7 +36,7 @@ def test_selector_interrupt(loopback_socket):
     assert not thread.is_alive()
 
 
-def test_selector_change_sock():
+def test_selector_change_sock() -> None:
     selector = InterruptibleSelector()
     sock1 = socket.socket()
     sock2 = socket.socket()
@@ -47,7 +47,7 @@ def test_selector_change_sock():
         selector.change_sock(sock2)  # Redundant change, should not raise
 
 
-def test_selector_no_sock():
+def test_selector_no_sock() -> None:
     selector = InterruptibleSelector()
 
     with selector:
@@ -55,7 +55,7 @@ def test_selector_no_sock():
             selector.select()
 
 
-def test_selector_close(loopback_socket):
+def test_selector_close(loopback_socket: socket.socket) -> None:
     selector = InterruptibleSelector()
 
     with selector:
@@ -69,14 +69,14 @@ def test_selector_close(loopback_socket):
             selector.interrupt()
 
 
-def test_selector_select(loopback_socket):
+def test_selector_select(loopback_socket: socket.socket) -> None:
     selector = InterruptibleSelector()
 
     with selector:
         selector.change_sock(loopback_socket)
         assert selector.select(read=True, timeout=0.1) == (False, False)
         assert selector.select(write=True, timeout=0.1) == (False, True)
-        loopback_socket.test_sendall(b"test")
+        loopback_socket.test_sendall(b"test")  # type: ignore[attr-defined]
         assert selector.select(read=True, timeout=0.1) == (True, False)
         with pytest.raises(ValueError):
             selector.select(timeout=0.1)
