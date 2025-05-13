@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 import pytest
@@ -5,6 +7,7 @@ import socket
 import ssl
 import tempfile
 import threading
+from typing import Any, Callable, Generator, TypeVar
 import yaml
 
 from tests.util.selfsigned import generate_selfsigned_cert
@@ -13,9 +16,11 @@ from ohmqtt.platform import HAS_AF_UNIX
 
 logger = logging.getLogger(__name__)
 
+LoopSelfT = TypeVar("LoopSelfT", bound="LoopbackSocket")
+
 
 @pytest.fixture
-def test_data(request):
+def test_data(request: pytest.FixtureRequest) -> list[dict[str, Any]]:
     """Load test data from a YAML file.
 
     The YAML file must be named after the test suite, and contain a mapping of test names to test data."""
@@ -24,24 +29,45 @@ def test_data(request):
     data_path = Path("tests") / "data" / f"{suite_name}.yml"
     with data_path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data[test_name]
+    return data[test_name]  # type: ignore[no-any-return]
 
 
 class LoopbackSocket:
     """A pair of connected sockets for testing.
 
     Return an instance of this class from a mock to use as a socket in tests."""
-    def __init__(self):
-        self.reset()
+    connect_calls: list[tuple[Any, ...] | str]
 
-    def __enter__(self):
+    def __init__(self) -> None:
+        self.reset()
+        self.test_close = self.testsock.close
+        self.test_sendall = self.testsock.sendall
+        self.test_recv = self.testsock.recv
+        self.test_shutdown = self.testsock.shutdown
+        self.close = self.mocksock.close
+        self.detach = self.mocksock.detach
+        self.family = self.mocksock.family
+        self.fileno = self.mocksock.fileno
+        self.getblocking = self.mocksock.getblocking
+        self.getsockopt = self.mocksock.getsockopt
+        self.gettimeout = self.mocksock.gettimeout
+        self.proto = self.mocksock.proto
+        self.recv = self.mocksock.recv
+        self.recv_into = self.mocksock.recv_into
+        self.send = self.mocksock.send
+        self.sendall = self.mocksock.sendall
+        self.setblocking = self.mocksock.setblocking
+        self.shutdown = self.mocksock.shutdown
+        self.type = self.mocksock.type
+
+    def __enter__(self: LoopSelfT) -> LoopSelfT:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, *args: Any) -> None:
         self.mocksock.close()
         self.testsock.close()
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.mocksock.close()
         self.testsock.close()
 
@@ -51,63 +77,10 @@ class LoopbackSocket:
         self.testsock.settimeout(5.0)
         self.connect_calls = []
 
-    def test_close(self) -> None:
-        self.testsock.close()
-
-    def test_sendall(self, *args, **kwargs) -> None:
-        self.testsock.sendall(*args, **kwargs)
-
-    def test_recv(self, *args, **kwargs) -> bytes:
-        return self.testsock.recv(*args, **kwargs)
-
-    def test_shutdown(self, *args, **kwargs) -> None:
-        self.testsock.shutdown(*args, **kwargs)
-
-    def close(self) -> None:
-        self.mocksock.close()
-
-    def connect(self, address) -> None:
+    def connect(self, address: tuple[Any, ...] | str) -> None:
         self.connect_calls.append(address)
 
-    def detach(self):
-        return self.mocksock.detach()
-
-    @property
-    def family(self) -> int:
-        return self.mocksock.family
-
-    def fileno(self) -> int:
-        return self.mocksock.fileno()
-
-    def getblocking(self) -> bool:
-        return self.mocksock.getblocking()
-
-    def getsockopt(self, *args, **kwargs):
-        return self.mocksock.getsockopt(*args, **kwargs)
-
-    def gettimeout(self, *args, **kwargs):
-        return self.mocksock.gettimeout(*args, **kwargs)
-
-    @property
-    def proto(self) -> int:
-        return self.mocksock.proto
-
-    def recv(self, *args, **kwargs) -> bytes:
-        return self.mocksock.recv(*args, **kwargs)
-
-    def recv_into(self, *args, **kwargs) -> int:
-        return self.mocksock.recv_into(*args, **kwargs)
-
-    def send(self, *args, **kwargs) -> int:
-        return self.mocksock.send(*args, **kwargs)
-
-    def sendall(self, *args, **kwargs) -> None:
-        self.mocksock.sendall(*args, **kwargs)
-
-    def setblocking(self, *args, **kwargs) -> None:
-        self.mocksock.setblocking(*args, **kwargs)
-
-    def setsockopt(self, level, optname, value) -> None:
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
         if optname == socket.TCP_NODELAY:
             # Where AF_UNIX exists, do not set TCP_NODELAY on either side of the socket.
             # We are spoofing TCP but the socketpair is a Unix domain socket.
@@ -116,18 +89,11 @@ class LoopbackSocket:
                 return
         self.mocksock.setsockopt(level, optname, value)
 
-    def shutdown(self, *args, **kwargs) -> None:
-        self.mocksock.shutdown(*args, **kwargs)
-
-    @property
-    def type(self) -> int:
-        return self.mocksock.type
-
 
 @pytest.fixture
-def loopback_socket():
-    with LoopbackSocket() as loopback:
-        yield loopback
+def loopback_socket() -> Generator[LoopbackSocket, None, None]:
+    with LoopbackSocket() as loop:
+        yield loop
 
 
 class LoopbackTLSSocket(LoopbackSocket):
@@ -136,7 +102,9 @@ class LoopbackTLSSocket(LoopbackSocket):
     Return an instance of this class from a mock to use as a socket in tests.
 
     You must call test_do_handshake() before using either end of the socket."""
-    def __init__(self):
+    testsock: ssl.SSLSocket
+
+    def __init__(self) -> None:
         super().__init__()
         self._wrap_socket()
 
@@ -169,13 +137,13 @@ class LoopbackTLSSocket(LoopbackSocket):
 
 
 @pytest.fixture
-def loopback_tls_socket():
-    with LoopbackTLSSocket() as loopback:
-        yield loopback
+def loopback_tls_socket() -> Generator[LoopbackTLSSocket, None, None]:
+    with LoopbackTLSSocket() as loop:
+        yield loop
 
 
 @pytest.fixture
-def ssl_client_context():
+def ssl_client_context() -> Callable[[bytes], ssl.SSLContext]:
     """Provides a function for getting a new SSL client context with provided certificate."""
     def _ssl_client_context(cert_pem: bytes) -> ssl.SSLContext:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
