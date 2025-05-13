@@ -14,7 +14,7 @@ def make_packet(topic: str = "", alias: int | None = None) -> MQTTPublishPacket:
     return packet
 
 
-def test_topic_alias_outbound():
+def test_topic_alias_outbound() -> None:
     """Test the outbound topic alias lookup."""
     topic_alias = OutboundTopicAlias()
     topic_alias.max_alias = 10
@@ -56,7 +56,7 @@ def test_topic_alias_outbound():
     assert topic_alias.max_alias == 2  # Should not reset
 
 
-def test_topic_alias_inbound():
+def test_topic_alias_inbound() -> None:
     """Test the inbound topic alias store."""
     topic_alias = InboundTopicAlias()
 
