@@ -203,7 +203,7 @@ class MQTTProperties(MQTTPropertiesBase):
                 cast(list[tuple[str, str]], properties[prop_name]).append(cast(tuple[str, str], value))
             elif prop_name in properties:
                 # Other properties must appear exactly once.
-                raise MQTTError(f"Duplicate property {prop_name}", MQTTReasonCode.MalformedPacket)
+                raise MQTTError(f"Duplicate property {prop_name}", MQTTReasonCode.ProtocolError)
             else:
                 properties[prop_name] = value  # type: ignore[assignment]
         return cls(**properties), length + length_sz

@@ -15,4 +15,4 @@ def test_property_duplicate_key() -> None:
 
     with pytest.raises(MQTTError, match=r"Duplicate") as excinfo:
         MQTTPublishProps.decode(view)
-    assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
+    assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
