@@ -49,6 +49,7 @@ class Client:
         address: str,
         *,
         client_id: str = "",
+        clean_start: bool = False,
         connect_timeout: float | None = None,
         reconnect_delay: int = 0,
         keepalive_interval: int = 0,
@@ -67,6 +68,7 @@ class Client:
         params = ConnectParams(
             address=_address,
             client_id=client_id,
+            clean_start=clean_start,
             connect_timeout=connect_timeout,
             reconnect_delay=reconnect_delay,
             keepalive_interval=keepalive_interval,
