@@ -194,7 +194,6 @@ class MQTTHandshakeConnAckState(FSMState):
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
             packet = cast(MQTTConnAckPacket, packet)
-            logger.debug("<--- %s", packet)
             state_data.connack = packet
             if packet.properties.ServerKeepAlive is not None:
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive
