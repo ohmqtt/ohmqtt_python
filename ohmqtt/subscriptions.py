@@ -21,7 +21,7 @@ from .packet import (
 )
 from .property import MQTTSubscribeProps, MQTTUnsubscribeProps
 from .topic_alias import InboundTopicAlias
-from .topic_filter import validate_topic_filter, validate_share_name, join_share
+from .topic_filter import validate_topic_filter, validate_share_name, join_share, match_topic_filter
 
 if TYPE_CHECKING:
     from .client import Client  # pragma: no cover
@@ -337,7 +337,8 @@ class Subscriptions:
             if client is None:
                 raise RuntimeError("Client went out of scope")
             self._topic_alias.handle(packet)
-            subs = self._subscriptions.get(packet.topic, [])
+            sub_lists = [sub for tf, sub in self._subscriptions.items() if match_topic_filter(tf, packet.topic)]
+            subs = [sub for sub_list in sub_lists for sub in sub_list]
             if packet.properties.SubscriptionIdentifier is not None:
                 subs = [sub for sub in subs if sub.sub_id in packet.properties.SubscriptionIdentifier]
             for sub in subs:

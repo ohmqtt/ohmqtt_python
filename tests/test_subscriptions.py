@@ -47,6 +47,7 @@ def test_subscriptions_registration(mock_client: Mock, mock_connection: Mock) ->
     assert subscriptions.handle_unsuback in handlers.get_handlers(MQTTUnsubAckPacket)
     assert subscriptions.handle_connack in handlers.get_handlers(MQTTConnAckPacket)
 
+
 @pytest.mark.parametrize("max_qos", [0, 1, 2])
 @pytest.mark.parametrize("no_local", [True, False])
 @pytest.mark.parametrize("retain_as_published", [True, False])
@@ -229,6 +230,37 @@ def test_subscriptions_multi_subscribe(
             packet_id=2,
         )
         mock_connection.reset_mock()
+
+
+@pytest.mark.parametrize(("tf", "topic"), [
+    ("test/topic", "test/topic"),
+    ("test/+", "test/topic"),
+    ("#", "test/topic"),
+])
+def test_subscriptions_handle_publish(
+    tf: str,
+    topic: str,
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test handling a publish packet."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    recvd = []
+    def callback(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd.append(packet)
+    subscriptions.subscribe(tf, callback)
+
+    publish_packet = MQTTPublishPacket(
+        topic=topic,
+        payload=b"test payload",
+        qos=1,
+        packet_id=1,
+    )
+    subscriptions.handle_publish(publish_packet)
+
+    assert recvd == [publish_packet]
 
 
 def test_subscriptions_slots(
