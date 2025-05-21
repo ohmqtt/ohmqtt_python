@@ -96,7 +96,7 @@ def decode_string(data: memoryview) -> tuple[str, int]:
             raise ValueError("String data underrun")
         # Strict UTF-8 decoding will catch any invalid UTF-8 sequences.
         # This is important for MQTT, as invalid sequences are not allowed.
-        s = data[2:2 + length].tobytes("A").decode("utf-8", errors="strict")
+        s = str(data[2:2 + length], encoding="utf-8", errors="strict")
         # The only other invalid character is the null character.
         if "\u0000" in s:
             raise ValueError("Unicode null character in string")
