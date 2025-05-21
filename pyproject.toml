@@ -1,15 +1,45 @@
 [project]
 name = "ohmqtt"
 version = "0.0.2"
-description = "MQTT Client"
-readme = "README.md"
+description = "Persistent MQTT 5.0 client"
 requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications",
+    "Topic :: Home Automation",
+    "Topic :: Internet",
+    "Typing :: Typed",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
 dependencies = [
     "typing-extensions>=4.12.2; python_version < '3.11'",
 ]
 
+[project.urls]
+Homepage = "https://github.com/ohmqtt/ohmqtt_python"
+Issues = "https://github.com/ohmqtt/ohmqtt_python/issues"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ohmqtt", "ohmqtt.connection", "ohmqtt.packet", "ohmqtt.persistence"]
+
 [dependency-groups]
 dev = [
+    "build>=1.2.2.post1",
     "complexipy>=2.1.1; platform_system != 'Windows'",
     "cryptography>=44.0.2",
     "mypy>=1.15.0",
@@ -85,7 +115,3 @@ filterwarnings = [
     "ignore::ResourceWarning",
 ]
 addopts = "--cov=ohmqtt --cov-report=term-missing -v"
-
-[tool.setuptools.packages.find]
-include = ["ohmqtt"]
-
