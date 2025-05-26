@@ -1,4 +1,4 @@
-name: nox
+name: Run lint and tests with nox
 
 on: push
 
@@ -26,3 +26,4 @@ jobs:
     - uses: actions/checkout@v4
     - run: pipx install nox uv
     - run: nox
+
