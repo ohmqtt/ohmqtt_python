@@ -5,6 +5,7 @@ uv.lock
 .coverage
 .python-version
 .venv/
+docs/_build/
 build/
 dist/
 *.egg-info/
