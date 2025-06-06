@@ -71,7 +71,7 @@ class Persistence(metaclass=ABCMeta):
 
     @abstractmethod
     def __len__(self) -> int:
-        """Return the number of messages in the persistence store."""
+        """Return the number of outgoing messages in the persistence store."""
         ...  # pragma: no cover
 
     @abstractmethod
@@ -94,7 +94,30 @@ class Persistence(metaclass=ABCMeta):
 
     @abstractmethod
     def ack(self, packet_id: int) -> None:
-        """Ack a PUBLISH or PUBREL message in the persistence store."""
+        """Ack a PUBLISH or PUBREL message in the persistence store.
+
+        Raises ValueError if the packet_id is not found in the store."""
+        ...  # pragma: no cover
+
+    @abstractmethod
+    def check_rec(self, packet: MQTTPublishPacket) -> bool:
+        """Validate that a QoS 2 PUBLISH packet has not already been received.
+
+        Returns True if the packet has not already been received, otherwise False.
+
+        Raises ValueError if the packet is not a QoS 2 PUBLISH packet."""
+        ...  # pragma: no cover
+
+    @abstractmethod
+    def set_rec(self, packet: MQTTPublishPacket) -> None:
+        """Indicate that a QoS 2 PUBLISH message has been received.
+
+        Raises ValueError if the packet is not a QoS 2 PUBLISH packet."""
+        ...  # pragma: no cover
+
+    @abstractmethod
+    def rel(self, packet: MQTTPubRelPacket) -> None:
+        """Release a QoS 2 PUBLISH message."""
         ...  # pragma: no cover
 
     @abstractmethod

@@ -25,7 +25,6 @@ class Client:
         "_thread",
         "connection",
         "session",
-        "subscriptions",
     )
 
     def __init__(self, db_path: str = "", *, db_fast: bool = False) -> None:
@@ -33,8 +32,8 @@ class Client:
         message_handlers = MessageHandlers()
         with message_handlers as handlers:
             self.connection = Connection(handlers)
-            self.subscriptions = Subscriptions(handlers, self.connection, weakref.ref(self))
-            self.session = Session(handlers, self.connection, db_path=db_path, db_fast=db_fast)
+            subscriptions = Subscriptions(handlers, self.connection, weakref.ref(self))
+            self.session = Session(handlers, subscriptions, self.connection, db_path=db_path, db_fast=db_fast)
             handlers.register(MQTTAuthPacket, self.handle_auth)
 
     def __enter__(self) -> Client:
@@ -133,7 +132,7 @@ class Client:
         or wait for the subscription to be acknowledged.
 
         If the client is not connected, returns None."""
-        return self.subscriptions.subscribe(
+        return self.session.subscriptions.subscribe(
             topic_filter,
             callback,
             max_qos=max_qos,
@@ -166,7 +165,7 @@ class Client:
         If the client is connected, returns a handle which can be used to wait for the unsubscription to be acknowledged.
 
         If the client is not connected, returns None."""
-        return self.subscriptions.unsubscribe(
+        return self.session.subscriptions.unsubscribe(
             topic_filter,
             callback,
             max_qos=max_qos,

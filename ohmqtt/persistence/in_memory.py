@@ -38,10 +38,10 @@ class InMemoryPersistence(Persistence):
     _next_packet_id: int = field(default=1, init=False)
     _messages: dict[int, RetainedMessage] = field(init=False, default_factory=dict)
     _pending: deque[int] = field(init=False, default_factory=deque)
+    _received: set[int] = field(init=False, default_factory=set)
     _cond: Condition = field(init=False, default_factory=Condition)
 
     def __len__(self) -> int:
-        """Return the number of messages in the persistence store."""
         return len(self._messages)
 
     def add(
@@ -85,8 +85,7 @@ class InMemoryPersistence(Persistence):
 
     def ack(self, packet_id: int) -> None:
         if packet_id not in self._messages:
-            logger.error("Packet ID %d not found in retention store", packet_id)
-            return
+            raise ValueError(f"Unknown packet_id: {packet_id}")
         message = self._messages[packet_id]
         if message.qos == 1 or message.received:
             handle = message.handle()
@@ -99,6 +98,22 @@ class InMemoryPersistence(Persistence):
             # Prioritize PUBREL over PUBLISH
             self._pending.appendleft(packet_id)
             message.received = True
+
+    def check_rec(self, packet: MQTTPublishPacket) -> bool:
+        if packet.qos != 2:
+            raise ValueError("Not a QoS 2 PUBLISH packet")
+        if packet.packet_id in self._received:
+            logger.debug("Received duplicate QoS 2 packet with ID %d", packet.packet_id)
+            return False
+        return True
+
+    def set_rec(self, packet: MQTTPublishPacket) -> None:
+        if packet.qos != 2:
+            raise ValueError("Not a QoS 2 PUBLISH packet")
+        self._received.add(packet.packet_id)
+
+    def rel(self, packet: MQTTPubRelPacket) -> None:
+        self._received.remove(packet.packet_id)
 
     def render(self, packet_id: int) -> RenderedPacket:
         packet: MQTTPublishPacket | MQTTPubRelPacket

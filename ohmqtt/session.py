@@ -19,12 +19,15 @@ from .property import MQTTPublishProps
 from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
 from .persistence.in_memory import InMemoryPersistence
 from .persistence.sqlite import SQLitePersistence
+from .subscriptions import Subscriptions
 from .topic_alias import AliasPolicy, OutboundTopicAlias
 
 logger: Final = get_logger("session")
 
 SessionSendablePacketT: TypeAlias = (
     MQTTPublishPacket |
+    MQTTPubAckPacket |
+    MQTTPubRecPacket |
     MQTTPubRelPacket |
     MQTTPubCompPacket
 )
@@ -38,6 +41,7 @@ class Session:
         "params",
         "persistence",
         "server_receive_maximum",
+        "subscriptions",
         "topic_alias",
     )
     persistence: Persistence
@@ -45,6 +49,7 @@ class Session:
     def __init__(
         self,
         handlers: MessageHandlers,
+        subscriptions: Subscriptions,
         connection: Connection,
         *,
         db_path: str = "",
@@ -54,6 +59,7 @@ class Session:
         self.topic_alias = OutboundTopicAlias()
         self.inflight = 0
         self.params = ConnectParams()
+        self.subscriptions = subscriptions
         self.connection = connection
         if db_path:
             self.persistence = SQLitePersistence(db_path, db_fast=db_fast)
@@ -62,6 +68,7 @@ class Session:
         self.server_receive_maximum = 0
 
         handlers.register(MQTTConnAckPacket, self.handle_connack)
+        handlers.register(MQTTPublishPacket, self.handle_publish)
         handlers.register(MQTTPubAckPacket, self.handle_puback)
         handlers.register(MQTTPubRecPacket, self.handle_pubrec)
         handlers.register(MQTTPubRelPacket, self.handle_pubrel)
@@ -171,6 +178,21 @@ class Session:
             self.persistence.open(client_id, clear=clear_persistence)
             self._flush()
 
+    def handle_publish(self, packet: MQTTPublishPacket) -> None:
+        """Handle a PUBLISH packet from the server."""
+        if packet.qos == 2 and not self.persistence.check_rec(packet):
+            logger.debug("Received duplicate QoS 2 packet with ID %d", packet.packet_id)
+        else:
+            self.subscriptions.handle_publish(packet)
+
+        if packet.qos == 1:
+            ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
+            self._send_packet(ack_packet)
+        elif packet.qos == 2:
+            self.persistence.set_rec(packet)
+            rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
+            self._send_packet(rec_packet)
+
     def handle_puback(self, packet: MQTTPubAckPacket) -> None:
         """Handle a PUBACK packet from the server."""
         if packet.reason_code.is_error():
@@ -193,6 +215,7 @@ class Session:
         """Handle a PUBREL packet from the server."""
         if packet.reason_code.is_error():
             logger.error("Received PUBREL with error code: %s", packet.reason_code)
+        self.persistence.rel(packet)
         comp_packet = MQTTPubCompPacket(packet_id=packet.packet_id)
         self._send_packet(comp_packet)
 

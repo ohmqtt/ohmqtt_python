@@ -11,8 +11,6 @@ from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID
 from .packet import (
     MQTTPublishPacket,
-    MQTTPubAckPacket,
-    MQTTPubRecPacket,
     MQTTSubscribePacket,
     MQTTSubAckPacket,
     MQTTUnsubscribePacket,
@@ -167,7 +165,6 @@ class Subscriptions:
         self._next_unsub_packet_id = 1
         self._out_of_session: deque[MQTTSubscribePacket | MQTTUnsubscribePacket] = deque()
 
-        handlers.register(MQTTPublishPacket, self.handle_publish)
         handlers.register(MQTTSubAckPacket, self.handle_suback)
         handlers.register(MQTTUnsubAckPacket, self.handle_unsuback)
         handlers.register(MQTTConnAckPacket, self.handle_connack)
@@ -346,12 +343,6 @@ class Subscriptions:
                     sub.callback(client, packet)
                 except Exception:  # noqa: PERF203
                     logger.exception("Unhandled exception in subscription callback")
-        if packet.qos == 1:
-            ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
-            self._connection.send(ack_packet)
-        elif packet.qos == 2:
-            rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
-            self._connection.send(rec_packet)
 
     def handle_suback(self, packet: MQTTSubAckPacket) -> None:
         """Handle incoming SUBACK packets."""

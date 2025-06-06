@@ -14,6 +14,7 @@ from ohmqtt.packet import (
 )
 from ohmqtt.property import MQTTConnAckProps, MQTTPublishProps
 from ohmqtt.session import Session
+from ohmqtt.subscriptions import Subscriptions
 from ohmqtt.topic_alias import AliasPolicy
 
 
@@ -27,8 +28,13 @@ def mock_connection(mocker: MockerFixture) -> Mock:
     return mocker.Mock(spec=Connection)  # type: ignore[no-any-return]
 
 
-def test_session_publish_qos0(mock_handlers: Mock, mock_connection: Mock) -> None:
-    session = Session(mock_handlers, mock_connection)
+@pytest.fixture
+def mock_subscriptions(mocker: MockerFixture) -> Mock:
+    return mocker.Mock(spec=Subscriptions)  # type: ignore[no-any-return]
+
+
+def test_session_publish_qos0(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
     mock_connection.can_send.return_value = True
 
     handle = session.publish("test/topic", b"test payload")
@@ -41,8 +47,8 @@ def test_session_publish_qos0(mock_handlers: Mock, mock_connection: Mock) -> Non
     assert handle.wait_for_ack() is False
 
 
-def test_session_publish_qos1(mock_handlers: Mock, mock_connection: Mock) -> None:
-    session = Session(mock_handlers, mock_connection)
+def test_session_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
     session.server_receive_maximum = 20
     mock_connection.can_send.return_value = True
 
@@ -62,8 +68,8 @@ def test_session_publish_qos1(mock_handlers: Mock, mock_connection: Mock) -> Non
     assert handle.wait_for_ack(0.001) is True
 
 
-def test_session_publish_qos2(mock_handlers: Mock, mock_connection: Mock) -> None:
-    session = Session(mock_handlers, mock_connection)
+def test_session_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
     session.server_receive_maximum = 20
     mock_connection.can_send.return_value = True
 
@@ -92,8 +98,8 @@ def test_session_publish_qos2(mock_handlers: Mock, mock_connection: Mock) -> Non
 
 @pytest.mark.parametrize("db_path", [":memory:", ""])
 @pytest.mark.parametrize("qos", [0, 1, 2])
-def test_session_publish_alias(db_path: str, qos: int, mock_handlers: Mock, mock_connection: Mock) -> None:
-    session = Session(mock_handlers, mock_connection, db_path=db_path)
+def test_session_publish_alias(db_path: str, qos: int, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
     session.set_params(ConnectParams(client_id="test_client", clean_start=True))
     mock_connection.can_send.return_value = True
 
@@ -133,8 +139,67 @@ def test_session_publish_alias(db_path: str, qos: int, mock_handlers: Mock, mock
         mock_connection.send.reset_mock()
 
 
-def test_session_slots(mock_handlers: Mock, mock_connection: Mock) -> None:
-    session = Session(mock_handlers, mock_connection)
+def test_session_handle_publish_qos0(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    mock_connection.can_send.return_value = True
+
+    packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        qos=0,
+    )
+    session.handle_publish(packet)
+    mock_subscriptions.handle_publish.assert_called_once_with(packet)
+
+
+def test_session_handle_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    mock_connection.can_send.return_value = True
+
+    packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        packet_id=3,
+        qos=1,
+    )
+    session.handle_publish(packet)
+    mock_subscriptions.handle_publish.assert_called_once_with(packet)
+    mock_connection.send.assert_called_once_with(MQTTPubAckPacket(packet_id=3))
+
+
+def test_session_handle_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    mock_connection.can_send.return_value = True
+
+    packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        packet_id=3,
+        qos=2,
+    )
+    session.handle_publish(packet)
+    mock_subscriptions.handle_publish.assert_called_once_with(packet)
+    mock_subscriptions.handle_publish.reset_mock()
+    mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+    mock_connection.send.reset_mock()
+
+    # Filter duplicates.
+    session.handle_publish(packet)
+    mock_subscriptions.handle_publish.assert_not_called()
+    mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+    mock_connection.send.reset_mock()
+
+    session.handle_pubrel(MQTTPubRelPacket(packet_id=3))
+    mock_connection.send.assert_called_once_with(MQTTPubCompPacket(packet_id=3))
+    mock_connection.send.reset_mock()
+    # After PUBREL, message with same packet_id should be treated as a new application message.
+    session.handle_publish(packet)
+    mock_subscriptions.handle_publish.assert_called_once_with(packet)
+    mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+
+
+def test_session_slots(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
     assert not hasattr(session, "__dict__")
     assert all(hasattr(session, attr) for attr in session.__slots__), \
         [attr for attr in session.__slots__ if not hasattr(session, attr)]

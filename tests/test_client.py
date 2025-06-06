@@ -32,9 +32,10 @@ def mock_handlers(mocker: MockerFixture) -> MagicMock:
 
 
 @pytest.fixture
-def mock_session(mocker: MockerFixture) -> Mock:
+def mock_session(mocker: MockerFixture, mock_subscriptions: Mock) -> Mock:
     """Mock the Session class."""
     mock_session = mocker.Mock(spec=Session)
+    mock_session.subscriptions = mock_subscriptions
     mocker.patch("ohmqtt.client.Session", return_value=mock_session)
     return mock_session  # type: ignore[no-any-return]
 

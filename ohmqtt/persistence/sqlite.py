@@ -43,7 +43,6 @@ class SQLitePersistence(Persistence):
             self._conn.close()
 
     def __len__(self) -> int:
-        """Return the number of messages in the persistence store."""
         with self._cond:
             self._cursor.execute(
                 """
@@ -73,6 +72,9 @@ class SQLitePersistence(Persistence):
                     received INTEGER DEFAULT 0,
                     packet_id INTEGER UNIQUE DEFAULT NULL,
                     inflight INTEGER DEFAULT 0
+                ) STRICT;
+                CREATE TABLE IF NOT EXISTS received (
+                    packet_id INTEGER PRIMARY KEY
                 ) STRICT;
                 CREATE TABLE IF NOT EXISTS client_id (
                     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -158,7 +160,7 @@ class SQLitePersistence(Persistence):
             )
             row = self._cursor.fetchone()
             if row is None:
-                raise ValueError(f"Packet ID {packet_id} not found in persistence store.")
+                raise ValueError(f"Unknown packet_id: {packet_id}")
             message_id, qos, received = row
             if received or qos == 1:
                 # If the message is QoS 1, we need to delete it from the store.
@@ -180,6 +182,44 @@ class SQLitePersistence(Persistence):
                     """,
                     (message_id,),
                 )
+            self._conn.commit()
+
+    def check_rec(self, packet: MQTTPublishPacket) -> bool:
+        if packet.qos != 2:
+            raise ValueError("Not a QoS 2 PUBLISH packet")
+        with self._cond:
+            self._cursor.execute(
+                """
+                SELECT packet_id FROM received WHERE packet_id = ?
+                """,
+                (packet.packet_id,),
+            )
+            row = self._cursor.fetchone()
+            if row is not None:
+                logger.debug("Received duplicate QoS 2 packet with ID %d", packet.packet_id)
+                return False
+            return True
+
+    def set_rec(self, packet: MQTTPublishPacket) -> None:
+        if packet.qos != 2:
+            raise ValueError("Not a QoS 2 PUBLISH packet")
+        with self._cond:
+            self._cursor.execute(
+                """
+                INSERT INTO received (packet_id) VALUES (?)
+                """,
+                (packet.packet_id,),
+            )
+            self._conn.commit()
+
+    def rel(self, packet: MQTTPubRelPacket) -> None:
+        with self._cond:
+            self._cursor.execute(
+                """
+                DELETE FROM received WHERE packet_id = ?
+                """,
+                (packet.packet_id,),
+            )
             self._conn.commit()
 
     def _generate_packet_id(self) -> int:
@@ -256,12 +296,14 @@ class SQLitePersistence(Persistence):
 
     def clear(self) -> None:
         with self._cond:
-            self._cursor.execute(
+            self._cursor.executescript(
                 """
-                DELETE FROM messages
+                BEGIN;
+                DELETE FROM messages;
+                DELETE FROM received;
+                COMMIT;
                 """
             )
-            self._conn.commit()
             self._handles.clear()
 
     def open(self, client_id: str, clear: bool = False) -> None:

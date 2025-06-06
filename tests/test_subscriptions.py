@@ -42,7 +42,6 @@ def test_subscriptions_registration(mock_client: Mock, mock_connection: Mock) ->
     handlers = MessageHandlers()
     with handlers:
         subscriptions = Subscriptions(handlers, mock_connection, weakref.ref(mock_client))
-    assert subscriptions.handle_publish in handlers.get_handlers(MQTTPublishPacket)
     assert subscriptions.handle_suback in handlers.get_handlers(MQTTSubAckPacket)
     assert subscriptions.handle_unsuback in handlers.get_handlers(MQTTUnsubAckPacket)
     assert subscriptions.handle_connack in handlers.get_handlers(MQTTConnAckPacket)
@@ -255,8 +254,6 @@ def test_subscriptions_handle_publish(
     publish_packet = MQTTPublishPacket(
         topic=topic,
         payload=b"test payload",
-        qos=1,
-        packet_id=1,
     )
     subscriptions.handle_publish(publish_packet)
 
