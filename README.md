@@ -164,6 +164,14 @@ nox
 
 Create a release on GitHub to publish to PyPI.
 
+### Building the Docs
+
+The docs are automatically built on readthedocs upon release.
+
+To manually build the docs: `uv run make clean && uv run make html`
+
+To update `docs/requirements.txt`: `uv run pip-compile docs/requirements.in`
+
 ### Contributing
 
 Please submit issues and pull requests via GitHub.
