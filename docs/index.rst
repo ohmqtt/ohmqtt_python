@@ -1,8 +1,5 @@
-ohmqtt
-======
-
-A persistent MQTT 5.0 client for Python 3.10+.
-
+.. include:: ../README.md
+   :parser: myst_parser.sphinx_
 
 .. toctree::
    :maxdepth: 2

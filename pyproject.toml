@@ -23,6 +23,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
 dependencies = [
+    "myst-parser>=4.0.1",
     "typing-extensions>=4.12.2; python_version < '3.11'",
 ]
 
