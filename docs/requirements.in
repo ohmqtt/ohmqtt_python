@@ -1,3 +1,4 @@
 Sphinx>=5,<6
 sphinx_rtd_theme
+enum-tools[sphinx]
 myst-parser

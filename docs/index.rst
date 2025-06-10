@@ -6,3 +6,4 @@
    :caption: Contents:
 
    source/ohmqtt
+   source/ohmqtt.all

@@ -6,55 +6,131 @@
 #
 alabaster==0.7.16
     # via sphinx
+apeye==1.4.1
+    # via sphinx-toolbox
+apeye-core==1.1.5
+    # via apeye
+autodocsumm==0.2.14
+    # via sphinx-toolbox
 babel==2.17.0
     # via sphinx
+beautifulsoup4==4.13.4
+    # via sphinx-toolbox
+cachecontrol[filecache]==0.14.3
+    # via sphinx-toolbox
 certifi==2025.4.26
     # via requests
 charset-normalizer==3.4.2
     # via requests
+cssutils==2.11.1
+    # via dict2css
+dict2css==0.3.0.post1
+    # via sphinx-toolbox
 docutils==0.19
     # via
     #   myst-parser
     #   sphinx
     #   sphinx-rtd-theme
+    #   sphinx-tabs
+    #   sphinx-toolbox
+domdf-python-tools==3.10.0
+    # via
+    #   apeye
+    #   apeye-core
+    #   dict2css
+    #   sphinx-toolbox
+enum-tools[sphinx]==0.13.0
+    # via -r docs/requirements.in
+filelock==3.18.0
+    # via
+    #   cachecontrol
+    #   sphinx-toolbox
+html5lib==1.1
+    # via sphinx-toolbox
 idna==3.10
-    # via requests
+    # via
+    #   apeye-core
+    #   requests
 imagesize==1.4.1
     # via sphinx
 jinja2==3.1.6
     # via
     #   myst-parser
     #   sphinx
+    #   sphinx-jinja2-compat
 markdown-it-py==2.2.0
     # via
     #   mdit-py-plugins
     #   myst-parser
 markupsafe==3.0.2
-    # via jinja2
+    # via
+    #   jinja2
+    #   sphinx-jinja2-compat
 mdit-py-plugins==0.3.5
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
+more-itertools==10.7.0
+    # via cssutils
+msgpack==1.1.0
+    # via cachecontrol
 myst-parser==1.0.0
     # via -r docs/requirements.in
+natsort==8.4.0
+    # via domdf-python-tools
 packaging==25.0
     # via sphinx
+platformdirs==4.3.8
+    # via apeye
 pygments==2.19.1
-    # via sphinx
+    # via
+    #   enum-tools
+    #   sphinx
+    #   sphinx-prompt
+    #   sphinx-tabs
 pyyaml==6.0.2
     # via myst-parser
 requests==2.32.3
-    # via sphinx
+    # via
+    #   apeye
+    #   cachecontrol
+    #   sphinx
+ruamel-yaml==0.18.14
+    # via sphinx-toolbox
+ruamel-yaml-clib==0.2.12
+    # via ruamel-yaml
+six==1.17.0
+    # via html5lib
 snowballstemmer==3.0.1
     # via sphinx
+soupsieve==2.7
+    # via beautifulsoup4
 sphinx==5.3.0
     # via
     #   -r docs/requirements.in
+    #   autodocsumm
+    #   enum-tools
     #   myst-parser
+    #   sphinx-autodoc-typehints
+    #   sphinx-prompt
     #   sphinx-rtd-theme
+    #   sphinx-tabs
+    #   sphinx-toolbox
     #   sphinxcontrib-jquery
+sphinx-autodoc-typehints==1.23.0
+    # via sphinx-toolbox
+sphinx-jinja2-compat==0.3.0
+    # via
+    #   enum-tools
+    #   sphinx-toolbox
+sphinx-prompt==1.5.0
+    # via sphinx-toolbox
 sphinx-rtd-theme==2.0.0
     # via -r docs/requirements.in
+sphinx-tabs==3.4.5
+    # via sphinx-toolbox
+sphinx-toolbox==4.0.0
+    # via enum-tools
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
 sphinxcontrib-devhelp==2.0.0
@@ -69,5 +145,15 @@ sphinxcontrib-qthelp==2.0.0
     # via sphinx
 sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
+tabulate==0.9.0
+    # via sphinx-toolbox
+typing-extensions==4.14.0
+    # via
+    #   beautifulsoup4
+    #   domdf-python-tools
+    #   enum-tools
+    #   sphinx-toolbox
 urllib3==2.4.0
     # via requests
+webencodings==0.5.1
+    # via html5lib

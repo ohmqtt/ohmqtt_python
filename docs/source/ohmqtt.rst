@@ -1,119 +1,227 @@
-ohmqtt package
-==============
+ΩQTT Public Interfaces
+======================
 
-Subpackages
------------
+.. autoclass:: ohmqtt.Client
+    :members:
+    :member-order: bysource
 
-.. toctree::
-   :maxdepth: 4
+.. autoexception:: ohmqtt.MQTTError
+    :members:
+    :member-order: bysource
 
-   ohmqtt.connection
-   ohmqtt.packet
-   ohmqtt.persistence
+.. autoenum:: ohmqtt.MQTTReasonCode
+    :members:
+    :member-order: bysource
 
-Submodules
-----------
+.. autofunction:: ohmqtt.set_log_level
 
-ohmqtt.client module
---------------------
+.. autoclass:: ohmqtt.MQTTPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
 
-.. automodule:: ohmqtt.client
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTProperties
+    :members:
+    :undoc-members:
+    :member-order: bysource
 
-ohmqtt.error module
--------------------
+.. autoclass:: ohmqtt.MQTTAuthPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.error
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTAuthProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.logger module
---------------------
+.. autoclass:: ohmqtt.MQTTConnectPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.logger
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTConnectProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.mqtt\_spec module
-------------------------
+.. autoclass:: ohmqtt.MQTTConnAckPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.mqtt_spec
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTConnAckProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.platform module
-----------------------
+.. autoclass:: ohmqtt.MQTTDisconnectPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.platform
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTDisconnectProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.property module
-----------------------
+.. autoclass:: ohmqtt.MQTTPublishPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.property
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTPublishProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.protected module
------------------------
+.. autoclass:: ohmqtt.MQTTPubAckPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.protected
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTPubAckProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.serialization module
----------------------------
+.. autoclass:: ohmqtt.MQTTPubRecPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.serialization
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTPubRecProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.session module
----------------------
+.. autoclass:: ohmqtt.MQTTPubRelPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.session
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTPubRelProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.subscriptions module
----------------------------
+.. autoclass:: ohmqtt.MQTTPubCompPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.subscriptions
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTPubCompProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.topic\_alias module
---------------------------
+.. autoclass:: ohmqtt.MQTTSubscribePacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.topic_alias
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTSubscribeProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-ohmqtt.topic\_filter module
----------------------------
+.. autoclass:: ohmqtt.MQTTSubAckPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt.topic_filter
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTSubAckProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-Module contents
----------------
+.. autoclass:: ohmqtt.MQTTUnsubscribePacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
 
-.. automodule:: ohmqtt
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. autoclass:: ohmqtt.MQTTUnsubscribeProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
+
+.. autoclass:: ohmqtt.MQTTUnsubAckPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
+
+.. autoclass:: ohmqtt.MQTTUnsubAckProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
+
+.. autoclass:: ohmqtt.MQTTPingReqPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
+
+.. autoclass:: ohmqtt.MQTTPingRespPacket
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
+
+.. autoclass:: ohmqtt.MQTTWillProps
+    :members:
+    :undoc-members:
+    :member-order: bysource
+    :show-inheritance:
+
+.. autoclass:: ohmqtt.PublishHandle
+    :members:
+    :undoc-members:
+    :member-order: bysource
+
+.. autoclass:: ohmqtt.SubscribeHandle
+    :members:
+    :undoc-members:
+    :member-order: bysource
+
+.. autoclass:: ohmqtt.UnsubscribeHandle
+    :members:
+    :undoc-members:
+    :member-order: bysource
+
+.. autoenum:: ohmqtt.RetainPolicy
+    :members:
+    :member-order: bysource
+
+.. autoenum:: ohmqtt.AliasPolicy
+    :members:
+    :member-order: bysource
+
+.. autoexception:: ohmqtt.MaxOutboundAliasError
+    :members:
+    :member-order: bysource

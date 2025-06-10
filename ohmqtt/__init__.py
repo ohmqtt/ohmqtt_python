@@ -18,6 +18,8 @@ from .packet import MQTTUnsubscribePacket as MQTTUnsubscribePacket
 from .packet import MQTTUnsubAckPacket as MQTTUnsubAckPacket
 from .packet import MQTTPingReqPacket as MQTTPingReqPacket
 from .packet import MQTTPingRespPacket as MQTTPingRespPacket
+from .persistence.base import PublishHandle as PublishHandle
+from .property import MQTTProperties as MQTTProperties
 from .property import MQTTAuthProps as MQTTAuthProps
 from .property import MQTTConnectProps as MQTTConnectProps
 from .property import MQTTConnAckProps as MQTTConnAckProps
@@ -31,5 +33,9 @@ from .property import MQTTSubscribeProps as MQTTSubscribeProps
 from .property import MQTTSubAckProps as MQTTSubAckProps
 from .property import MQTTUnsubscribeProps as MQTTUnsubscribeProps
 from .property import MQTTUnsubAckProps as MQTTUnsubAckProps
+from .property import MQTTWillProps as MQTTWillProps
 from .subscriptions import RetainPolicy as RetainPolicy
+from .subscriptions import SubscribeHandle as SubscribeHandle
+from .subscriptions import UnsubscribeHandle as UnsubscribeHandle
 from .topic_alias import AliasPolicy as AliasPolicy
+from .topic_alias import MaxOutboundAliasError as MaxOutboundAliasError
