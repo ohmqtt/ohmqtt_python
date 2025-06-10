@@ -5,4 +5,4 @@
    :maxdepth: 2
    :caption: Contents:
 
-   source/modules
+   source/ohmqtt
