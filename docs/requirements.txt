@@ -90,8 +90,9 @@ pygments==2.19.1
     #   sphinx-tabs
 pyyaml==6.0.2
     # via myst-parser
-requests==2.32.3
+requests==2.32.4
     # via
+    #   -r docs/requirements.in
     #   apeye
     #   cachecontrol
     #   sphinx
