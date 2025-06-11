@@ -43,13 +43,17 @@ class Connection:
             raise exceptions[0]
 
     def can_send(self) -> bool:
-        """Check if the connection is in a state where data can be sent."""
+        """Check if the connection is in a state where data can be sent.
+
+        :return: True if the connection is in a state where data can be sent, False otherwise."""
         with self.fsm.lock:
             state = self.fsm.get_state()
             return state is ConnectedState
 
     def send(self, packet: SendablePacketT) -> None:
-        """Send data to the connection."""
+        """Send data to the connection.
+
+        :raises InvalidStateError: If the connection is not in a state where data can be sent."""
         with self.fsm.lock:
             if not self.can_send():
                 state = self.fsm.get_state()
@@ -85,19 +89,19 @@ class Connection:
     def wait_for_connect(self, timeout: float | None = None) -> bool:
         """Wait for the connection to be established.
 
-        Returns True if the connection is established, False if the timeout is reached."""
+        :return: True if the connection is established, False if the timeout is reached."""
         return self.fsm.wait_for_state((ConnectedState,), timeout)
 
     def wait_for_disconnect(self, timeout: float | None = None) -> bool:
         """Wait for the connection to be closed.
 
-        Returns True if the connection is closed, False if the timeout is reached."""
+        :return: True if the connection is closed, False if the timeout is reached."""
         return self.fsm.wait_for_state((ClosedState, ShutdownState, ReconnectWaitState), timeout)
 
     def wait_for_shutdown(self, timeout: float | None = None) -> bool:
         """Wait for the connection to be closed and finalized.
 
-        Returns True if the connection is closed, False if the timeout is reached."""
+        :return: True if the connection is closed, False if the timeout is reached."""
         return self.fsm.wait_for_state((ShutdownState,), timeout)
 
     def loop_once(self, max_wait: float | None = 0.0) -> None:
@@ -113,5 +117,5 @@ class Connection:
     def loop_until_connected(self, timeout: float | None = None) -> bool:
         """Run the state machine until the connection is established.
 
-        Returns True if the connection is established, False otherwise."""
+        :return: True if the connection is established, False otherwise."""
         return self.fsm.loop_until_state((ConnectedState,), timeout)

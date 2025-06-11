@@ -59,7 +59,9 @@ class KeepAlive:
 
     @keepalive_interval.setter
     def keepalive_interval(self, value: int) -> None:
-        """Set the keep alive interval in seconds."""
+        """Set the keep alive interval in seconds.
+
+        :raises ValueError: The value is out of range."""
         if value < 0:
             raise ValueError("Keep alive interval must be non-negative")
         if value > 65535:

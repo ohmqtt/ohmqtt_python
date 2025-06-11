@@ -59,7 +59,7 @@ class FSM:
     def wait_for_state(self, states: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Wait for a specific state to be reached.
 
-        Returns True if the state is reached, False if the timeout is reached."""
+        :return: True if the state is reached, False if the timeout is reached."""
         with self.cond:
             if self.state in states:
                 return True
@@ -95,7 +95,7 @@ class FSM:
 
         State transition will be run if needed.
 
-        Returns True if the state is finished and the calling thread should wait for a change."""
+        :return: True if the state is finished and the calling thread should wait for a change."""
         try:
             with self.cond:
                 # Consume state change requests.
@@ -137,7 +137,7 @@ class FSM:
     def loop_until_state(self, targets: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Run the state machine until a specific state(s) has been entered.
 
-        Return True if a target state is reached, False if another final state was finished."""
+        :return: True if a target state is reached, False if another final state was finished."""
         to = Timeout(timeout)
         while True:
             state_done = self.loop_once(max_wait=to.get_timeout())
@@ -173,7 +173,7 @@ class FSMState:
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         """Called when handling the state.
 
-        This method may block if block=True.
+        This method may block if max_wait is >0 or None.
 
-        Returns True if the state is finished."""
+        :return: True if the state is finished."""
         return True

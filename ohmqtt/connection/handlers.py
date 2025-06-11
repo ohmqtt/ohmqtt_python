@@ -45,7 +45,9 @@ class MessageHandlers:
         self._registered = False
 
     def __enter__(self) -> MessageHandlers:
-        """Start registering the message handlers."""
+        """Start registering the message handlers.
+
+        :raises RuntimeError: Message handlers are already registered (the context manager may only be entered once)."""
         if self._registered:
             raise RuntimeError("Message handlers already registered")
         self._registering = True
@@ -57,13 +59,17 @@ class MessageHandlers:
         self._registered = True
 
     def get_handlers(self, packet_type: type[PacketT]) -> list[Callable[[PacketT], None]]:
-        """Get the handlers for a given packet type."""
+        """Get the handlers for a given packet type.
+
+        :raises RuntimeError: Message handlers registration has not been completed."""
         if not self._registered:
             raise RuntimeError("Message handlers not registered")
         return cast(list[Callable[[PacketT], None]], self._handlers[packet_type])
 
     def register(self, packet_type: type[PacketT], handler: Callable[[PacketT], None]) -> None:
-        """Register a handler for a given packet type."""
+        """Register a handler for a given packet type.
+
+        :raises RuntimeError: Not in the context manager."""
         if not self._registering:
             raise RuntimeError("Message handlers not in registration block")
         self._handlers[packet_type].append(handler)
@@ -75,7 +81,7 @@ class MessageHandlers:
 
         Guarantees that all handlers are run regardless of Exceptions.
 
-        Returns a list of Exceptions raised by handlers."""
+        :return: A list of Exceptions raised by handlers."""
         exceptions = []
         handlers = self.get_handlers(type(packet))
         for handler in handlers:
