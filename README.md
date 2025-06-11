@@ -142,10 +142,7 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 
 * Auth
 * Error handling and validation
-* Refactor Session
-* Local message expiry
 * E2E Tests
-* Autodoc
 
 ### Running the Tests
 
