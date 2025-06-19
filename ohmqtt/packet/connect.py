@@ -229,15 +229,17 @@ class MQTTDisconnectPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         # If the reason code is success and there are no properties, the packet can be empty.
-        if self.reason_code == MQTTReasonCode.Success and len(self.properties) == 0:
+        has_props = len(self.properties) > 0
+        if self.reason_code == MQTTReasonCode.Success and not has_props:
             return HEAD_DISCONNECT.to_bytes(1, "big") + b"\x00"
         encoded = bytearray()
         encoded.append(HEAD_DISCONNECT)
-        props = self.properties.encode()
+        props = self.properties.encode() if has_props else b""
         length = 1 + len(props)
         encoded.extend(encode_varint(length))
         encoded.append(self.reason_code.value)
-        encoded.extend(props)
+        if has_props:
+            encoded.extend(props)
         return bytes(encoded)
 
     @classmethod
@@ -248,5 +250,8 @@ class MQTTDisconnectPacket(MQTTPacket):
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
         reason_code = MQTTReasonCode(decode_uint8(data)[0])
+        if len(data) == 1:
+            # If the packet only contains the reason code, it has no properties.
+            return MQTTDisconnectPacket(reason_code)
         props, props_sz = MQTTDisconnectProps.decode(data[1:])
         return MQTTDisconnectPacket(reason_code, properties=props)
