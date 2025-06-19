@@ -72,7 +72,7 @@ class Client:
         :param client_id: The client ID to use for the connection, or empty string to request one from the broker.
         :param clean_start: If True, an existing session will not be resumed.
         :param connect_timeout: Timeout for the connection attempt in seconds, or None for no timeout.
-        :param reconnect_delay: Delay in seconds before attempting to reconnect after a disconnection.
+        :param reconnect_delay: Delay in seconds before attempting to reconnect after a disconnection, or 0 to disable reconnect.
         :param keepalive_interval: The keep alive interval in seconds, or 0 to disable keep alive.
         :param tcp_nodelay: If True, enable TCP_NODELAY to disable Nagle's algorithm.
         :param tls_context: An SSLContext for TLS connections, or None to use the default.
