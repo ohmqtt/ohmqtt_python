@@ -90,6 +90,22 @@ class FSM:
             self._state_requested = True
             self.cond.notify_all()
 
+    def _handle_exception(self, exc: Exception) -> None:
+        """Handle an exception by transitioning to the error state.
+
+        :raises InvalidStateError: The error state cannot be transitioned to from the current state."""
+        with self.cond:
+            if self.state != self.error_state:
+                if self.error_state not in self.state.transitions_to:
+                    logger.exception("Unhandled exception in FSM loop, cannot transition to %s, exploding", self.error_state.__name__)
+                    raise InvalidStateError(f"Cannot transition to error state {self.error_state.__name__} from {self.state.__name__}") from exc
+                logger.exception("Unhandled exception in FSM loop, going to %s", self.error_state.__name__)
+                self.previous_state = self.state
+                self.state = self.error_state
+                self._state_changed = True
+                self._state_requested = False
+                self.cond.notify_all()
+
     def loop_once(self, max_wait: float | None = 0.0) -> bool:
         """Do the current state.
 
@@ -119,20 +135,19 @@ class FSM:
 
             # Run the state.  Do not run this while holding the lock, as it may block.
             return self.state.handle(self, self._state_data, self.env, self.params, max_wait)
-        except Exception:
+        except Exception as exc:
             # If there is an unhandled exception anywhere in the loop, try to go to the error state.
-            with self.cond:
-                if self.state != self.error_state:
-                    if self.error_state not in self.state.transitions_to:
-                        logger.exception("Unhandled exception in FSM loop, cannot transition to %s, exploding", self.error_state.__name__)
-                        raise
-                    logger.exception("Unhandled exception in FSM loop, going to %s", self.error_state.__name__)
-                    self.previous_state = self.state
-                    self.state = self.error_state
-                    self._state_changed = True
-                    self._state_requested = False
-                    self.cond.notify_all()
+            self._handle_exception(exc)
             raise
+
+    def _in_final_state(self) -> bool:
+        """Check if the current state is a final state.
+
+        :return: True if the state is final, False otherwise."""
+        with self.cond:
+            if self.state.transitions_to:
+                return False
+        return True
 
     def loop_until_state(self, targets: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Run the state machine until a specific state(s) has been entered.
@@ -141,19 +156,16 @@ class FSM:
         to = Timeout(timeout)
         while True:
             state_done = self.loop_once(max_wait=to.get_timeout())
-            if to.exceeded():
-                return False
             with self.cond:
                 if self.state in targets and not self._state_changed:
                     # We are in a target state and the state has been entered.
                     return True
-                if state_done and not self._state_requested and not self._state_changed:
-                    if not self.state.transitions_to:
-                        # The state is final and finished, we are done.
-                        return False
-                    # State is finished, wait for a change.
-                    if not self.cond.wait(to.get_timeout()):
-                        return False
+                if not to.exceeded() and (not state_done or self._state_requested or self._state_changed):
+                    # Continue running the state machine.
+                    continue
+                if to.exceeded() or self._in_final_state() or not self.cond.wait(to.get_timeout()):
+                    # Either reached and completed a final state or timed out.
+                    return False
 
 
 class FSMState:

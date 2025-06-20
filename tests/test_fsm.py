@@ -256,8 +256,9 @@ def test_fsm_loop_error_explosion(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateErr, error_state=MockStateA)
 
     # We can't reach the error state from the broken initial state.
-    with pytest.raises(_TestError):
+    with pytest.raises(InvalidStateError) as excinfo:
         fsm.loop_once()
+    assert isinstance(excinfo.value.__cause__, _TestError)
     assert fsm.state == MockStateErr
     assert fsm.previous_state == MockStateErr
 
