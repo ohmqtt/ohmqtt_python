@@ -152,7 +152,8 @@ class FSM:
                         # The state is final and finished, we are done.
                         return False
                     # State is finished, wait for a change.
-                    self.cond.wait(to.get_timeout())
+                    if not self.cond.wait(to.get_timeout()):
+                        return False
 
 
 class FSMState:
