@@ -137,7 +137,7 @@ class FSM:
     def loop_until_state(self, targets: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Run the state machine until a specific state(s) has been entered.
 
-        :return: True if a target state is reached, False if another final state was finished."""
+        :return: True if a target state is reached, False if another final state was finished or timeout reached."""
         to = Timeout(timeout)
         while True:
             state_done = self.loop_once(max_wait=to.get_timeout())
