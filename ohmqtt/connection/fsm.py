@@ -156,14 +156,15 @@ class FSM:
         to = Timeout(timeout)
         while True:
             state_done = self.loop_once(max_wait=to.get_timeout())
+            to_exceeded = to.exceeded()
             with self.cond:
                 if self.state in targets and not self._state_changed:
                     # We are in a target state and the state has been entered.
                     return True
-                if not to.exceeded() and (not state_done or self._state_requested or self._state_changed):
+                if not to_exceeded and (not state_done or self._state_requested or self._state_changed):
                     # Continue running the state machine.
                     continue
-                if to.exceeded() or self._in_final_state() or not self.cond.wait(to.get_timeout()):
+                if to_exceeded or self._in_final_state() or not self.cond.wait(to.get_timeout()):
                     # Either reached and completed a final state or timed out.
                     return False
 
