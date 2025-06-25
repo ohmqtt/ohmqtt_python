@@ -27,7 +27,7 @@ from ohmqtt.packet import (
 
 def send_to_broker(sock: socket.socket, broker: FakeBroker, packet: MQTTPacket) -> None:
     sock.sendall(packet.encode())
-    time.sleep(0.1)
+    time.sleep(0.05)
     assert len(broker.received) == 1
     assert broker.received[0] == packet
     broker.received.clear()
@@ -46,7 +46,7 @@ def test_fake_broker() -> None:
         assert len(broker.received) == 0
 
         sock = socket.create_connection(("localhost", broker.port))
-        sock.settimeout(0.25)
+        sock.settimeout(0.05)
 
         # CONNECT
         connect_packet = MQTTConnectPacket(

@@ -38,6 +38,8 @@ def broker() -> Iterator[FakeBroker]:
 
 
 def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
+    delay: Final = 0.005  # seconds grace period
+
     client_received = []
     def callback(client: Client, packet: MQTTPacket) -> None:
         client_received.append(packet)
@@ -58,7 +60,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     sub_handle = client.subscribe("test/topic", callback)
     assert sub_handle is not None
     sub_handle.wait_for_ack(timeout=0.25)
-    time.sleep(0.01)
+    time.sleep(delay)
     assert broker.received.pop(0) == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
@@ -67,7 +69,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     # PUBLISH QoS 0
     for n in range(50):
         pub_handle = client.publish("test/topic", b"banana", qos=0)
-        time.sleep(0.01)
+        time.sleep(delay)
         assert broker.received.pop(0) == client_received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
             payload=b"banana",
@@ -77,7 +79,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     for n in range(1, 50):
         pub_handle = client.publish("test/topic", b"coconut", qos=1)
         pub_handle.wait_for_ack(timeout=0.25)
-        time.sleep(0.01)
+        time.sleep(delay)
         assert broker.received.pop(0) == client_received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
             payload=b"coconut",
@@ -90,7 +92,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     unsub_handle = client.unsubscribe("test/topic", callback)
     assert unsub_handle is not None
     unsub_handle.wait_for_ack(timeout=0.25)
-    time.sleep(0.01)
+    time.sleep(delay)
     assert broker.received.pop(0) == MQTTUnsubscribePacket(
         topics=["test/topic"],
         packet_id=1,
@@ -100,7 +102,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     for n in range(50, 100):
         pub_handle = client.publish("test/topic", b"pineapple", qos=2)
         pub_handle.wait_for_ack(timeout=0.25)
-        time.sleep(0.01)
+        time.sleep(delay)
         assert broker.received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
             payload=b"pineapple",
@@ -112,7 +114,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     # DISCONNECT
     client.disconnect()
     client.wait_for_disconnect(timeout=0.25)
-    time.sleep(0.01)
+    time.sleep(delay)
     assert broker.received.pop(0) == MQTTDisconnectPacket()
 
     client.shutdown()
