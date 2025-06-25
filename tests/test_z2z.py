@@ -58,18 +58,25 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     sub_handle = client.subscribe("test/topic", callback)
     assert sub_handle is not None
     sub_handle.wait_for_ack(timeout=0.25)
-    logger.info("SUBSCRIBE acked")
     time.sleep(0.01)
     assert broker.received.pop(0) == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
     )
 
+    # PUBLISH QoS 0
+    for n in range(50):
+        pub_handle = client.publish("test/topic", b"banana", qos=0)
+        time.sleep(0.01)
+        assert broker.received.pop(0) == client_received.pop(0) == MQTTPublishPacket(
+            topic="test/topic",
+            payload=b"banana",
+        )
+
     # PUBLISH QoS 1
     for n in range(1, 50):
         pub_handle = client.publish("test/topic", b"coconut", qos=1)
         pub_handle.wait_for_ack(timeout=0.25)
-        logger.info("QoS1 acked")
         time.sleep(0.01)
         assert broker.received.pop(0) == client_received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
@@ -83,7 +90,6 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     unsub_handle = client.unsubscribe("test/topic", callback)
     assert unsub_handle is not None
     unsub_handle.wait_for_ack(timeout=0.25)
-    logger.info("UNSUBSCRIBE acked")
     time.sleep(0.01)
     assert broker.received.pop(0) == MQTTUnsubscribePacket(
         topics=["test/topic"],
@@ -94,7 +100,6 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     for n in range(50, 100):
         pub_handle = client.publish("test/topic", b"pineapple", qos=2)
         pub_handle.wait_for_ack(timeout=0.25)
-        logger.info("QoS2 acked")
         time.sleep(0.01)
         assert broker.received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
