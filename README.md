@@ -142,7 +142,6 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 
 * Auth
 * Error handling and validation
-* E2E Tests
 
 ### Running the Tests
 
