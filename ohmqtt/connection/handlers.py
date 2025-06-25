@@ -82,6 +82,8 @@ class MessageHandlers:
         Guarantees that all handlers are run regardless of Exceptions.
 
         :return: A list of Exceptions raised by handlers."""
+        if not self._registered:
+            raise RuntimeError("Message handlers not registered")
         exceptions = []
         handlers = self.get_handlers(type(packet))
         for handler in handlers:
