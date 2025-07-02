@@ -21,7 +21,7 @@ logger: Final = get_logger("client")
 class Client:
     """High level interface for the MQTT client.
 
-    :param db_path: Path to the database file for persistence.
+    :param db_path: Path to the database file for persistence.  If none provided, in-memory store will be used.
     :param db_fast: If True, use a faster database implementation (e.g. SQLite WAL).
     """
     __slots__ = (
