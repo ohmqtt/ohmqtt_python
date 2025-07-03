@@ -140,7 +140,6 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 
 ### TODO for 0.1
 
-* Auth
 * Error handling and validation
 
 ### Running the Tests
