@@ -5,8 +5,7 @@
 import argparse
 from queue import Queue
 
-from ohmqtt.client import Client
-from ohmqtt.packet import MQTTPublishPacket
+from ohmqtt import Client, MQTTPublishPacket
 
 
 def main(args: argparse.Namespace) -> None:

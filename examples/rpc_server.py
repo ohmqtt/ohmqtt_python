@@ -11,9 +11,7 @@ This also demonstrates running the client loop in the main thread."""
 
 import argparse
 
-from ohmqtt.client import Client
-from ohmqtt.packet import MQTTPublishPacket
-from ohmqtt.property import MQTTPublishProps
+from ohmqtt import Client, MQTTPublishPacket, MQTTPublishProps
 
 
 class RPCServer:

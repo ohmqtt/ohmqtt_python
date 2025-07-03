@@ -10,9 +10,7 @@ import threading
 import uuid
 from typing import Callable
 
-from ohmqtt.client import Client
-from ohmqtt.packet import MQTTPublishPacket
-from ohmqtt.property import MQTTPublishProps
+from ohmqtt import Client, MQTTPublishPacket, MQTTPublishProps
 
 
 RPCCallback = Callable[[bytes], None]

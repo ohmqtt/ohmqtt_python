@@ -8,7 +8,7 @@ It also demonstrates the debug logging output of the client.
 import argparse
 import logging
 
-from ohmqtt.client import Client
+from ohmqtt import Client
 
 
 def main(args: argparse.Namespace) -> None:
