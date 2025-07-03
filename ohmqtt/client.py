@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import ssl
+import sys
 import threading
 from typing import Final, Iterable, Sequence
 import weakref
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 from .connection import Address, ConnectParams, Connection, MessageHandlers
 from .logger import get_logger
@@ -40,7 +46,7 @@ class Client:
             self.session = Session(handlers, subscriptions, self.connection, db_path=db_path, db_fast=db_fast)
             handlers.register(MQTTAuthPacket, self.handle_auth)
 
-    def __enter__(self) -> Client:
+    def __enter__(self) -> Self:
         self.start_loop()
         return self
 
