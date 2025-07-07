@@ -43,8 +43,7 @@ class InterruptibleSelector(Protected):
     def _drain(self) -> None:
         """Drain the interrupt socket."""
         data = self._interrupt_r.recv(2)
-        if len(data) > 1:
-            raise RuntimeError(f"Expected 1 interrupt per select, got {len(data)}")
+        assert len(data) <= 1
 
     @protect
     def close(self) -> None:
