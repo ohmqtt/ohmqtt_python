@@ -60,8 +60,6 @@ class InMemoryPersistence(Persistence):
             self._next_packet_id = 1
         if packet_id in self._messages:
             raise ValueError("Out of packet ids")
-        if properties is None:
-            properties = {}
 
         handle = ReliablePublishHandle(self._cond)
         message = RetainedMessage(
