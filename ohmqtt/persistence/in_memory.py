@@ -130,8 +130,8 @@ class InMemoryPersistence(Persistence):
                 properties=msg.properties,
                 dup=msg.dup,
             )
-        if self._pending.popleft() != msg.packet_id:
-            raise RuntimeError(f"Packet ID {msg.packet_id} was not first in pending list")
+        popped = self._pending.popleft()
+        assert popped == msg.packet_id
         return RenderedPacket(packet, alias_policy)
 
     def _reset_inflight(self) -> None:
