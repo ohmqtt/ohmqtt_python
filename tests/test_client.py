@@ -77,7 +77,8 @@ def test_client_shutdown(mocker: MockerFixture, mock_connection: Mock, mock_hand
     mock_connection.shutdown.assert_called_once()
 
 
-def test_client_publish(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+@pytest.mark.parametrize("qos", [0, 1, 2, MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
+def test_client_publish(qos: int | MQTTQoS, mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                        mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
 
@@ -85,7 +86,7 @@ def test_client_publish(mocker: MockerFixture, mock_connection: Mock, mock_handl
     publish_handle = client.publish(
         "test/topic",
         b"test_payload",
-        qos=2,
+        qos=qos,
         retain=True,
         properties=MQTTPublishProps(
             MessageExpiryInterval=60,
@@ -96,10 +97,11 @@ def test_client_publish(mocker: MockerFixture, mock_connection: Mock, mock_handl
         alias_policy=AliasPolicy.ALWAYS,
     )
     assert publish_handle == mock_session.publish.return_value
+    expected_qos = MQTTQoS(qos) if not isinstance(qos, MQTTQoS) else qos
     mock_session.publish.assert_called_once_with(
         "test/topic",
         b"test_payload",
-        qos=MQTTQoS.Q2,
+        qos=expected_qos,
         retain=True,
         properties=MQTTPublishProps(
             MessageExpiryInterval=60,
@@ -111,31 +113,36 @@ def test_client_publish(mocker: MockerFixture, mock_connection: Mock, mock_handl
     )
 
 
-def test_client_subscribe(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+@pytest.mark.parametrize("max_qos", [0, 1, 2, MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
+def test_client_subscribe(max_qos: int | MQTTQoS, mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                          mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
 
     callback: SubscribeCallback = lambda _client, _packet: None
     mock_subscriptions.subscribe.return_value = mocker.Mock()
-    sub_handle = client.subscribe("test/+", callback)
+    sub_handle = client.subscribe("test/+", callback, max_qos=max_qos)
     assert sub_handle == mock_subscriptions.subscribe.return_value
     mock_subscriptions.subscribe.assert_called_once()
+    expected_max_qos = MQTTQoS(max_qos) if not isinstance(max_qos, MQTTQoS) else max_qos
     assert mock_subscriptions.subscribe.call_args[0][0] == "test/+"
     assert mock_subscriptions.subscribe.call_args[0][1] == callback
-    mock_subscriptions.subscribe.reset_mock()
+    assert mock_subscriptions.subscribe.call_args_list[0].kwargs["max_qos"] == expected_max_qos
 
 
-def test_client_unsubscribe(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+@pytest.mark.parametrize("max_qos", [0, 1, 2, MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
+def test_client_unsubscribe(max_qos: int | MQTTQoS, mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                             mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
 
     callback: SubscribeCallback = lambda _client, _packet: None
     mock_subscriptions.unsubscribe.return_value = mocker.Mock()
-    unsub_handle = client.unsubscribe("test/topic", callback)
+    unsub_handle = client.unsubscribe("test/topic", callback, max_qos=max_qos)
     assert unsub_handle == mock_subscriptions.unsubscribe.return_value
     mock_subscriptions.unsubscribe.assert_called_once()
+    expected_max_qos = MQTTQoS(max_qos) if not isinstance(max_qos, MQTTQoS) else max_qos
     assert mock_subscriptions.unsubscribe.call_args[0][0] == "test/topic"
     assert mock_subscriptions.unsubscribe.call_args[0][1] == callback
+    assert mock_subscriptions.unsubscribe.call_args_list[0].kwargs["max_qos"] == expected_max_qos
 
 
 def test_client_auth(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
