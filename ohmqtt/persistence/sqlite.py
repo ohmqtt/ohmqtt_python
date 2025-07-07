@@ -50,8 +50,6 @@ class SQLitePersistence(Persistence):
                 """
             )
             row = self._cursor.fetchone()
-            if row is None:
-                return 0
             return int(row[0])
 
     def _create_tables(self) -> None:
