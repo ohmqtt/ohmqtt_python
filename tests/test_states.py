@@ -31,12 +31,15 @@ from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
     decode_packet,
+    MQTTPacket,
     MQTTConnectPacket,
     MQTTConnAckPacket,
     MQTTDisconnectPacket,
     MQTTPublishPacket,
     MQTTPingReqPacket,
     MQTTPingRespPacket,
+    MQTTSubscribePacket,
+    MQTTUnsubscribePacket,
     PING,
     PONG,
 )
@@ -835,6 +838,14 @@ def test_states_connected_read_packet(
     decoder.reset_mock()
     callbacks.assert_not_called()
     assert fsm.state is ClosingState
+
+    # Handle invalid packets.
+    for pt in (MQTTConnectPacket, MQTTSubscribePacket, MQTTUnsubscribePacket):
+        packet: MQTTPacket = pt()
+        decoder.decode.return_value = packet
+        with pytest.raises(MQTTError) as excinfo:
+            ConnectedState.read_packet(fsm, state_data, env, params)
+        assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])

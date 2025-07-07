@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import socket
 import ssl
-from typing import cast, Final
+from typing import cast, Final, get_args
 
 from .types import ConnectParams, StateData, StateEnvironment, ReceivablePacketT
 from .fsm import FSM, FSMState
@@ -290,13 +290,12 @@ class ConnectedState(FSMState):
             logger.info("Broker sent DISCONNECT, closing connection")
             fsm.change_state(ClosingState)
             return True
+        elif not isinstance(packet, get_args(ReceivablePacketT)):
+            # To cast later, we must handle the exceptional cases at runtime.
+            raise MQTTError("Unexpected packet type", reason_code=MQTTReasonCode.ProtocolError)
         else:
             # All other packets are passed to the read callback.
-            try:
-                # To cast here, we must handle the exceptional case at runtime.
-                env.packet_callback(cast(ReceivablePacketT, packet))
-            except KeyError as exc:
-                raise MQTTError("Unexpected packet type", reason_code=MQTTReasonCode.ProtocolError) from exc
+            env.packet_callback(cast(ReceivablePacketT, packet))
         return True
 
 
