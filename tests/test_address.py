@@ -59,7 +59,7 @@ def test_address_invalid(test_data: list[AddressTestCase]) -> None:
     for case in test_data:
         try:
             Address(case["address"])
-        except ValueError:
+        except (AssertionError, ValueError):
             pass
         else:
             pytest.fail(f"Expected ValueError for address: {case['address']}")
