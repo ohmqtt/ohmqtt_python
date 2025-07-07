@@ -9,29 +9,18 @@ A reliable and persistent MQTT 5.0 client library for Python.
 ### QoS and Persistence
 
 ΩQTT supports publish and subscribing all QoS levels with optional persistence to disk for QoS >0.
-When not persisting QoS >0 messages, a fast (but volatile) in memory store is used.
-Either way, publishing a message returns a handle with a method to wait for the message to be fully acknowledged by the broker.
-
-### Connectivity
-
-Connect to a remote broker with optional TLS over TCP over IPV4 or IPV6.
-Connect to a local broker with either TCP or Unix domain socket.
-
-### Properties
-
-Access all optional properties of all MQTT control packet types.
-If you ever wanted to check the user properties of SUBACK and UNSUBACK (among others), welcome home.
+When not persisting to disk, a fast (but volatile) in memory store is used.
+Either way, publishing a QoS >0 message returns a handle with a method to wait for the message to be fully acknowledged by the broker.
 
 ### Automatic Topic Alias
 
 Set an alias policy when publishing a message and a topic alias will be generated, if allowed by the broker.
-If bandwidth is tight, set your QoS 0 publications to require a topic alias.
-In this case, an error will be raised if the server does not offer enough alias values.
+You can also force QoS 0 messages to require a topic alias, to avoid silently bleeding bandwidth.
 
-### Toolkit
+### Properties
 
-ΩQTT is built on a toolkit for efficiently serializing MQTT control messages.
-Use it to build your own custom implementation, or to serialize your own payloads.
+Access all optional properties of all MQTT control packet types.
+If you ever wanted to check the user properties of your packets, welcome home.
 
 ### Portability
 
@@ -43,11 +32,6 @@ It should work on any platform that CPython runs on.
 ΩQTT has been implemented to a high standard of test coverage and static analysis, from the beginning.
 It continues to improve.
 
-### Performance
-
-Every drop of pure Python performance has been squeezed out of serialization and the event loop.
-You're not using Python because it's fast, but it can't hurt.
-
 ## Installation
 
 ΩQTT is published to the Python Package Index.
@@ -57,9 +41,9 @@ You're not using Python because it's fast, but it can't hurt.
 ## Examples
 
 See the `examples/` directory for examples of using ΩQTT.
-Run them with e.g.
+With `uv` installed, run them like e.g.
 
-`python3 -m examples.publish`
+`uv run python3 -m examples.publish`
 
 By default, all of the examples try to connect to an MQTT broker at `localhost:1883`.
 Supply an alternate `--address` argument if you want to connect to a broker at a different location.
@@ -77,7 +61,7 @@ Instruct the broker that it can send topic aliases while connecting:
 from ohmqtt.client import Client
 from ohmqtt.property import MQTTConnectProps
 
-# The maximum value for TopicAliasMaximum is 65535.
+# The maximum value for TopicAliasMaximum is USHRT_MAX (65535).
 # It must be >0 for the broker to use topic aliases when sending messages to the client.
 connect_props = MQTTConnectProps(TopicAliasMaximum=0xffff)
 with Client() as client:
@@ -94,8 +78,8 @@ client.publish("some/topic", b"the payload", alias_policy=AliasPolicy.TRY)
 
 This will automatically assign topic aliases to topics up to the maximum topic alias ID reported by the broker.
 
-QoS 0 messaging will use the least overall bandwidth.
-You may force subscriptions to use QoS 0 by setting `max_qos`:
+Increasing QoS levels will use more overall bandwidth.
+You may force a maximum QoS level when subscribing to a topic:
 
 ```python
 client.subscribe("some/topic", callback, max_qos=0)
@@ -125,7 +109,8 @@ with Client(db_path="/path/to/ohmqtt.db") as client:
 
 By default the database will operate in a very safe mode.
 Calls to publish with QoS>0 will not return, and data will not be sent over the wire, until the message is fully committed to disk.
-You can specify to use a faster, less synchronous configuration which may be good enough for your use case:
+You can specify to use a faster, less synchronous configuration which may be good enough for your use case.
+The implementation will use SQLite WAL. Set `db_fast=True` when constructing the client like so:
 
 ```python
 from ohmqtt.client import Client
@@ -161,10 +146,10 @@ Create a release on GitHub to publish to PyPI.
 
 ### Building the Docs
 
-The docs are automatically built on readthedocs upon release.
+The docs are automatically built on [readthedocs](https://ohmqtt-python.readthedocs.io/en/latest/) upon release.
 
 To manually build the docs: `uv run make clean && uv run make html`
 
 ### Contributing
 
-Please submit issues and pull requests via GitHub.
+Please submit issues and pull requests via [GitHub](https://github.com/ohmqtt/ohmqtt_python).
