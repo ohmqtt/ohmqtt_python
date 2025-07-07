@@ -7,7 +7,7 @@ from typing import ClassVar, Final, Mapping, TypeAlias
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
+from ..mqtt_spec import MQTTPacketType, MQTTReasonCode, MQTTQoS
 from ..property import (
     MQTTProperties,
     MQTTPublishProps,
@@ -47,7 +47,7 @@ class MQTTPublishPacket(MQTTPacket):
     props_type = MQTTPublishProps
     topic: str = ""
     payload: bytes = b""
-    qos: int = 0
+    qos: MQTTQoS = MQTTQoS.Q0
     retain: bool = False
     packet_id: int = 0
     properties: MQTTPublishProps = field(default_factory=MQTTPublishProps)
@@ -57,7 +57,7 @@ class MQTTPublishPacket(MQTTPacket):
         attrs = [
             f"topic={self.topic}",
             f"payload={len(self.payload)}B",
-            f"qos={self.qos}",
+            f"qos={self.qos.value}",
             f"packet_id={self.packet_id}",
             f"retain={self.retain}",
             f"dup={self.dup}",
@@ -67,22 +67,23 @@ class MQTTPublishPacket(MQTTPacket):
 
     def encode(self) -> bytes:
         encoded = bytearray(encode_string(self.topic))
-        if self.qos > 0:
+        if self.qos > MQTTQoS.Q0:
             encoded.extend(encode_uint16(self.packet_id))
         if self.properties:
             encoded.extend(self.properties.encode())
         else:
             encoded.append(0)
         encoded.extend(self.payload)
-        head = HEAD_PUBLISH | self.retain | (self.qos << 1) | (self.dup << 3)
+        head = HEAD_PUBLISH | self.retain | (self.qos.value << 1) | (self.dup << 3)
         encoded[0:0] = head.to_bytes(1, "big") + encode_varint(len(encoded))
         return bytes(encoded)
 
     @classmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPublishPacket:
-        qos = (flags >> 1) & 0x03
-        if qos > 2:
-            raise MQTTError(f"Invalid QoS level {qos}", MQTTReasonCode.MalformedPacket)
+        try:
+            qos = MQTTQoS((flags >> 1) & 0x03)
+        except ValueError:
+            raise MQTTError("Invalid QoS value", MQTTReasonCode.MalformedPacket)
         retain = (flags & 0x01) == 1
         dup = (flags & 0x08) == 8
 

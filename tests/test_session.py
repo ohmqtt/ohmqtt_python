@@ -4,6 +4,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ohmqtt.connection import Connection, ConnectParams, MessageHandlers
+from ohmqtt.mqtt_spec import MQTTQoS
 from ohmqtt.packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
@@ -52,11 +53,11 @@ def test_session_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mock, moc
     session.server_receive_maximum = 20
     mock_connection.can_send.return_value = True
 
-    handle = session.publish("test/topic", b"test payload", qos=1)
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
     mock_connection.send.assert_called_with(MQTTPublishPacket(
         topic="test/topic",
         payload=b"test payload",
-        qos=1,
+        qos=MQTTQoS.Q1,
         packet_id=1,
     ))
     mock_connection.send.reset_mock()
@@ -73,11 +74,11 @@ def test_session_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, moc
     session.server_receive_maximum = 20
     mock_connection.can_send.return_value = True
 
-    handle = session.publish("test/topic", b"test payload", qos=2)
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2)
     mock_connection.send.assert_called_with(MQTTPublishPacket(
         topic="test/topic",
         payload=b"test payload",
-        qos=2,
+        qos=MQTTQoS.Q2,
         packet_id=1,
     ))
     mock_connection.send.reset_mock()
@@ -97,8 +98,8 @@ def test_session_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, moc
 
 
 @pytest.mark.parametrize("db_path", [":memory:", ""])
-@pytest.mark.parametrize("qos", [0, 1, 2])
-def test_session_publish_alias(db_path: str, qos: int, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+@pytest.mark.parametrize("qos", [MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
+def test_session_publish_alias(db_path: str, qos: MQTTQoS, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
     session.set_params(ConnectParams(client_id="test_client", clean_start=True))
     mock_connection.can_send.return_value = True
@@ -146,7 +147,6 @@ def test_session_handle_publish_qos0(mock_handlers: Mock, mock_subscriptions: Mo
     packet = MQTTPublishPacket(
         topic="test/topic",
         payload=b"test payload",
-        qos=0,
     )
     session.handle_publish(packet)
     mock_subscriptions.handle_publish.assert_called_once_with(packet)
@@ -160,7 +160,7 @@ def test_session_handle_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mo
         topic="test/topic",
         payload=b"test payload",
         packet_id=3,
-        qos=1,
+        qos=MQTTQoS.Q1,
     )
     session.handle_publish(packet)
     mock_subscriptions.handle_publish.assert_called_once_with(packet)
@@ -175,7 +175,7 @@ def test_session_handle_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mo
         topic="test/topic",
         payload=b"test payload",
         packet_id=3,
-        qos=2,
+        qos=MQTTQoS.Q2,
     )
     session.handle_publish(packet)
     mock_subscriptions.handle_publish.assert_called_once_with(packet)

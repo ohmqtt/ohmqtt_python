@@ -6,7 +6,7 @@ from pytest_mock import MockerFixture
 
 from ohmqtt.client import Client
 from ohmqtt.connection import Connection, MessageHandlers
-from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import MQTTAuthPacket
 from ohmqtt.property import MQTTAuthProps, MQTTPublishProps
 from ohmqtt.session import Session
@@ -99,7 +99,7 @@ def test_client_publish(mocker: MockerFixture, mock_connection: Mock, mock_handl
     mock_session.publish.assert_called_once_with(
         "test/topic",
         b"test_payload",
-        qos=2,
+        qos=MQTTQoS.Q2,
         retain=True,
         properties=MQTTPublishProps(
             MessageExpiryInterval=60,

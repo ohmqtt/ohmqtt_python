@@ -4,7 +4,7 @@
 import argparse
 import time
 
-from ohmqtt import Client
+from ohmqtt import Client, MQTTQoS
 
 
 def main(args: argparse.Namespace) -> None:
@@ -17,7 +17,7 @@ def main(args: argparse.Namespace) -> None:
         print("*** Connected to broker")
 
         for n in range(1, 9):
-            client.publish("ohmqtt/examples/publish", b"test_payload: " + str(n).encode(), qos=0)
+            client.publish("ohmqtt/examples/publish", b"test_payload: " + str(n).encode(), qos=MQTTQoS.Q0)
             print(f"*** Published message {n}")
             time.sleep(1.0)
 

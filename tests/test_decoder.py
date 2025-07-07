@@ -7,7 +7,7 @@ from pytest_mock import MockerFixture
 
 from ohmqtt.connection.decoder import IncrementalDecoder, ClosedSocketError
 from ohmqtt.error import MQTTError
-from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import MQTTPublishPacket
 
 
@@ -33,7 +33,7 @@ def test_decoder_drip_feed(exc: Exception, mock_socket: Mock) -> None:
     decoder = IncrementalDecoder()
     # Use a packet with a payload of 255 bytes to ensure we have to read
     # multiple bytes for the length varint.
-    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=1, packet_id=66)
+    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=MQTTQoS.Q1, packet_id=66)
     data = in_packet.encode()
 
     # Setup mock to return one byte at a time
@@ -56,7 +56,7 @@ def test_decoder_drip_partial_closures(exc: Exception, closer: bytes | Exception
     decoder = IncrementalDecoder()
     # Use a packet with a payload of 255 bytes to ensure we have to read
     # multiple bytes for the length varint.
-    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=1, packet_id=66)
+    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=MQTTQoS.Q1, packet_id=66)
     data = in_packet.encode()
 
     # Send a few bytes then simulate closed socket
@@ -90,7 +90,7 @@ def test_decoder_empty_reads(mock_socket: Mock) -> None:
     decoder = IncrementalDecoder()
     # Use a packet with a payload of 255 bytes to ensure we have to read
     # multiple bytes for the length varint.
-    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=1, packet_id=66)
+    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * 255, qos=MQTTQoS.Q1, packet_id=66)
     data = in_packet.encode()
 
     # Empty read on first byte.

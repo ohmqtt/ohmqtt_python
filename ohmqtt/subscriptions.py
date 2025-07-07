@@ -8,7 +8,7 @@ import weakref
 
 from .connection import Connection, InvalidStateError, MessageHandlers
 from .logger import get_logger
-from .mqtt_spec import MAX_PACKET_ID
+from .mqtt_spec import MAX_PACKET_ID, MQTTQoS
 from .packet import (
     MQTTPublishPacket,
     MQTTSubscribePacket,
@@ -108,7 +108,7 @@ class UnsubscribeHandle:
 class Subscription(NamedTuple):
     """All the data about a request for subscription."""
     topic_filter: str
-    max_qos: int
+    max_qos: MQTTQoS
     share_name: str | None
     no_local: bool
     retain_as_published: bool
@@ -119,7 +119,7 @@ class Subscription(NamedTuple):
 
     def render(self) -> MQTTSubscribePacket:
         """Render the subscription into a SUBSCRIBE packet."""
-        opts = self.max_qos | (self.retain_policy << 4) | (self.retain_as_published << 3) | (self.no_local << 2)
+        opts = self.max_qos.value | (self.retain_policy << 4) | (self.retain_as_published << 3) | (self.no_local << 2)
         props = MQTTSubscribeProps()
         if self.sub_id is not None:
             props.SubscriptionIdentifier = {self.sub_id}
@@ -173,7 +173,7 @@ class Subscriptions:
         self,
         topic_filter: str,
         callback: SubscribeCallback,
-        max_qos: int = 2,
+        max_qos: MQTTQoS = MQTTQoS.Q2,
         *,
         share_name: str | None = None,
         no_local: bool = False,
@@ -247,7 +247,7 @@ class Subscriptions:
         self,
         topic_filter: str,
         callback: SubscribeCallback,
-        max_qos: int = 2,
+        max_qos: MQTTQoS = MQTTQoS.Q2,
         *,
         share_name: str | None = None,
         no_local: bool = False,

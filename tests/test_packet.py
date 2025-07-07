@@ -3,7 +3,7 @@ from typing import Any, Callable, Sequence
 import pytest
 
 from ohmqtt.error import MQTTError
-from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTPropertyId
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTPropertyId, MQTTQoS
 from ohmqtt.packet import (
     decode_packet,
     decode_packet_from_parts,
@@ -67,6 +67,8 @@ def extract_args(cls: type[MQTTPacket], data: dict[str, Any], binary_args: Seque
             value = extract_props(cls, v)
         elif k == "will_props":
             value = extract_props(cls, v, MQTTWillProps)
+        elif k == "qos":
+            value = MQTTQoS(v)
         args[k] = value
     return args
 

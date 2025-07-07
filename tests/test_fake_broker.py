@@ -5,7 +5,7 @@ import pytest
 
 from .util.fake_broker import FakeBroker
 from ohmqtt.connection.decoder import IncrementalDecoder
-from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import (
     MQTTPacket,
     MQTTConnectPacket,
@@ -87,7 +87,7 @@ def test_fake_broker() -> None:
         publish_packet_qos1 = MQTTPublishPacket(
             topic="test/topic",
             payload=b"Hello, MQTT QoS 1!",
-            qos=1,
+            qos=MQTTQoS.Q1,
             packet_id=1,
         )
         send_to_broker(sock, broker, publish_packet_qos1)
@@ -97,7 +97,7 @@ def test_fake_broker() -> None:
         publish_packet_qos2 = MQTTPublishPacket(
             topic="test/topic",
             payload=b"Hello, MQTT QoS 2!",
-            qos=2,
+            qos=MQTTQoS.Q2,
             packet_id=2,
         )
         send_to_broker(sock, broker, publish_packet_qos2)

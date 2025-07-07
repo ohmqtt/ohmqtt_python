@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from threading import Condition
 from typing import ClassVar, NamedTuple, Sequence
 
+from ..mqtt_spec import MQTTQoS
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -79,7 +80,7 @@ class Persistence(metaclass=ABCMeta):
         self,
         topic: str,
         payload: bytes,
-        qos: int,
+        qos: MQTTQoS,
         retain: bool,
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,

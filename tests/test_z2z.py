@@ -10,6 +10,7 @@ import pytest
 from .util.fake_broker import FakeBroker
 from ohmqtt.client import Client
 from ohmqtt.logger import get_logger
+from ohmqtt.mqtt_spec import MQTTQoS
 from ohmqtt.packet import (
     MQTTPacket,
     MQTTConnectPacket,
@@ -83,7 +84,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
         assert broker.received.pop(0) == client_received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
             payload=b"coconut",
-            qos=1,
+            qos=MQTTQoS.Q1,
             packet_id=n,
         )
         assert broker.received.pop(0) == MQTTPubAckPacket(packet_id=n)
@@ -106,7 +107,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
         assert broker.received.pop(0) == MQTTPublishPacket(
             topic="test/topic",
             payload=b"pineapple",
-            qos=2,
+            qos=MQTTQoS.Q2,
             packet_id=n,
         )
         assert broker.received.pop(0) == MQTTPubRelPacket(packet_id=n)

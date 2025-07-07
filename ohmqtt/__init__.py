@@ -2,6 +2,7 @@ from .client import Client as Client
 from .error import MQTTError as MQTTError
 from .logger import set_log_level as set_log_level
 from .mqtt_spec import MQTTReasonCode as MQTTReasonCode
+from .mqtt_spec import MQTTQoS as MQTTQoS
 from .packet import MQTTPacket as MQTTPacket
 from .packet import MQTTAuthPacket as MQTTAuthPacket
 from .packet import MQTTConnectPacket as MQTTConnectPacket

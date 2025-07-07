@@ -13,7 +13,7 @@ else:
 
 from .connection import Address, ConnectParams, Connection, MessageHandlers
 from .logger import get_logger
-from .mqtt_spec import MQTTReasonCode
+from .mqtt_spec import MQTTReasonCode, MQTTQoS
 from .packet import MQTTAuthPacket
 from .property import MQTTAuthProps, MQTTConnectProps, MQTTPublishProps, MQTTWillProps
 from .persistence.base import PublishHandle
@@ -124,7 +124,7 @@ class Client:
         topic: str,
         payload: bytes,
         *,
-        qos: int = 0,
+        qos: int | MQTTQoS = MQTTQoS.Q0,
         retain: bool = False,
         properties: MQTTPublishProps | None = None,
         alias_policy: AliasPolicy = AliasPolicy.NEVER,
@@ -138,6 +138,8 @@ class Client:
         :param properties: Properties for the PUBLISH packet.
         :param alias_policy: The policy for using automatic topic aliases.
         """
+        if not isinstance(qos, MQTTQoS):
+            qos = MQTTQoS(qos)
         properties = properties if properties is not None else None
         return self.session.publish(
             topic,
@@ -152,7 +154,7 @@ class Client:
         self,
         topic_filter: str,
         callback: SubscribeCallback,
-        max_qos: int = 2,
+        max_qos: int | MQTTQoS = MQTTQoS.Q2,
         *,
         share_name: str | None = None,
         no_local: bool = False,
@@ -178,6 +180,8 @@ class Client:
         :param sub_id: An optional subscription ID for the subscription.
         :param user_properties: Optional user properties to include in the subscription request.
         """
+        if not isinstance(max_qos, MQTTQoS):
+            max_qos = MQTTQoS(max_qos)
         return self.session.subscriptions.subscribe(
             topic_filter,
             callback,
@@ -196,7 +200,7 @@ class Client:
         self,
         topic_filter: str,
         callback: SubscribeCallback,
-        max_qos: int = 2,
+        max_qos: int | MQTTQoS = MQTTQoS.Q2,
         *,
         share_name: str | None = None,
         no_local: bool = False,
@@ -223,6 +227,8 @@ class Client:
         :param user_properties: Optional user properties which were included in the subscription request.
         :param unsub_user_properties: Optional user properties to include in the unsubscription request.
         """
+        if not isinstance(max_qos, MQTTQoS):
+            max_qos = MQTTQoS(max_qos)
         return self.session.subscriptions.unsubscribe(
             topic_filter,
             callback,

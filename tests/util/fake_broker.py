@@ -12,7 +12,7 @@ import uuid
 
 from ohmqtt.connection.decoder import ClosedSocketError, IncrementalDecoder
 from ohmqtt.logger import get_logger
-from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import (
     MQTTPacket,
     MQTTConnectPacket,
@@ -105,9 +105,9 @@ class FakeBrokerHandler(socketserver.BaseRequestHandler):
         if any(match_topic_filter(topic_filter, packet.topic) for topic_filter in self.subscriptions):
             outbound.append(packet)
 
-        if packet.qos == 1:
+        if packet.qos == MQTTQoS.Q1:
             outbound.append(MQTTPubAckPacket(packet_id=packet.packet_id))
-        elif packet.qos == 2:
+        elif packet.qos == MQTTQoS.Q2:
             outbound.append(MQTTPubRecPacket(packet_id=packet.packet_id))
 
         return outbound

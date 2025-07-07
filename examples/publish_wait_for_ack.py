@@ -8,7 +8,7 @@ It also demonstrates the debug logging output of the client.
 import argparse
 import logging
 
-from ohmqtt import Client
+from ohmqtt import Client, MQTTQoS
 
 
 def main(args: argparse.Namespace) -> None:
@@ -19,7 +19,7 @@ def main(args: argparse.Namespace) -> None:
         client.wait_for_connect(timeout=5.0)
 
         for n in range(1, 9):
-            publish_handle = client.publish("ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=2)
+            publish_handle = client.publish("ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=MQTTQoS.Q2)
             assert publish_handle.wait_for_ack()
 
         client.disconnect()

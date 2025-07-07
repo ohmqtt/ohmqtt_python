@@ -6,7 +6,7 @@ import weakref
 
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
-from ..mqtt_spec import MAX_PACKET_ID
+from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -113,7 +113,7 @@ class SQLitePersistence(Persistence):
         self,
         topic: str,
         payload: bytes,
-        qos: int,
+        qos: MQTTQoS,
         retain: bool,
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
@@ -126,7 +126,7 @@ class SQLitePersistence(Persistence):
                 INSERT INTO messages (topic, payload, qos, retain, properties, alias_policy)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (topic, payload, qos, int(retain), properties_blob, alias_policy.value),
+                (topic, payload, qos.value, int(retain), properties_blob, alias_policy.value),
             )
             self._conn.commit()
             message_id = self._cursor.lastrowid
@@ -185,7 +185,7 @@ class SQLitePersistence(Persistence):
             self._conn.commit()
 
     def check_rec(self, packet: MQTTPublishPacket) -> bool:
-        if packet.qos != 2:
+        if packet.qos != MQTTQoS.Q2:
             raise ValueError("Not a QoS 2 PUBLISH packet")
         with self._cond:
             self._cursor.execute(
@@ -201,7 +201,7 @@ class SQLitePersistence(Persistence):
             return True
 
     def set_rec(self, packet: MQTTPublishPacket) -> None:
-        if packet.qos != 2:
+        if packet.qos != MQTTQoS.Q2:
             raise ValueError("Not a QoS 2 PUBLISH packet")
         with self._cond:
             self._cursor.execute(
@@ -258,6 +258,7 @@ class SQLitePersistence(Persistence):
                 properties = MQTTPublishProps()
             if packet_id is None:
                 packet_id = self._generate_packet_id()
+            qos = MQTTQoS(qos)
             packet: MQTTPublishPacket | MQTTPubRelPacket
             if received:
                 alias_policy = AliasPolicy.NEVER

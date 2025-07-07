@@ -13,6 +13,10 @@
     :members:
     :member-order: bysource
 
+.. autoenum:: ohmqtt.MQTTQoS
+    :members:
+    :member-order: bysource
+
 .. autofunction:: ohmqtt.set_log_level
 
 .. autoclass:: ohmqtt.MQTTPacket

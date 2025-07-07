@@ -6,7 +6,7 @@ import weakref
 
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
-from ..mqtt_spec import MAX_PACKET_ID
+from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -20,7 +20,7 @@ class RetainedMessage:
     topic: str
     payload: bytes
     packet_id: int
-    qos: int
+    qos: MQTTQoS
     retain: bool
     properties: MQTTPublishProps
     dup: bool
@@ -48,7 +48,7 @@ class InMemoryPersistence(Persistence):
         self,
         topic: str,
         payload: bytes,
-        qos: int,
+        qos: MQTTQoS,
         retain: bool,
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
@@ -87,7 +87,7 @@ class InMemoryPersistence(Persistence):
         if packet_id not in self._messages:
             raise ValueError(f"Unknown packet_id: {packet_id}")
         message = self._messages[packet_id]
-        if message.qos == 1 or message.received:
+        if message.qos == MQTTQoS.Q1 or message.received:
             handle = message.handle()
             if handle is not None:
                 with self._cond:
@@ -100,7 +100,7 @@ class InMemoryPersistence(Persistence):
             message.received = True
 
     def check_rec(self, packet: MQTTPublishPacket) -> bool:
-        if packet.qos != 2:
+        if packet.qos != MQTTQoS.Q2:
             raise ValueError("Not a QoS 2 PUBLISH packet")
         if packet.packet_id in self._received:
             logger.debug("Received duplicate QoS 2 packet with ID %d", packet.packet_id)
@@ -108,7 +108,7 @@ class InMemoryPersistence(Persistence):
         return True
 
     def set_rec(self, packet: MQTTPublishPacket) -> None:
-        if packet.qos != 2:
+        if packet.qos != MQTTQoS.Q2:
             raise ValueError("Not a QoS 2 PUBLISH packet")
         self._received.add(packet.packet_id)
 

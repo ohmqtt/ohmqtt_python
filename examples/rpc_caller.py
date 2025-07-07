@@ -10,7 +10,7 @@ import threading
 import uuid
 from typing import Callable
 
-from ohmqtt import Client, MQTTPublishPacket, MQTTPublishProps
+from ohmqtt import Client, MQTTPublishPacket, MQTTPublishProps, MQTTQoS
 
 
 RPCCallback = Callable[[bytes], None]
@@ -37,7 +37,7 @@ class RPCCaller:
         self.client.publish(
             "ohmqtt/examples/rpc/request",
             payload,
-            qos=2,
+            qos=MQTTQoS.Q2,
             properties=MQTTPublishProps(ResponseTopic=response_topic),
         ).wait_for_ack()
 

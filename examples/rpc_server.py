@@ -11,7 +11,7 @@ This also demonstrates running the client loop in the main thread."""
 
 import argparse
 
-from ohmqtt import Client, MQTTPublishPacket, MQTTPublishProps
+from ohmqtt import Client, MQTTPublishPacket, MQTTPublishProps, MQTTQoS
 
 
 class RPCServer:
@@ -35,7 +35,7 @@ class RPCServer:
         response = f"This is a good day for {msg.payload.decode()}"
 
         # Send the response back to the specified topic.
-        client.publish(response_topic, response.encode(), qos=2, properties=response_props)
+        client.publish(response_topic, response.encode(), qos=MQTTQoS.Q2, properties=response_props)
 
 
 def main(args: argparse.Namespace) -> None:

@@ -6,7 +6,7 @@ from typing import Final, TypeAlias
 from .connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
 from .error import MQTTError
 from .logger import get_logger
-from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode
+from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode, MQTTQoS
 from .packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
@@ -83,14 +83,14 @@ class Session:
         topic: str,
         payload: bytes,
         *,
-        qos: int = 0,
+        qos: MQTTQoS = MQTTQoS.Q0,
         retain: bool = False,
         properties: MQTTPublishProps | None = None,
         alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
         """Publish a message to a topic."""
         properties = properties if properties is not None else MQTTPublishProps()
-        if qos > 0:
+        if qos > MQTTQoS.Q0:
             if alias_policy == AliasPolicy.ALWAYS:
                 raise ValueError("AliasPolicy.ALWAYS is not allowed for QoS > 0")
             with self._lock:
@@ -180,15 +180,15 @@ class Session:
 
     def handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
-        if packet.qos == 2 and not self.persistence.check_rec(packet):
+        if packet.qos == MQTTQoS.Q2 and not self.persistence.check_rec(packet):
             logger.debug("Received duplicate QoS 2 packet with ID %d", packet.packet_id)
         else:
             self.subscriptions.handle_publish(packet)
 
-        if packet.qos == 1:
+        if packet.qos == MQTTQoS.Q1:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
             self._send_packet(ack_packet)
-        elif packet.qos == 2:
+        elif packet.qos == MQTTQoS.Q2:
             self.persistence.set_rec(packet)
             rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
             self._send_packet(rec_packet)

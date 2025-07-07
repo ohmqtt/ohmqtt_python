@@ -5,7 +5,7 @@
 import argparse
 from queue import Queue
 
-from ohmqtt import Client, MQTTPublishPacket
+from ohmqtt import Client, MQTTPublishPacket, MQTTQoS
 
 
 def main(args: argparse.Namespace) -> None:
@@ -15,7 +15,7 @@ def main(args: argparse.Namespace) -> None:
         client.wait_for_connect(timeout=5.0)
         print("*** Connected to broker")
 
-        pub = client.publish("ohmqtt/examples/publish_retain", b"test_payload", qos=1, retain=True)
+        pub = client.publish("ohmqtt/examples/publish_retain", b"test_payload", qos=MQTTQoS.Q1, retain=True)
         assert pub.wait_for_ack()
 
         q: Queue[MQTTPublishPacket] = Queue()

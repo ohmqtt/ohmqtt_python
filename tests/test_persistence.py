@@ -5,6 +5,7 @@ from typing import Generator
 
 import pytest
 
+from ohmqtt.mqtt_spec import MQTTQoS
 from ohmqtt.packet import MQTTPublishPacket, MQTTPubRelPacket
 from ohmqtt.persistence.base import Persistence
 from ohmqtt.persistence.in_memory import InMemoryPersistence
@@ -33,7 +34,7 @@ def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> No
     persistence.add(
         "test/topic",
         b"test payload",
-        qos=1,
+        qos=MQTTQoS.Q1,
         retain=False,
         properties=MQTTPublishProps(ResponseTopic="response/topic"),
         alias_policy=AliasPolicy.TRY,
@@ -47,7 +48,7 @@ def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> No
         packet_id=1,
         topic="test/topic",
         payload=b"test payload",
-        qos=1,
+        qos=MQTTQoS.Q1,
         retain=False,
         properties=MQTTPublishProps(ResponseTopic="response/topic"),
     )
@@ -76,7 +77,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     persistence.add(
         "test/topic",
         b"test payload",
-        qos=2,
+        qos=MQTTQoS.Q2,
         retain=False,
         properties=MQTTPublishProps(ResponseTopic="response/topic"),
         alias_policy=AliasPolicy.TRY,
@@ -90,7 +91,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
         packet_id=1,
         topic="test/topic",
         payload=b"test payload",
-        qos=2,
+        qos=MQTTQoS.Q2,
         retain=False,
         properties=MQTTPublishProps(ResponseTopic="response/topic"),
     )
@@ -137,7 +138,7 @@ def test_persistence_properties(persistence_class: type[Persistence]) -> None:
         packet_id=1,
         topic="test/topic",
         payload=b"test payload",
-        qos=1,
+        qos=MQTTQoS.Q1,
         retain=False,
         properties=MQTTPublishProps(
             ResponseTopic="response/topic",
@@ -174,7 +175,7 @@ def test_persistence_loose_alias(persistence_class: type[Persistence]) -> None:
         packet_id=1,
         topic="test/topic",
         payload=b"test payload",
-        qos=1,
+        qos=MQTTQoS.Q1,
         retain=False,
         properties=MQTTPublishProps(),
     )
@@ -197,14 +198,14 @@ def test_persistence_incoming_qos2(persistence_class: type[Persistence]) -> None
 
     pub_packet = MQTTPublishPacket(
         packet_id=1,
-        qos=1,
+        qos=MQTTQoS.Q1,
     )
     with pytest.raises(ValueError):
         persistence.check_rec(pub_packet)
     with pytest.raises(ValueError):
         persistence.set_rec(pub_packet)
 
-    pub_packet.qos = 2
+    pub_packet.qos = MQTTQoS.Q2
 
     assert persistence.check_rec(pub_packet) is True
     persistence.set_rec(pub_packet)
@@ -237,7 +238,7 @@ def test_persistence_sqlite_open(db_fast: bool, tempdbpath: str) -> None:
     outgoing_packet = MQTTPublishPacket(
         topic="test/topic",
         payload=b"test payload",
-        qos=1,
+        qos=MQTTQoS.Q1,
         retain=False,
         properties=MQTTPublishProps(ResponseTopic="response/topic"),
     )
@@ -256,7 +257,7 @@ def test_persistence_sqlite_open(db_fast: bool, tempdbpath: str) -> None:
     assert len(persistence.get(1)) == 0
 
     # Simulate an incoming QoS 2 message.
-    incoming_packet = MQTTPublishPacket(packet_id=1, qos=2)
+    incoming_packet = MQTTPublishPacket(packet_id=1, qos=MQTTQoS.Q2)
     persistence.set_rec(incoming_packet)
 
     # Close and reopen the persistence store.

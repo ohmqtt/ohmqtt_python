@@ -6,7 +6,7 @@ from pytest_mock import MockerFixture
 
 from ohmqtt.client import Client
 from ohmqtt.connection import Connection, MessageHandlers, InvalidStateError
-from ohmqtt.mqtt_spec import MQTTReasonCode
+from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import (
     MQTTPublishPacket,
     MQTTSubscribePacket,
@@ -47,7 +47,7 @@ def test_subscriptions_registration(mock_client: Mock, mock_connection: Mock) ->
     assert subscriptions.handle_connack in handlers.get_handlers(MQTTConnAckPacket)
 
 
-@pytest.mark.parametrize("max_qos", [0, 1, 2])
+@pytest.mark.parametrize("max_qos", [MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
 @pytest.mark.parametrize("no_local", [True, False])
 @pytest.mark.parametrize("retain_as_published", [True, False])
 @pytest.mark.parametrize("retain_policy", [RetainPolicy.NEVER, RetainPolicy.ONCE, RetainPolicy.ALWAYS])
@@ -55,7 +55,7 @@ def test_subscriptions_subscribe_opts(
     mock_handlers: MagicMock,
     mock_client: Mock,
     mock_connection: Mock,
-    max_qos: int,
+    max_qos: MQTTQoS,
     no_local: bool,
     retain_as_published: bool,
     retain_policy: RetainPolicy
@@ -74,7 +74,7 @@ def test_subscriptions_subscribe_opts(
         sub_id=23,
         user_properties=[("key", "value")],
     )
-    expected_opts = max_qos | (retain_policy << 4) | (retain_as_published << 3) | (no_local << 2)
+    expected_opts = max_qos.value | (retain_policy << 4) | (retain_as_published << 3) | (no_local << 2)
     mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
         topics=[("$share/test_share/test/topic", expected_opts)],
         packet_id=1,

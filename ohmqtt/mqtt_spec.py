@@ -108,3 +108,10 @@ class MQTTReasonCode(IntEnum):
     def is_error(self) -> bool:
         """Check if the reason code indicates an error."""
         return self >= 0x80
+
+
+class MQTTQoS(IntEnum):
+    """Quality of Service level for messaging."""
+    Q0 = 0
+    Q1 = 1
+    Q2 = 2
