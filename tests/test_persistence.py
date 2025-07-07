@@ -25,6 +25,35 @@ def tempdbpath() -> Generator[str, None, None]:
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_open(persistence_class: type[Persistence]) -> None:
+    persistence = persistence_class()
+
+    persistence.open("test_client")
+    persistence.add(
+        "test/topic",
+        b"test payload",
+        qos=MQTTQoS.Q1,
+        retain=False,
+        properties=MQTTPublishProps(ResponseTopic="response/topic"),
+        alias_policy=AliasPolicy.TRY,
+    )
+    assert len(persistence) == 1
+    mids = persistence.get(1)
+    rendered = persistence.render(mids[0])
+    assert isinstance(rendered.packet, MQTTPublishPacket)
+    assert not rendered.packet.dup
+
+    persistence.open("test_client")
+    assert len(persistence) == 1
+    rendered.packet.dup = True
+    mids = persistence.get(1)
+    assert rendered.packet == persistence.render(mids[0]).packet
+
+    persistence.open("test_client2")
+    assert len(persistence) == 0
+
+
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
 def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> None:
     persistence = persistence_class()
     persistence.open("test_client")
