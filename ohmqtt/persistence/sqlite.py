@@ -244,7 +244,7 @@ class SQLitePersistence(Persistence):
             )
             row = self._cursor.fetchone()
             if row is None:
-                raise ValueError(f"Message ID {message_id} not found in persistence store.")
+                raise KeyError(f"Message ID {message_id} not found in persistence store.")
             topic, payload, qos, retain, properties_blob, dup, received, packet_id, alias_policy = row
             if properties_blob is not None:
                 properties_view = memoryview(properties_blob)

@@ -125,7 +125,9 @@ class Persistence(metaclass=ABCMeta):
     def render(self, packet_id: int) -> RenderedPacket:
         """Render a PUBLISH message from the persistence store.
 
-        This also indicates to the persistence store that the message is inflight."""
+        This also indicates to the persistence store that the message is inflight.
+
+        Raises KeyError if the ID is not retained."""
         ...  # pragma: no cover
 
     @abstractmethod

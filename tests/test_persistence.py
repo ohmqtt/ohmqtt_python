@@ -249,7 +249,6 @@ def test_persistence_incoming_qos2(persistence_class: type[Persistence]) -> None
     assert persistence.check_rec(pub_packet) is True
 
 
-
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
 def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
     persistence = persistence_class()
@@ -257,6 +256,15 @@ def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
 
     with pytest.raises(ValueError, match="Unknown packet_id: 42"):
         persistence.ack(42)
+
+
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_unknown_render(persistence_class: type[Persistence]) -> None:
+    persistence = persistence_class()
+    persistence.open("test_client")
+
+    with pytest.raises(KeyError):
+        persistence.render(42)
 
 
 def test_persistence_out_of_ids() -> None:
