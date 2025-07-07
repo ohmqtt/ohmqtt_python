@@ -92,8 +92,6 @@ class SQLitePersistence(Persistence):
                 """
             )
             row = self._cursor.fetchone()
-            if row is None:
-                return ""
             return str(row[0])
 
     def _set_client_id(self, client_id: str) -> None:
