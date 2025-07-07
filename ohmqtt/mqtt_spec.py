@@ -7,8 +7,8 @@ from typing import Final
 MAX_PACKET_ID: Final = 0xffff
 
 
-# Types of MQTT control packets, mapped to identifiers from the specification.
 class MQTTPacketType(IntEnum):
+    """Types of MQTT control packets, mapped to identifiers from the specification."""
     CONNECT = 0x01
     CONNACK = 0x02
     PUBLISH = 0x03
@@ -26,8 +26,8 @@ class MQTTPacketType(IntEnum):
     AUTH = 0x0f
 
 
-# Types of MQTT properties, mapped to identifiers from the specification.
 class MQTTPropertyId(IntEnum):
+    """Types of MQTT properties, mapped to identifiers from the specification."""
     PayloadFormatIndicator = 0x01
     MessageExpiryInterval = 0x02
     ContentType = 0x03
@@ -57,8 +57,8 @@ class MQTTPropertyId(IntEnum):
     SharedSubscriptionAvailable = 0x2a
 
 
-# Indicates the result of an operation.
 class MQTTReasonCode(IntEnum):
+    """Indicates the result of an operation."""
     Success = 0x00
     NormalDisconnection = 0x00
     GrantedQoS0 = 0x00
