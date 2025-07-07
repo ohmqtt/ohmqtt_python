@@ -31,7 +31,7 @@ def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> No
     assert len(persistence) == 0
 
     # Add a message to the store.
-    persistence.add(
+    handle = persistence.add(
         "test/topic",
         b"test payload",
         qos=MQTTQoS.Q1,
@@ -65,6 +65,7 @@ def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> No
     # Acknowledge the message.
     persistence.ack(1)
     assert len(persistence) == 0
+    assert handle.is_acked()
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
@@ -74,7 +75,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     assert len(persistence) == 0
 
     # Add a message to the store.
-    persistence.add(
+    handle = persistence.add(
         "test/topic",
         b"test payload",
         qos=MQTTQoS.Q2,
@@ -108,6 +109,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     # Acknowledge the message.
     persistence.ack(1)
     assert len(persistence) == 1
+    assert not handle.is_acked()
 
     # Retrieve the PUBREL from the store.
     message_ids = persistence.get(10)
@@ -126,6 +128,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     # Acknowledge the message.
     persistence.ack(1)
     assert len(persistence) == 0
+    assert handle.is_acked()
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
