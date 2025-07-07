@@ -50,8 +50,7 @@ class Address:
         if not address:
             return
         if address.startswith("unix:"):
-            if not HAS_AF_UNIX:
-                raise ValueError("Unix socket support is not available on this platform")
+            assert HAS_AF_UNIX, "Unix socket support is not available on this platform"
         elif "//" not in address:
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
             address = "//" + address
