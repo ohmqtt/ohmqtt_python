@@ -104,3 +104,15 @@ def test_keepalive_pingpong(mock_keepalive_time: Mock) -> None:
         keepalive.mark_ping()
         keepalive.mark_pong()
         assert keepalive.get_next_timeout() == 10.0
+
+
+def test_keepalive_max_wait(mock_keepalive_time: Mock) -> None:
+    """Test setting a max_wait."""
+    keepalive = KeepAlive()
+
+    assert keepalive.get_next_timeout(max_wait=1.1) == 1.1
+
+    mock_keepalive_time.return_value = 0.0
+    keepalive.mark_init()
+    keepalive.keepalive_interval = 10
+    assert keepalive.get_next_timeout(max_wait=2.2) == 2.2
