@@ -227,6 +227,17 @@ def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
         persistence.ack(42)
 
 
+def test_persistence_out_of_ids() -> None:
+    """InMemoryPersistence does not allow more than USHRT_MAX unackowledged outbound messages."""
+    persistence = InMemoryPersistence()
+    persistence.open("test_client")
+
+    for _ in range(65535):
+        persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
+    with pytest.raises(ValueError):
+        persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
+
+
 @pytest.mark.parametrize("db_fast", [True, False])
 def test_persistence_sqlite_open(db_fast: bool, tempdbpath: str) -> None:
     """Test the SQLitePersistence class with a resume scenario."""
