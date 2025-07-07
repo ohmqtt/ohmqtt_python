@@ -1,6 +1,7 @@
 from typing import Any
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.protected import Protected, protect
 
@@ -49,3 +50,11 @@ def test_protected_class() -> None:
         assert p.get_value() == 99
         p.set_value(100)
         assert p.value == 100
+
+
+def test_protected_weird_lock(mocker: MockerFixture) -> None:
+    lock_cls = mocker.patch("threading.Lock")
+    lock = lock_cls()
+    del lock._is_owned  # noqa: SLF001
+    with pytest.raises(RuntimeError):
+        Protected(lock)
