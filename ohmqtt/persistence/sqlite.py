@@ -126,8 +126,7 @@ class SQLitePersistence(Persistence):
             )
             self._conn.commit()
             message_id = self._cursor.lastrowid
-            if message_id is None:
-                raise ValueError("Failed to retrieve the last inserted row ID.")
+            assert message_id is not None
             handle = ReliablePublishHandle(self._cond)
             self._handles[message_id] = handle
             return handle
