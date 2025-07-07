@@ -19,17 +19,22 @@ logger = logging.getLogger(__name__)
 LoopSelfT = TypeVar("LoopSelfT", bound="LoopbackSocket")
 
 
-@pytest.fixture
-def test_data(request: pytest.FixtureRequest) -> list[dict[str, Any]]:
+@pytest.fixture(scope="module")
+def test_data_file(request: pytest.FixtureRequest) -> dict[str, Any]:
     """Load test data from a YAML file.
 
     The YAML file must be named after the test suite, and contain a mapping of test names to test data."""
     suite_name = request.module.__name__.split(".")[-1]
-    test_name = request.node.name
     data_path = Path("tests") / "data" / f"{suite_name}.yml"
     with data_path.open(encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return data[test_name]  # type: ignore[no-any-return]
+        return yaml.safe_load(f)  # type: ignore[no-any-return]
+
+
+@pytest.fixture
+def test_data(test_data_file: dict[str, Any], request: pytest.FixtureRequest) -> list[dict[str, Any]]:
+    """Load test data for a specific test."""
+    test_name = request.node.name
+    return test_data_file[test_name]  # type: ignore[no-any-return]
 
 
 class LoopbackSocket:
