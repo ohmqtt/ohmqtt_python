@@ -9,3 +9,7 @@ if sys.platform == "win32":
     AF_UNIX: Final = cast(socket.AddressFamily, 1)
 else:
     AF_UNIX: Final = socket.AF_UNIX
+
+
+class PlatformError(Exception):
+    """A feature is not supported on this platform."""

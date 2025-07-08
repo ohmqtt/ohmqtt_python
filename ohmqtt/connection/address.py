@@ -3,7 +3,7 @@ import socket
 from typing import Final, Mapping
 from urllib.parse import urlparse, ParseResult
 
-from ..platform import AF_UNIX, HAS_AF_UNIX
+from ..platform import AF_UNIX, HAS_AF_UNIX, PlatformError
 
 
 DEFAULT_PORTS: Final[Mapping[str, int]] = {
@@ -50,7 +50,8 @@ class Address:
         if not address:
             return
         if address.startswith("unix:"):
-            assert HAS_AF_UNIX, "Unix socket support is not available on this platform"
+            if not HAS_AF_UNIX:
+                raise PlatformError("Unix socket support is not available on this platform")
         elif "//" not in address:
             # urlparse may choke on some network address we wish to support, unless we guarantee a //.
             address = "//" + address

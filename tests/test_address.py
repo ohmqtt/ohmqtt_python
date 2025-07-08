@@ -2,9 +2,10 @@ import socket
 from typing import TypedDict
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.connection.address import Address
-from ohmqtt.platform import AF_UNIX, HAS_AF_UNIX
+from ohmqtt.platform import AF_UNIX, HAS_AF_UNIX, PlatformError
 
 
 class AddressTestCase(TypedDict, total=False):
@@ -54,12 +55,21 @@ def test_address_unix(test_data: list[AddressTestCase]) -> None:
     test_address_valid(test_data)
 
 
+def test_address_unix_unsupported(mocker: MockerFixture, test_data_file: dict[str, list[AddressTestCase]]) -> None:
+    """Test a platform which does not support Unix sockets."""
+    mocker.patch("ohmqtt.connection.address.HAS_AF_UNIX", new=False)
+    for case in test_data_file["test_address_unix"]:
+        case_addr = case["address"]
+        with pytest.raises(PlatformError):
+            Address(case_addr)
+
+
 def test_address_invalid(test_data: list[AddressTestCase]) -> None:
     """Test the Address class with invalid addresses."""
     for case in test_data:
         try:
             Address(case["address"])
-        except (AssertionError, ValueError):
+        except (PlatformError, ValueError):
             pass
         else:
             pytest.fail(f"Expected ValueError for address: {case['address']}")
