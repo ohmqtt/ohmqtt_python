@@ -43,7 +43,7 @@ class InterruptibleSelector(Protected):
     def _drain(self) -> None:
         """Drain the interrupt socket."""
         data = self._interrupt_r.recv(2)
-        assert len(data) <= 1
+        assert len(data) <= 1, "Drained more than one interrupt"
 
     @protect
     def close(self) -> None:
