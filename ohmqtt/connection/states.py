@@ -212,7 +212,7 @@ class ConnectedState(FSMState):
         state_data.keepalive.mark_init()
         with fsm.selector:
             env.write_buffer.clear()
-        assert state_data.connack is not None
+        assert state_data.connack is not None, "Got to ConnectedState without a CONNACK"
         env.packet_callback(state_data.connack)
         state_data.open_called = True
 
