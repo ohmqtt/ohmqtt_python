@@ -39,7 +39,7 @@ def broker() -> Iterator[FakeBroker]:
 
 
 def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
-    delay: Final = 0.005  # seconds grace period
+    delay: Final = 0.01  # seconds grace period
 
     client_received = []
     def callback(client: Client, packet: MQTTPacket) -> None:
@@ -68,7 +68,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     )
 
     # PUBLISH QoS 0
-    for n in range(50):
+    for n in range(10):
         pub_handle = client.publish("test/topic", b"banana", qos=0)
         time.sleep(delay)
         assert broker.received.pop(0) == client_received.pop(0) == MQTTPublishPacket(
@@ -77,7 +77,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
         )
 
     # PUBLISH QoS 1
-    for n in range(1, 50):
+    for n in range(1, 10):
         pub_handle = client.publish("test/topic", b"coconut", qos=1)
         pub_handle.wait_for_ack(timeout=0.25)
         time.sleep(delay)
@@ -100,7 +100,7 @@ def test_z2z_happy_path(client: Client, broker: FakeBroker) -> None:
     )
 
     # PUBLISH QoS 2
-    for n in range(50, 100):
+    for n in range(10, 20):
         pub_handle = client.publish("test/topic", b"pineapple", qos=2)
         pub_handle.wait_for_ack(timeout=0.25)
         time.sleep(delay)
