@@ -247,6 +247,14 @@ class SQLitePersistence(Persistence):
             if row is None:
                 raise KeyError(f"Message ID {message_id} not found in persistence store.")
             topic, payload, qos, retain, properties_blob, dup, received, packet_id, alias_policy = row
+            self._cursor.execute(
+                """
+                SELECT MIN(id) FROM messages WHERE inflight = 0
+                """
+            )
+            row = self._cursor.fetchone()
+            if row is None or message_id != row[0]:
+                raise ValueError(f"Message {message_id} is not next in queue.")
             if properties_blob is not None:
                 properties_view = memoryview(properties_blob)
                 properties, _ = MQTTPublishProps.decode(properties_view)

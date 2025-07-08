@@ -131,8 +131,9 @@ class InMemoryPersistence(Persistence):
                 properties=msg.properties,
                 dup=msg.dup,
             )
-        popped = self._pending.popleft()
-        assert popped == msg.packet_id
+        if self._pending[0] != msg.packet_id:
+            raise ValueError(f"Message {packet_id} is not next in queue.")
+        self._pending.popleft()
         return RenderedPacket(packet, alias_policy)
 
     def _reset_inflight(self) -> None:

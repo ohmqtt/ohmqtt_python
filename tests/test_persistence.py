@@ -274,6 +274,25 @@ def test_persistence_queue(qos: MQTTQoS, persistence_class: type[Persistence]) -
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_render_order(persistence_class: type[Persistence]) -> None:
+    persistence = persistence_class()
+    persistence.open("test_client")
+
+    for _ in (1, 2):
+        persistence.add(
+            topic="foo",
+            payload=b"bar",
+            qos=MQTTQoS.Q1,
+            retain=False,
+            properties=MQTTPublishProps(),
+            alias_policy=AliasPolicy.NEVER,
+        )
+    queued = persistence.get(3)
+    with pytest.raises(ValueError):
+        persistence.render(queued[1])
+
+
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
 def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
     persistence = persistence_class()
     persistence.open("test_client")
