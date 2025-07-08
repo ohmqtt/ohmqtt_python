@@ -249,6 +249,30 @@ def test_persistence_incoming_qos2(persistence_class: type[Persistence]) -> None
     assert persistence.check_rec(pub_packet) is True
 
 
+@pytest.mark.parametrize("qos", [MQTTQoS.Q1, MQTTQoS.Q2])
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_queue(qos: MQTTQoS, persistence_class: type[Persistence]) -> None:
+    persistence = persistence_class()
+    persistence.open("test_client")
+
+    rng = range(1, 3)
+    for n in rng:
+        persistence.add(
+            topic=str(n),
+            payload=b"bar",
+            qos=qos,
+            retain=False,
+            properties=MQTTPublishProps(),
+            alias_policy=AliasPolicy.NEVER,
+        )
+    for n in rng:
+        queued = persistence.get(3)
+        rendered = persistence.render(queued[0])
+        assert isinstance(rendered.packet, MQTTPublishPacket)
+        assert rendered.packet.topic == str(n)
+        assert rendered.packet.packet_id == n
+
+
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
 def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
     persistence = persistence_class()
