@@ -30,7 +30,10 @@ def mock_client(mocker: MockerFixture) -> Mock:
 
 @pytest.fixture
 def mock_connection(mocker: MockerFixture) -> Mock:
-    return mocker.Mock(spec=Connection)  # type: ignore[no-any-return]
+    conn = mocker.MagicMock(spec=Connection)
+    conn.fsm.cond.__enter__.return_value = mocker.Mock()
+    conn.fsm.lock.__enter__.return_value = mocker.Mock()
+    return conn  # type: ignore[no-any-return]
 
 
 @pytest.fixture

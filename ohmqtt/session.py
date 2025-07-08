@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 from typing import Final, TypeAlias
 
 from .connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
@@ -55,7 +54,7 @@ class Session:
         db_path: str = "",
         db_fast: bool = False,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = connection.fsm.lock
         self.topic_alias = OutboundTopicAlias()
         self.inflight = 0
         self.params = ConnectParams()
