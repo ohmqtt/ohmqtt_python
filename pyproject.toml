@@ -1,6 +1,6 @@
 [project]
 name = "ohmqtt"
-version = "0.0.9"
+version = "0.0.10"
 description = "Persistent MQTT 5.0 client"
 requires-python = ">=3.10"
 classifiers = [
