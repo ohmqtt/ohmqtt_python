@@ -91,8 +91,6 @@ class Session:
         """Publish a message to a topic."""
         properties = properties if properties is not None else MQTTPublishProps()
         if qos > MQTTQoS.Q0:
-            if alias_policy == AliasPolicy.ALWAYS:
-                raise ValueError("AliasPolicy.ALWAYS is not allowed for QoS > 0")
             with self._lock:
                 handle: ReliablePublishHandle = self.persistence.add(
                     topic=topic,
