@@ -111,7 +111,7 @@ class Session:
                 payload=payload,
                 qos=qos,
                 retain=retain,
-                properties=properties if properties is not None else {},
+                properties=properties,
             )
             try:
                 self._send_aliased(packet, alias_policy)
