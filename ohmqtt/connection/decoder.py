@@ -68,7 +68,7 @@ class IncrementalDecoder:
 
         :raises WantReadError: The socket is not ready for reading."""
         # See ohmqtt.serialization.decode_varint for a cleaner implementation.
-        assert self.head != -1  # We shouldn't be here unless we have a head byte.
+        assert self.head != -1, "Can't extract length without head"
         if self.length.complete:
             return
         result = self.length.value
@@ -93,7 +93,7 @@ class IncrementalDecoder:
         """Extract all data after the packet length from the socket, if needed.
 
         :raises ClosedSocketError: The socket is closed."""
-        assert self.length.complete  # We shouldn't be here unless we have a complete length.
+        assert self.length.complete, "Can't extract data without complete length"
         while len(self.data) < self.length.value:
             data = sock.recv(self.length.value - len(self.data))
             if not data:
