@@ -114,7 +114,8 @@ class SQLitePersistence(Persistence):
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
-        assert alias_policy != AliasPolicy.ALWAYS, "AliasPolicy must not be ALWAYS for retained messages."
+        if alias_policy == AliasPolicy.ALWAYS:
+            raise ValueError("AliasPolicy must not be ALWAYS for retained messages.")
         with self._cond:
             properties_blob = properties.encode() if len(properties) > 0 else None
             self._cursor.execute(

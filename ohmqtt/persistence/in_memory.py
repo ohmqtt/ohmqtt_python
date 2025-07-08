@@ -53,7 +53,8 @@ class InMemoryPersistence(Persistence):
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
-        assert alias_policy != AliasPolicy.ALWAYS, "AliasPolicy must not be ALWAYS for retained messages."
+        if alias_policy == AliasPolicy.ALWAYS:
+            raise ValueError("AliasPolicy must not be ALWAYS for retained messages.")
         packet_id = self._next_packet_id
         self._next_packet_id += 1
         if self._next_packet_id > MAX_PACKET_ID:

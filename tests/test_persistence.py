@@ -211,7 +211,7 @@ def test_persistence_loose_alias(persistence_class: type[Persistence]) -> None:
         retain=False,
         properties=MQTTPublishProps(),
     )
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         persistence.add(
             topic=packet.topic,
             payload=packet.payload,
