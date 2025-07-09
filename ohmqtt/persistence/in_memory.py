@@ -19,7 +19,7 @@ class RetainedMessage:
     """Represents a qos>0 message in the session."""
     topic: str
     payload: bytes
-    packet_id: int
+    msg_id: int
     qos: MQTTQoS
     retain: bool
     properties: MQTTPublishProps
@@ -35,8 +35,9 @@ class InMemoryPersistence(Persistence):
 
     This store is in memory only and is not persistent."""
     _client_id: str = field(default="", init=False)
-    _next_packet_id: int = field(default=1, init=False)
+    _next_msg_id: int = field(default=1, init=False)
     _messages: dict[int, RetainedMessage] = field(init=False, default_factory=dict)
+    _packet_id_to_msg_id: dict[int, int] = field(init=False, default_factory=dict)
     _pending: deque[int] = field(init=False, default_factory=deque)
     _received: set[int] = field(init=False, default_factory=set)
     _cond: Condition = field(init=False, default_factory=Condition)
@@ -55,18 +56,14 @@ class InMemoryPersistence(Persistence):
     ) -> ReliablePublishHandle:
         if alias_policy == AliasPolicy.ALWAYS:
             raise ValueError("AliasPolicy must not be ALWAYS for retained messages.")
-        packet_id = self._next_packet_id
-        self._next_packet_id += 1
-        if self._next_packet_id > MAX_PACKET_ID:
-            self._next_packet_id = 1
-        if packet_id in self._messages:
-            raise ValueError("Out of packet ids")
+        msg_id = self._next_msg_id
+        self._next_msg_id += 1
 
         handle = ReliablePublishHandle(self._cond)
         message = RetainedMessage(
             topic=topic,
             payload=payload,
-            packet_id=packet_id,
+            msg_id=msg_id,
             qos=qos,
             retain=retain,
             properties=properties,
@@ -75,27 +72,29 @@ class InMemoryPersistence(Persistence):
             handle=weakref.ref(handle),
             alias_policy=alias_policy,
         )
-        self._messages[packet_id] = message
-        self._pending.append(packet_id)
+        self._messages[msg_id] = message
+        self._pending.append(msg_id)
         return handle
 
     def get(self, count: int) -> Sequence[int]:
         return [self._pending[i] for i in range(min(count, len(self._pending)))]
 
     def ack(self, packet_id: int) -> None:
-        if packet_id not in self._messages:
+        if packet_id not in self._packet_id_to_msg_id:
             raise ValueError(f"Unknown packet_id: {packet_id}")
-        message = self._messages[packet_id]
+        msg_id = self._packet_id_to_msg_id[packet_id]
+        message = self._messages[msg_id]
         if message.qos == MQTTQoS.Q1 or message.received:
             handle = message.handle()
             if handle is not None:
                 with self._cond:
                     handle.acked = True
                     self._cond.notify_all()
-            del self._messages[packet_id]
+            del self._packet_id_to_msg_id[packet_id]
+            del self._messages[msg_id]
         else:
             # Prioritize PUBREL over PUBLISH
-            self._pending.appendleft(packet_id)
+            self._pending.appendleft(msg_id)
             message.received = True
 
     def check_rec(self, packet: MQTTPublishPacket) -> bool:
@@ -114,40 +113,45 @@ class InMemoryPersistence(Persistence):
     def rel(self, packet: MQTTPubRelPacket) -> None:
         self._received.remove(packet.packet_id)
 
-    def render(self, packet_id: int) -> RenderedPacket:
+    def render(self, msg_id: int) -> RenderedPacket:
         packet: MQTTPublishPacket | MQTTPubRelPacket
-        msg = self._messages[packet_id]
+        msg = self._messages[msg_id]
+        packet_id = msg.msg_id
+        while packet_id > MAX_PACKET_ID:
+            packet_id -= MAX_PACKET_ID
         if msg.received:
             alias_policy = AliasPolicy.NEVER
-            packet = MQTTPubRelPacket(packet_id=msg.packet_id)
+            packet = MQTTPubRelPacket(packet_id=packet_id)
         else:
             alias_policy = msg.alias_policy
             packet = MQTTPublishPacket(
                 topic=msg.topic,
                 payload=msg.payload,
-                packet_id=msg.packet_id,
+                packet_id=packet_id,
                 qos=msg.qos,
                 retain=msg.retain,
                 properties=msg.properties,
                 dup=msg.dup,
             )
-        if self._pending[0] != msg.packet_id:
+        if self._pending[0] != msg.msg_id:
             raise ValueError(f"Message {packet_id} is not next in queue.")
         self._pending.popleft()
+        self._packet_id_to_msg_id[packet_id] = msg.msg_id
         return RenderedPacket(packet, alias_policy)
 
     def _reset_inflight(self) -> None:
         """Clear inflight status of all messages."""
         inflight = [i for i in self._messages.keys() if i not in self._pending]
-        for packet_id in reversed(inflight):
-            self._messages[packet_id].dup = True
-            self._pending.appendleft(packet_id)
+        for msg_id in reversed(inflight):
+            self._messages[msg_id].dup = True
+            self._pending.appendleft(msg_id)
 
     def clear(self) -> None:
         with self._cond:
             self._messages.clear()
             self._pending.clear()
-            self._next_packet_id = 1
+            self._packet_id_to_msg_id.clear()
+            self._next_msg_id = 1
 
     def open(self, client_id: str, clear: bool = False) -> None:
         if clear or client_id != self._client_id:

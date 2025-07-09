@@ -310,20 +310,10 @@ def test_persistence_unknown_render(persistence_class: type[Persistence]) -> Non
         persistence.render(42)
 
 
-def test_persistence_out_of_ids() -> None:
-    """InMemoryPersistence does not allow more than USHRT_MAX unackowledged outbound messages."""
-    persistence = InMemoryPersistence()
-    persistence.open("test_client")
-
-    for _ in range(65535):
-        persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
-    with pytest.raises(ValueError):
-        persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
-
-
-def test_persistence_unlimited_ids() -> None:
-    "SQLitePersistence can queue unlimited messages."
-    persistence = SQLiteInMemory()
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_unlimited_ids(persistence_class: type[Persistence]) -> None:
+    "Should be able to queue unlimited messages."
+    persistence = persistence_class()
     persistence.open("test_client")
 
     blocks: Final = 3  # How many blocks of 65535 packets to try
