@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from enum import IntEnum
+import threading
 from typing import Callable, Final, Iterable, NamedTuple, Sequence, TYPE_CHECKING
 import weakref
 
@@ -155,7 +156,7 @@ class Subscriptions:
     ) -> None:
         self._connection = connection
         self._client = client
-        self._cond = connection.fsm.cond
+        self._cond = threading.Condition(connection.fsm.lock)
         self._topic_alias = InboundTopicAlias()
         self._subscriptions: dict[str, list[Subscription]] = {}
         self._sub_handles: dict[int, SubscribeHandle] = {}
