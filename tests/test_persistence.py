@@ -1,7 +1,7 @@
 from functools import partial
 from pathlib import Path
 import tempfile
-from typing import Generator
+from typing import Final, Generator
 
 import pytest
 
@@ -14,7 +14,7 @@ from ohmqtt.property import MQTTPublishProps
 from ohmqtt.topic_alias import AliasPolicy
 
 
-SQLiteInMemory = partial(SQLitePersistence, ":memory:")
+SQLiteInMemory = partial(SQLitePersistence, ":memory:", db_fast=True)
 
 
 @pytest.fixture
@@ -319,6 +319,32 @@ def test_persistence_out_of_ids() -> None:
         persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
     with pytest.raises(ValueError):
         persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
+
+
+def test_persistence_unlimited_ids() -> None:
+    "SQLitePersistence can queue unlimited messages."
+    persistence = SQLiteInMemory()
+    persistence.open("test_client")
+
+    blocks: Final = 3  # How many blocks of 65535 packets to try
+    num: Final = 65535 * blocks  # Total packets
+    for _ in range(num):
+        persistence.add("foo", b"bar", MQTTQoS.Q1, False, MQTTPublishProps(), AliasPolicy.NEVER)
+
+    checked = 0
+    for block in range(blocks):
+        for n in range(1, 65536):
+            checked += 1
+            try:
+                pending = persistence.get(1)
+                rendered = persistence.render(pending[0])
+                assert isinstance(rendered.packet, MQTTPublishPacket)
+                assert rendered.packet.packet_id == n
+            except Exception:
+                print(f"{block=} {n=}")
+                raise
+            persistence.ack(rendered.packet.packet_id)
+    assert checked == num
 
 
 @pytest.mark.parametrize("db_fast", [True, False])

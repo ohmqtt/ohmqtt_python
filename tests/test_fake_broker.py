@@ -29,8 +29,7 @@ def send_to_broker(sock: socket.socket, broker: FakeBroker, packet: MQTTPacket) 
     sock.sendall(packet.encode())
     time.sleep(0.05)
     assert len(broker.received) == 1
-    assert broker.received[0] == packet
-    broker.received.clear()
+    assert broker.received.popleft() == packet
 
 
 def expect_from_broker(sock: socket.socket, decoder: IncrementalDecoder, packet: MQTTPacket) -> None:

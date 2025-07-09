@@ -4,6 +4,7 @@ Fake MQTT broker for testing purposes.
 
 from __future__ import annotations
 
+from collections import deque
 import socket
 import socketserver
 import threading
@@ -126,12 +127,12 @@ class FakeBrokerHandler(socketserver.BaseRequestHandler):
         return []
 
 class FakeBrokerServer(socketserver.TCPServer):
-    received: list[MQTTPacket]
+    received: deque[MQTTPacket]
     sock: socket.socket | None
 
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
-        self.received = []
+        self.received = deque()
         self.sock = None
 
 
@@ -150,7 +151,7 @@ class FakeBroker(threading.Thread):
         pass
 
     @property
-    def received(self) -> list[MQTTPacket]:
+    def received(self) -> deque[MQTTPacket]:
         return self.server.received
 
     @property
