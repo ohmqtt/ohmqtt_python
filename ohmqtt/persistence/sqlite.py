@@ -229,7 +229,7 @@ class SQLitePersistence(Persistence):
         with self._cond:
             self._cursor.execute(
                 """
-                SELECT topic, payload, qos, retain, properties, dup, received, packet_id, alias_policy
+                SELECT topic, payload, qos, retain, properties, dup, received, packet_id, alias_policy, (SELECT MIN(id) FROM messages WHERE inflight = 0)
                 FROM messages
                 WHERE id = ?
                 """,
@@ -238,14 +238,8 @@ class SQLitePersistence(Persistence):
             row = self._cursor.fetchone()
             if row is None:
                 raise KeyError(f"Message ID {message_id} not found in persistence store.")
-            topic, payload, qos, retain, properties_blob, dup, received, packet_id, alias_policy = row
-            self._cursor.execute(
-                """
-                SELECT MIN(id) FROM messages WHERE inflight = 0
-                """
-            )
-            row = self._cursor.fetchone()
-            if row is None or message_id != row[0]:
+            topic, payload, qos, retain, properties_blob, dup, received, packet_id, alias_policy, min_id = row
+            if message_id != min_id:
                 raise ValueError(f"Message {message_id} is not next in queue.")
             if properties_blob is not None:
                 properties_view = memoryview(properties_blob)
