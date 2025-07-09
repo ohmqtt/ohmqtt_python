@@ -218,20 +218,12 @@ class SQLitePersistence(Persistence):
             )
             self._conn.commit()
 
-    def _generate_packet_id(self) -> int:
+    def _generate_packet_id(self, message_id: int) -> int:
         """Generate a unique packet ID for the message."""
-        with self._cond:
-            self._cursor.execute(
-                """
-                SELECT packet_id from messages WHERE packet_id = (SELECT MAX(packet_id) FROM messages)
-                """
-            )
-            row = self._cursor.fetchone()
-            packet_id = 1
-            if row is not None:
-                packet_id = row[0]
-                packet_id = packet_id + 1 if packet_id < MAX_PACKET_ID else 1
-            return packet_id
+        packet_id = message_id
+        while packet_id > MAX_PACKET_ID:
+            packet_id -= MAX_PACKET_ID
+        return packet_id
 
     def render(self, message_id: int) -> RenderedPacket:
         with self._cond:
@@ -261,7 +253,7 @@ class SQLitePersistence(Persistence):
             else:
                 properties = MQTTPublishProps()
             if packet_id is None:
-                packet_id = self._generate_packet_id()
+                packet_id = self._generate_packet_id(message_id)
             qos = MQTTQoS(qos)
             packet: MQTTPublishPacket | MQTTPubRelPacket
             if received:
