@@ -153,7 +153,7 @@ def test_z2z_saturation_qos0(db_path: str, broker: FakeBroker) -> None:
         if len(broker.received) == num and len(client_received) == num:
             break
         if time.monotonic() > t0 + timeout:
-            raise TimeoutError("Didn't publish and receive messages in time")
+            raise TimeoutError(f"Didn't publish and receive messages in time {len(broker.received)}:{len(client_received)}")
         time.sleep(delay)
 
     for _ in range(num):
@@ -196,7 +196,7 @@ def test_z2z_saturation_qos1(db_path: str, broker: FakeBroker) -> None:
         if len(broker.received) == num * 2 and len(client_received) == num:
             break
         if time.monotonic() > t0 + timeout:
-            raise TimeoutError("Didn't publish and receive messages in time")
+            raise TimeoutError(f"Didn't publish and receive messages in time {len(broker.received)}:{len(client_received)}")
         time.sleep(delay)
 
     for _ in range(num):
@@ -209,3 +209,47 @@ def test_z2z_saturation_qos1(db_path: str, broker: FakeBroker) -> None:
         assert broker_rec.topic == client_rec.topic == "test/topic"
         assert broker_rec.payload == client_rec.payload == b"x" * sz
         assert broker_rec.qos == client_rec.qos == MQTTQoS.Q1
+
+
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+def test_z2z_saturation_qos2(db_path: str, broker: FakeBroker) -> None:
+    num: Final = 1000
+    timeout: Final = 5.0  # seconds
+    sz: Final = 1000
+    delay: Final = 0.01  # seconds grace period
+    client = get_client(broker, db_path)
+
+    client_received: deque[MQTTPacket] = deque()
+    def callback(client: Client, packet: MQTTPacket) -> None:
+        client_received.append(packet)
+
+    sub_handle = client.subscribe("test/topic", callback)
+    assert sub_handle is not None
+    sub_handle.wait_for_ack(timeout=0.25)
+    time.sleep(delay)
+    assert broker.received.popleft() == MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    )
+
+    for _ in range(num):
+        client.publish("test/topic", b"x" * sz, qos=2)
+
+    t0 = time.monotonic()
+    while True:
+        if len(broker.received) == num * 4 and len(client_received) == num:
+            break
+        if time.monotonic() > t0 + timeout:
+            raise TimeoutError(f"Didn't publish and receive messages in time {len(broker.received)}:{len(client_received)}")
+        time.sleep(delay)
+
+    for _ in range(num):
+        broker_rec = broker.received.popleft()
+        while not isinstance(broker_rec, MQTTPublishPacket):
+            broker_rec = broker.received.popleft()
+        client_rec = client_received.popleft()
+        assert isinstance(broker_rec, MQTTPublishPacket)
+        assert isinstance(client_rec, MQTTPublishPacket)
+        assert broker_rec.topic == client_rec.topic == "test/topic"
+        assert broker_rec.payload == client_rec.payload == b"x" * sz
+        assert broker_rec.qos == client_rec.qos == MQTTQoS.Q2
