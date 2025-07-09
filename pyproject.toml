@@ -118,4 +118,4 @@ filterwarnings = [
     "error",
     "ignore::ResourceWarning",
 ]
-addopts = "--cov=ohmqtt --cov-report=term-missing -v"
+addopts = "--cov=ohmqtt --cov-report=term-missing --durations=10 -v"
