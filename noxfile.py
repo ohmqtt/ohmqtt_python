@@ -14,4 +14,4 @@ def tests(session):
     session.run("typos")
     session.run("mypy")
     session.run("complexipy", "-d", "low", "ohmqtt", "examples", "tests", env=complexipy_env)
-    session.run("pytest", "--cov-report=term-missing")
+    session.run("pytest")
