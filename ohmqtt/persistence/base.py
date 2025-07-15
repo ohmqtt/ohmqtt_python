@@ -19,7 +19,6 @@ class PublishHandle(metaclass=ABCMeta):
         For qos=0, this is always False.
         For qos=1, this is True if the message has been acknowledged.
         For qos=2, this is True if the message has been completely acknowledged."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def wait_for_ack(self, timeout: float | None = None) -> bool:
@@ -29,7 +28,6 @@ class PublishHandle(metaclass=ABCMeta):
         For qos=1, this returns True if the message has been acknowledged.
         For qos=2, this returns True if the message has been completely acknowledged.
         If the timeout is exceeded, this returns False."""
-        ...  # pragma: no cover
 
 
 class UnreliablePublishHandle(PublishHandle):
@@ -73,7 +71,6 @@ class Persistence(metaclass=ABCMeta):
     @abstractmethod
     def __len__(self) -> int:
         """Return the number of outgoing messages in the persistence store."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def add(
@@ -86,19 +83,16 @@ class Persistence(metaclass=ABCMeta):
         alias_policy: AliasPolicy,
     ) -> ReliablePublishHandle:
         """Add a PUBLISH message to the persistence store."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def get(self, count: int) -> Sequence[int]:
         """Get the packet ids of some pending messages from the store."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def ack(self, packet_id: int) -> None:
         """Ack a PUBLISH or PUBREL message in the persistence store.
 
         Raises ValueError if the packet_id is not found in the store."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def check_rec(self, packet: MQTTPublishPacket) -> bool:
@@ -107,19 +101,16 @@ class Persistence(metaclass=ABCMeta):
         Returns True if the packet has not already been received, otherwise False.
 
         Raises ValueError if the packet is not a QoS 2 PUBLISH packet."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def set_rec(self, packet: MQTTPublishPacket) -> None:
         """Indicate that a QoS 2 PUBLISH message has been received.
 
         Raises ValueError if the packet is not a QoS 2 PUBLISH packet."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def rel(self, packet: MQTTPubRelPacket) -> None:
         """Release a QoS 2 PUBLISH message."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def render(self, packet_id: int) -> RenderedPacket:
@@ -128,12 +119,10 @@ class Persistence(metaclass=ABCMeta):
         This also indicates to the persistence store that the message is inflight.
 
         Raises KeyError if the ID is not retained."""
-        ...  # pragma: no cover
 
     @abstractmethod
     def clear(self) -> None:
-        """Clear the persistence store, destroying all pending messages."""
-        ...  # pragma: no cover
+        """Clear the persistence store, discarding all pending messages."""
 
     @abstractmethod
     def open(self, client_id: str, clear: bool = False) -> None:
@@ -141,4 +130,3 @@ class Persistence(metaclass=ABCMeta):
 
         This may clear the persistence store if the client_id is different from the persisted,
         or if clear is True."""
-        ...  # pragma: no cover

@@ -17,13 +17,13 @@ class MQTTPacket(metaclass=ABCMeta):
 
     @abstractmethod
     def __str__(self) -> str:
-        ...  # pragma: no cover
+        """Render the packet metadata as a human-readable string."""
 
     @abstractmethod
     def encode(self) -> bytes:
-        ...  # pragma: no cover
+        """Encode the packet to bytes."""
 
     @classmethod
     @abstractmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPacket:
-        ...  # pragma: no cover
+        """Decode a packet from bytes."""
