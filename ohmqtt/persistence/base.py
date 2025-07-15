@@ -10,7 +10,7 @@ from ..topic_alias import AliasPolicy
 
 class PublishHandle(metaclass=ABCMeta):
     """Represents a publish operation."""
-    __slots__: ClassVar[Sequence[str]] = tuple()
+    __slots__: ClassVar[Sequence[str]] = ("__weakref__",)
 
     @abstractmethod
     def is_acked(self) -> bool:
@@ -43,7 +43,7 @@ class UnreliablePublishHandle(PublishHandle):
 
 class ReliablePublishHandle(PublishHandle):
     """Represents a publish operation with qos>0."""
-    __slots__ = ("__weakref__", "_cond", "acked")
+    __slots__ = ("_cond", "acked")
 
     def __init__(self, cond: Condition) -> None:
         self._cond = cond
