@@ -75,6 +75,7 @@ strict_equality = true
 
 [tool.ruff]
 include = [
+    "noxfile.py",
     "pyproject.toml",
     "examples/**/*.py",
     "ohmqtt/**/*.py",
