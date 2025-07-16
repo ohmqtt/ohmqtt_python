@@ -13,7 +13,7 @@ ALL_PYTHONS = [
 
 
 @nox.session(python=ALL_PYTHONS)
-def tests(session):
+def tests(session: nox.Session) -> None:
     complexipy_env = {"PYTHONUTF8": "1"} if sys.platform.startswith("win") else None
     session.install(".")
     session.install("--group", "dev")
