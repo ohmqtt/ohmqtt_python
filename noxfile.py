@@ -2,10 +2,17 @@ import nox
 import sys
 
 nox.options.default_venv_backend = "uv|virtualenv"
-py_versions = ("3.10", "3.11", "3.12", "3.13")
+
+PYPROJECT = nox.project.load_toml("pyproject.toml")
+
+ALL_PYTHONS = [
+    cls.split()[-1]
+    for cls in PYPROJECT["project"]["classifiers"]
+    if cls.startswith("Programming Language :: Python :: 3.")
+]
 
 
-@nox.session(python=py_versions)
+@nox.session(python=ALL_PYTHONS)
 def tests(session):
     complexipy_env = {"PYTHONUTF8": "1"} if sys.platform.startswith("win") else None
     session.install(".")
