@@ -93,7 +93,7 @@ def test_z2z_happy_path(db_path: str, broker: FakeBroker) -> None:
         assert broker.received.popleft() == MQTTPubAckPacket(packet_id=broker_rec.packet_id)
 
     # UNSUBSCRIBE
-    unsub_handle = client.unsubscribe("test/topic", callback)
+    unsub_handle = client.unsubscribe("test/topic")
     assert unsub_handle is not None
     unsub_handle.wait_for_ack(timeout=0.25)
     time.sleep(delay)

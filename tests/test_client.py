@@ -129,20 +129,15 @@ def test_client_subscribe(max_qos: int | MQTTQoS, mocker: MockerFixture, mock_co
     assert mock_subscriptions.subscribe.call_args_list[0].kwargs["max_qos"] == expected_max_qos
 
 
-@pytest.mark.parametrize("max_qos", [0, 1, 2, MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
-def test_client_unsubscribe(max_qos: int | MQTTQoS, mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+def test_client_unsubscribe(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                             mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
 
-    callback: SubscribeCallback = lambda _client, _packet: None
     mock_subscriptions.unsubscribe.return_value = mocker.Mock()
-    unsub_handle = client.unsubscribe("test/topic", callback, max_qos=max_qos)
+    unsub_handle = client.unsubscribe("test/topic")
     assert unsub_handle == mock_subscriptions.unsubscribe.return_value
     mock_subscriptions.unsubscribe.assert_called_once()
-    expected_max_qos = MQTTQoS(max_qos) if not isinstance(max_qos, MQTTQoS) else max_qos
     assert mock_subscriptions.unsubscribe.call_args[0][0] == "test/topic"
-    assert mock_subscriptions.unsubscribe.call_args[0][1] == callback
-    assert mock_subscriptions.unsubscribe.call_args_list[0].kwargs["max_qos"] == expected_max_qos
 
 
 def test_client_auth(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,

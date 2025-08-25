@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections import deque
+from dataclasses import dataclass, field
 from enum import IntEnum
 import threading
-from typing import Callable, Final, Iterable, NamedTuple, Sequence, TYPE_CHECKING
+from typing import Callable, Final, Sequence, TYPE_CHECKING
 import weakref
 
 from .connection import Connection, InvalidStateError, MessageHandlers
@@ -46,29 +46,26 @@ class RetainPolicy(IntEnum):
     NEVER = 2
 
 
+class _SubscriptionState(IntEnum):
+    """Internal state of a subscription."""
+    SUBSCRIBING = 0
+    SUBSCRIBED = 1
+    UNSUBSCRIBING = 2
+    UNSUBSCRIBED = 3
+
+
 class SubscribeHandle:
     """Represents a subscription to a topic filter with a callback."""
-    __slots__ = ("_data", "_subscriptions", "ack", "failed")
+    __slots__ = ("__weakref__", "_subscriptions", "ack", "failed")
 
     ack: MQTTSubAckPacket | None
     failed: bool
-    _data: Subscription
     _subscriptions: weakref.ReferenceType[Subscriptions]
 
     def __init__(self, data: Subscription, subscriptions: weakref.ReferenceType[Subscriptions]) -> None:
-        self._data = data
         self._subscriptions = subscriptions
         self.ack = None
         self.failed = False
-
-    def unsubscribe(self) -> UnsubscribeHandle | None:
-        """Unsubscribe from the topic filter.
-
-        Returns an UnsubscribeHandle if the operation was successful, otherwise None."""
-        subscriptions = self._subscriptions()
-        if subscriptions is not None:
-            return subscriptions.unsubscribe(**(self._data._asdict()))
-        return None
 
     def wait_for_ack(self, timeout: float | None = None) -> MQTTSubAckPacket | None:
         """Wait for the subscription acknowledgement.
@@ -84,7 +81,7 @@ class SubscribeHandle:
 
 class UnsubscribeHandle:
     """Represents an unsubscribe request which was sent to the broker."""
-    __slots__ = ("_subscriptions", "ack", "failed")
+    __slots__ = ("__weakref__", "_subscriptions", "ack", "failed")
 
     ack: MQTTUnsubAckPacket | None
     failed: bool
@@ -105,19 +102,28 @@ class UnsubscribeHandle:
         return None
 
 
-class Subscription(NamedTuple):
+@dataclass(match_args=True, slots=True)
+class Subscription:
     """All the data about a request for subscription."""
     topic_filter: str
-    max_qos: MQTTQoS
-    share_name: str | None
-    no_local: bool
-    retain_as_published: bool
-    retain_policy: RetainPolicy
-    sub_id: int | None
-    user_properties: tuple[tuple[str, str], ...] | None
     callback: SubscribeCallback
+    max_qos: MQTTQoS = MQTTQoS.Q2
+    share_name: str | None = None
+    no_local: bool = False
+    retain_as_published: bool = False
+    retain_policy: RetainPolicy = RetainPolicy.ALWAYS
+    sub_id: int | None = None
+    user_properties: tuple[tuple[str, str], ...] | None = None
+    state: _SubscriptionState = field(default=_SubscriptionState.SUBSCRIBING)
+    effective_filter: str = field(init=False, repr=False)
 
-    def render(self) -> MQTTSubscribePacket:
+    def __post_init__(self) -> None:
+        validate_topic_filter(self.topic_filter)
+        if self.share_name is not None:
+            validate_share_name(self.share_name)
+        self.effective_filter = join_share(self.topic_filter, self.share_name)
+
+    def render_sub(self) -> MQTTSubscribePacket:
         """Render the subscription into a SUBSCRIBE packet."""
         opts = self.max_qos.value | (self.retain_policy << 4) | (self.retain_as_published << 3) | (self.no_local << 2)
         props = MQTTSubscribeProps()
@@ -125,9 +131,16 @@ class Subscription(NamedTuple):
             props.SubscriptionIdentifier = {self.sub_id}
         if self.user_properties is not None:
             props.UserProperty = self.user_properties
-        topic_filter = join_share(self.topic_filter, self.share_name)
         return MQTTSubscribePacket(
-            topics=[(topic_filter, opts)],
+            topics=[(self.effective_filter, opts)],
+            properties=props,
+        )
+
+    def render_unsub(self) -> MQTTUnsubscribePacket:
+        """Render the subscription into an UNSUBSCRIBE packet."""
+        props = MQTTUnsubscribeProps()
+        return MQTTUnsubscribePacket(
+            topics=[self.effective_filter],
             properties=props,
         )
 
@@ -139,9 +152,10 @@ class Subscriptions:
         "_client",
         "_cond",
         "_connection",
+        "_inflight_sub_packet_ids",
+        "_inflight_unsub_packet_ids",
         "_next_sub_packet_id",
         "_next_unsub_packet_id",
-        "_out_of_session",
         "_sub_handles",
         "_subscriptions",
         "_topic_alias",
@@ -158,16 +172,16 @@ class Subscriptions:
         self._client = client
         self._cond = threading.Condition(connection.fsm.lock)
         self._topic_alias = InboundTopicAlias()
-        self._subscriptions: dict[str, list[Subscription]] = {}
-        self._sub_handles: dict[int, SubscribeHandle] = {}
-        self._unsub_handles: dict[int, UnsubscribeHandle] = {}
+        self._subscriptions: dict[str, Subscription] = {}
+        self._sub_handles: weakref.WeakValueDictionary[str, SubscribeHandle] = weakref.WeakValueDictionary()
+        self._unsub_handles: weakref.WeakValueDictionary[str, UnsubscribeHandle] = weakref.WeakValueDictionary()
+        self._inflight_sub_packet_ids: dict[int, str] = {}
+        self._inflight_unsub_packet_ids: dict[int, str] = {}
         self._next_sub_packet_id = 1
         self._next_unsub_packet_id = 1
-        self._out_of_session: deque[MQTTSubscribePacket | MQTTUnsubscribePacket] = deque()
 
         handlers.register(MQTTSubAckPacket, self.handle_suback)
         handlers.register(MQTTUnsubAckPacket, self.handle_unsuback)
-        handlers.register(MQTTConnAckPacket, self.handle_connack)
 
     def subscribe(
         self,
@@ -181,17 +195,16 @@ class Subscriptions:
         retain_policy: RetainPolicy = RetainPolicy.ALWAYS,
         sub_id: int | None = None,
         user_properties: Sequence[tuple[str, str]] | None = None,
-    ) -> SubscribeHandle | None:
+    ) -> SubscribeHandle:
         """Add a subscription with a callback.
 
-        If successful, returns a SubscribeHandle which can be used to unsubscribe the callback.
+        Repeated calls to subscribe with the same combination of share_name and topic_filter will reconfigure
+        the existing subscription with the new parameters, discarding the previous callback.
 
-        Returns None if the subscription was not sent to the broker."""
-        validate_topic_filter(topic_filter)
-        if share_name is not None:
-            validate_share_name(share_name)
+        :return: A SubscribeHandle which can be used to wait for ack."""
         sub = Subscription(
             topic_filter=topic_filter,
+            callback=callback,
             max_qos=max_qos,
             share_name=share_name,
             no_local=no_local,
@@ -199,24 +212,51 @@ class Subscriptions:
             retain_policy=retain_policy,
             sub_id=sub_id,
             user_properties=tuple(user_properties) if user_properties is not None else None,
-            callback=callback,
         )
         with self._cond:
-            if topic_filter not in self._subscriptions:
-                self._subscriptions[topic_filter] = []
-            self._subscriptions[topic_filter].append(sub)
-            packet = sub.render()
-            packet.packet_id = self._get_next_sub_packet_id()
-            try:
-                self._connection.send(packet)
-            except InvalidStateError:
-                logger.debug("Connection not ready, SUBSCRIBE not sent")
-                self._out_of_session.append(packet)
-                return None
+            self._subscriptions[sub.effective_filter] = sub
+            if (existing := self._sub_handles.get(sub.effective_filter, None)) is not None and existing.ack is None and not existing.failed:
+                handle = existing
             else:
                 handle = SubscribeHandle(sub, weakref.ref(self))
-                self._sub_handles[packet.packet_id] = handle
-                return handle
+                self._sub_handles[sub.effective_filter] = handle
+            self._flush_packets()
+            return handle
+
+    def _flush_packets(self) -> None:
+        """Try to send all pending SUBSCRIBE and UNSUBSCRIBE packets."""
+        with self._cond:
+            pending_subs = [
+                sub for sub in self._subscriptions.values() if (
+                    sub.state == _SubscriptionState.SUBSCRIBING and sub.effective_filter not in self._inflight_sub_packet_ids.values()
+                )
+            ]
+            for sub in pending_subs:
+                sub_packet = sub.render_sub()
+                sub_packet.packet_id = self._get_next_sub_packet_id()
+                self._inflight_sub_packet_ids[sub_packet.packet_id] = sub.effective_filter
+                try:
+                    self._connection.send(sub_packet)
+                except InvalidStateError:
+                    logger.debug("Connection closed, SUBSCRIBE not sent")
+                    del self._inflight_sub_packet_ids[sub_packet.packet_id]
+                    return
+
+            pending_unsubs = [
+                sub for sub in self._subscriptions.values() if (
+                    sub.state == _SubscriptionState.UNSUBSCRIBING and sub.effective_filter not in self._inflight_unsub_packet_ids.values()
+                )
+            ]
+            for sub in pending_unsubs:
+                unsub_packet = sub.render_unsub()
+                unsub_packet.packet_id = self._get_next_unsub_packet_id()
+                self._inflight_unsub_packet_ids[unsub_packet.packet_id] = sub.effective_filter
+                try:
+                    self._connection.send(unsub_packet)
+                except InvalidStateError:
+                    logger.debug("Connection closed, UNSUBSCRIBE not sent")
+                    del self._inflight_sub_packet_ids[unsub_packet.packet_id]
+                    return
 
     def _get_next_sub_packet_id(self) -> int:
         """Get the next SUBSCRIBE packet identifier."""
@@ -235,74 +275,35 @@ class Subscriptions:
 
         Returns the SUBACK packet if the subscription was sent to the broker and acknowledged.
 
-        Returns None if the subscription was not sent to the broker or timeout was reached."""
+        :return: None if the subscription was not sent to the broker or timeout was reached."""
         with self._cond:
             if self._cond.wait_for(lambda: handle.ack is not None or handle.failed, timeout=timeout):
                 return handle.ack
             return None
 
     def unsubscribe(
-        # This method must have the same signature as the subscribe method.
-        # This lets us match the unsubscribe to the subscribe with the same args.
         self,
         topic_filter: str,
-        callback: SubscribeCallback,
-        max_qos: MQTTQoS = MQTTQoS.Q2,
         *,
         share_name: str | None = None,
-        no_local: bool = False,
-        retain_as_published: bool = False,
-        retain_policy: RetainPolicy = RetainPolicy.ALWAYS,
-        sub_id: int | None = None,
-        user_properties: Iterable[tuple[str, str]] | None = None,
-        unsub_user_properties: Iterable[tuple[str, str]] | None = None,
     ) -> UnsubscribeHandle | None:
         """Unsubscribe from a topic filter.
 
-        Returns an UnsubscribeHandle if the operation was successful, otherwise None."""
+        :return: UnsubscribeHandle if the topic was subscribed, otherwise None."""
+        effective_filter = join_share(topic_filter, share_name)
         with self._cond:
-            if topic_filter not in self._subscriptions:
+            if effective_filter not in self._subscriptions:
                 # Nothing to unsubscribe.
                 return None
-            user_props = tuple(user_properties) if user_properties is not None else None
-            matches = [
-                sub for sub in self._subscriptions[topic_filter]
-                if (
-                    sub.share_name == share_name
-                    and sub.callback == callback
-                    and sub.max_qos == max_qos
-                    and sub.no_local is no_local
-                    and sub.retain_as_published is retain_as_published
-                    and sub.retain_policy == retain_policy
-                    and sub.sub_id == sub_id
-                    and sub.user_properties == user_props
-                )
-            ]
-            for match in matches:
-                self._subscriptions[topic_filter].remove(match)
-            remaining = len([sub for sub in self._subscriptions[topic_filter] if sub.share_name == share_name])
-            if remaining > 0:
-                # There are still subscriptions left for this topic filter.
-                return None
-            # Nothing left, send UNSUBSCRIBE.
-            del self._subscriptions[topic_filter]
-            packet = MQTTUnsubscribePacket(
-                topics=[join_share(topic_filter, share_name)],
-                packet_id=self._get_next_unsub_packet_id(),
-                properties=MQTTUnsubscribeProps(),
-            )
-            if unsub_user_properties is not None:
-                packet.properties.UserProperty = tuple(unsub_user_properties)
-            try:
-                self._connection.send(packet)
-            except InvalidStateError:
-                logger.debug("Connection closed, UNSUBSCRIBE not sent")
-                self._out_of_session.append(packet)
-                return None
+            sub = self._subscriptions[effective_filter]
+            sub.state = _SubscriptionState.UNSUBSCRIBING
+            if (existing := self._unsub_handles.get(effective_filter, None)) is not None and existing.ack is None and not existing.failed:
+                handle = existing
             else:
                 handle = UnsubscribeHandle(weakref.ref(self))
-                self._unsub_handles[packet.packet_id] = handle
-                return handle
+                self._unsub_handles[effective_filter] = handle
+            self._flush_packets()
+            return handle
 
     def _get_next_unsub_packet_id(self) -> int:
         """Get the next UNSUBSCRIBE packet identifier."""
@@ -334,8 +335,7 @@ class Subscriptions:
             if client is None:
                 raise RuntimeError("Client went out of scope")
             self._topic_alias.handle(packet)
-            sub_lists = [sub for tf, sub in self._subscriptions.items() if match_topic_filter(tf, packet.topic)]
-            subs = [sub for sub_list in sub_lists for sub in sub_list]
+            subs = [sub for tf, sub in self._subscriptions.items() if match_topic_filter(tf, packet.topic)]
             if packet.properties.SubscriptionIdentifier is not None:
                 subs = [sub for sub in subs if sub.sub_id in packet.properties.SubscriptionIdentifier]
             for sub in subs:
@@ -350,7 +350,11 @@ class Subscriptions:
             errs = [hex(code) for code in packet.reason_codes if code.is_error()]
             logger.error("Errors found in SUBACK return: %s", errs)
         with self._cond:
-            handle = self._sub_handles.pop(packet.packet_id, None)
+            effective_topic_filter = self._inflight_sub_packet_ids.pop(packet.packet_id, None)
+            if effective_topic_filter is None:
+                logger.warning("Received SUBACK for unknown packet ID: %d", packet.packet_id)
+                return
+            handle = self._sub_handles.pop(effective_topic_filter, None)
             if handle is not None:
                 handle.ack = packet
                 self._cond.notify_all()
@@ -361,7 +365,11 @@ class Subscriptions:
             errs = [hex(code) for code in packet.reason_codes if code.is_error()]
             logger.error("Errors found in UNSUBACK return: %s", errs)
         with self._cond:
-            handle = self._unsub_handles.pop(packet.packet_id, None)
+            effective_topic_filter = self._inflight_unsub_packet_ids.pop(packet.packet_id, None)
+            if effective_topic_filter is None:
+                logger.warning("Received UNSUBACK for unknown packet ID: %d", packet.packet_id)
+                return
+            handle = self._unsub_handles.pop(effective_topic_filter, None)
             if handle is not None:
                 handle.ack = packet
                 self._cond.notify_all()
@@ -370,12 +378,7 @@ class Subscriptions:
         """Handle incoming CONNACK packets."""
         with self._cond:
             self._reset_connection_states()
-            if not packet.session_present:
-                # Replay all known subscriptions.
-                self._replay_session_not_present()
-            else:
-                # Replay only packets which were not sent.
-                self._replay_session_present()
+            self._flush_packets()
 
     def _reset_connection_states(self) -> None:
         """Reset all connection-level states."""
@@ -391,30 +394,6 @@ class Subscriptions:
                 if unsub_handle.ack is None:
                     unsub_handle.failed = True
             self._unsub_handles.clear()
+            self._inflight_sub_packet_ids.clear()
+            self._inflight_unsub_packet_ids.clear()
             self._cond.notify_all()  # Should clear all waiting for handles.
-
-    def _replay_session_not_present(self) -> None:
-        """Replay all subscriptions."""
-        with self._cond:
-            self._out_of_session.clear()
-            for topic_filter in self._subscriptions:
-                for sub in self._subscriptions[topic_filter]:
-                    sub_packet = sub.render()
-                    sub_packet.packet_id = self._get_next_sub_packet_id()
-                    self._connection.send(sub_packet)
-
-    def _replay_session_present(self) -> None:
-        """Replay all subscriptions which were not sent to the broker."""
-        with self._cond:
-            while self._out_of_session:
-                packet = self._out_of_session.popleft()
-                if isinstance(packet, MQTTSubscribePacket):
-                    packet.packet_id = self._get_next_sub_packet_id()
-                else:
-                    packet.packet_id = self._get_next_unsub_packet_id()
-                try:
-                    self._connection.send(packet)
-                except InvalidStateError:
-                    logger.debug("Connection not ready, packet not sent")
-                    self._out_of_session.appendleft(packet)
-                    break

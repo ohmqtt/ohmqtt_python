@@ -173,6 +173,7 @@ class Session:
                 raise MQTTError("No client ID provided", MQTTReasonCode.ProtocolError)
             clear_persistence = not packet.session_present
             self.persistence.open(client_id, clear=clear_persistence)
+            self.subscriptions.handle_connack(packet)
             self._flush()
 
     def handle_publish(self, packet: MQTTPublishPacket) -> None:

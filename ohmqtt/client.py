@@ -3,7 +3,7 @@ from __future__ import annotations
 import ssl
 import sys
 import threading
-from typing import Final, Iterable, Sequence
+from typing import Final, Sequence
 import weakref
 
 if sys.version_info >= (3, 11):
@@ -195,20 +195,10 @@ class Client:
         )
 
     def unsubscribe(
-        # This method must have the same signature as the subscribe method.
-        # This lets us match the unsubscribe to the subscribe with the same args.
         self,
         topic_filter: str,
-        callback: SubscribeCallback,
-        max_qos: int | MQTTQoS = MQTTQoS.Q2,
         *,
         share_name: str | None = None,
-        no_local: bool = False,
-        retain_as_published: bool = False,
-        retain_policy: RetainPolicy = RetainPolicy.ALWAYS,
-        sub_id: int | None = None,
-        user_properties: Iterable[tuple[str, str]] | None = None,
-        unsub_user_properties: Iterable[tuple[str, str]] | None = None,
     ) -> UnsubscribeHandle | None:
         """Unsubscribe from a topic filter.
 
@@ -217,29 +207,11 @@ class Client:
         If the client is not connected, returns None.
 
         :param topic_filter: The topic filter to unsubscribe from.
-        :param callback: The callback that was used to subscribe to the topic filter.
-        :param max_qos: The maximum QoS level for the unsubscription (0, 1, or 2).
         :param share_name: The name of a shared subscription to use.
-        :param no_local: If True, do not receive messages published by this client.
-        :param retain_as_published: If True, the retain flag of messages will match the original message.
-        :param retain_policy: The policy for retained messages.
-        :param sub_id: An optional subscription ID for the unsubscription.
-        :param user_properties: Optional user properties which were included in the subscription request.
-        :param unsub_user_properties: Optional user properties to include in the unsubscription request.
         """
-        if not isinstance(max_qos, MQTTQoS):
-            max_qos = MQTTQoS(max_qos)
         return self.session.subscriptions.unsubscribe(
             topic_filter,
-            callback,
-            max_qos=max_qos,
             share_name=share_name,
-            no_local=no_local,
-            retain_as_published=retain_as_published,
-            retain_policy=retain_policy,
-            sub_id=sub_id,
-            user_properties=user_properties,
-            unsub_user_properties=unsub_user_properties,
         )
 
     def auth(

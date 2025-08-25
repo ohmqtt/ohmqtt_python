@@ -55,7 +55,7 @@ class RPCCaller:
             callback(msg.payload)
         finally:
             # Unsubscribe from the response topic.
-            client.unsubscribe(msg.topic, self.handle_response)
+            client.unsubscribe(msg.topic)
 
 
 def main(args: argparse.Namespace) -> None:
