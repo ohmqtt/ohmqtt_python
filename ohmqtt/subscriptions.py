@@ -216,10 +216,10 @@ class Subscriptions:
         with self._cond:
             self._subscriptions[sub.effective_filter] = sub
             if (existing := self._sub_handles.get(sub.effective_filter, None)) is not None and existing.ack is None and not existing.failed:
-                handle = existing
-            else:
-                handle = SubscribeHandle(sub, weakref.ref(self))
-                self._sub_handles[sub.effective_filter] = handle
+                existing.failed = True
+                self._cond.notify_all()
+            handle = SubscribeHandle(sub, weakref.ref(self))
+            self._sub_handles[sub.effective_filter] = handle
             self._flush_packets()
             return handle
 
@@ -298,10 +298,10 @@ class Subscriptions:
             sub = self._subscriptions[effective_filter]
             sub.state = _SubscriptionState.UNSUBSCRIBING
             if (existing := self._unsub_handles.get(effective_filter, None)) is not None and existing.ack is None and not existing.failed:
-                handle = existing
-            else:
-                handle = UnsubscribeHandle(weakref.ref(self))
-                self._unsub_handles[effective_filter] = handle
+                existing.failed = True
+                self._cond.notify_all()
+            handle = UnsubscribeHandle(weakref.ref(self))
+            self._unsub_handles[effective_filter] = handle
             self._flush_packets()
             return handle
 
