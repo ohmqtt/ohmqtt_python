@@ -255,7 +255,7 @@ class Subscriptions:
                     self._connection.send(unsub_packet)
                 except InvalidStateError:
                     logger.debug("Connection closed, UNSUBSCRIBE not sent")
-                    del self._inflight_sub_packet_ids[unsub_packet.packet_id]
+                    del self._inflight_unsub_packet_ids[unsub_packet.packet_id]
                     return
 
     def _get_next_sub_packet_id(self) -> int:
