@@ -315,10 +315,11 @@ def test_session_handle_publish_qos2(ack_rc: MQTTReasonCode, mock_handlers: Mock
 def test_session_handle_connack_client_id(mocker: MockerFixture, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
     session.set_params(ConnectParams(clean_start=True))
-    session.persistence = mocker.Mock()
-    session.persistence.get.return_value = []
+    mock_persistence = mocker.Mock()
+    session.persistence = mock_persistence
+    mock_persistence.get.return_value = []
     session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(AssignedClientIdentifier="foo")))
-    assert session.persistence.open.call_args[0][0] == "foo"
+    assert mock_persistence.open.call_args[0][0] == "foo"
 
 
 def test_session_handle_connack_error(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
