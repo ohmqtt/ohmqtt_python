@@ -3,8 +3,9 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from ohmqtt.connection import Connection, ConnectParams, MessageHandlers
-from ohmqtt.mqtt_spec import MQTTQoS
+from ohmqtt.connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
+from ohmqtt.error import MQTTError
+from ohmqtt.mqtt_spec import MQTTQoS, MQTTReasonCode
 from ohmqtt.packet import (
     MQTTConnAckPacket,
     MQTTPublishPacket,
@@ -51,9 +52,62 @@ def test_session_publish_qos0(mock_handlers: Mock, mock_subscriptions: Mock, moc
     assert handle.wait_for_ack() is False
 
 
-def test_session_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+def test_session_publish_qos0_aliased(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
-    session.server_receive_maximum = 20
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(TopicAliasMaximum=255)))
+    mock_connection.can_send.return_value = False
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+
+    session.publish("test/topic", b"test payload", alias_policy=AliasPolicy.TRY)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        properties=MQTTPublishProps(TopicAlias=1),
+    ))
+    mock_connection.send.reset_mock()
+
+    mock_connection.can_send.return_value = True
+    mock_connection.send.side_effect = None
+
+    session.publish("test/topic", b"test payload", alias_policy=AliasPolicy.TRY)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        properties=MQTTPublishProps(TopicAlias=1),
+    ))
+    mock_connection.send.reset_mock()
+
+    for _ in range(3):
+        session.publish("test/topic", b"test payload", alias_policy=AliasPolicy.TRY)
+        mock_connection.send.assert_called_with(MQTTPublishPacket(
+            topic="",
+            payload=b"test payload",
+            properties=MQTTPublishProps(TopicAlias=1),
+        ))
+        mock_connection.send.reset_mock()
+
+
+def test_session_publish_qos0_unconnected(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    mock_connection.can_send.return_value = False
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+
+    handle = session.publish("test/topic", b"test payload")
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+    ))
+    mock_connection.send.reset_mock()
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack() is False
+
+
+@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
+def test_session_publish_qos1(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
     mock_connection.can_send.return_value = True
 
     handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
@@ -67,14 +121,29 @@ def test_session_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mock, moc
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
 
-    session.handle_puback(MQTTPubAckPacket(packet_id=1))
+    session.handle_puback(MQTTPubAckPacket(packet_id=1, reason_code=ack_rc))
     assert handle.is_acked() is True
     assert handle.wait_for_ack(0.001) is True
 
 
-def test_session_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+def test_session_publish_qos1_unconnected(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
-    session.server_receive_maximum = 20
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.can_send.return_value = False
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
+    mock_connection.send.assert_not_called()
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack(0.001) is False
+
+
+@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
+def test_session_publish_qos2(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
     mock_connection.can_send.return_value = True
 
     handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2)
@@ -88,6 +157,38 @@ def test_session_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, moc
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
 
+    session.handle_pubrec(MQTTPubRecPacket(reason_code=ack_rc, packet_id=1))
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack(0.001) is False
+
+    mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1))
+    mock_connection.send.reset_mock()
+
+    session.handle_pubcomp(MQTTPubCompPacket(reason_code=ack_rc, packet_id=1))
+    assert handle.is_acked() is True
+    assert handle.wait_for_ack(0.001) is True
+
+
+def test_session_publish_qos2_disconnect_race(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.can_send.return_value = True
+
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        qos=MQTTQoS.Q2,
+        packet_id=1,
+    ))
+    mock_connection.send.reset_mock()
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack(0.001) is False
+
+    mock_connection.can_send.return_value = True
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+
     session.handle_pubrec(MQTTPubRecPacket(packet_id=1))
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
@@ -95,9 +196,18 @@ def test_session_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, moc
     mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1))
     mock_connection.send.reset_mock()
 
-    session.handle_pubcomp(MQTTPubCompPacket(packet_id=1))
-    assert handle.is_acked() is True
-    assert handle.wait_for_ack(0.001) is True
+
+def test_session_publish_qos2_unconnected(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.can_send.return_value = False
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2)
+    mock_connection.send.assert_not_called()
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack(0.001) is False
 
 
 @pytest.mark.parametrize("db_path", [":memory:", ""])
@@ -170,35 +280,59 @@ def test_session_handle_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mo
     mock_connection.send.assert_called_once_with(MQTTPubAckPacket(packet_id=3))
 
 
-def test_session_handle_publish_qos2(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
+def test_session_handle_publish_qos2(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+     session = Session(mock_handlers, mock_subscriptions, mock_connection)
+     mock_connection.can_send.return_value = True
+
+     packet = MQTTPublishPacket(
+         topic="test/topic",
+         payload=b"test payload",
+         packet_id=3,
+         qos=MQTTQoS.Q2,
+     )
+     session.handle_publish(packet)
+     mock_subscriptions.handle_publish.assert_called_once_with(packet)
+     mock_subscriptions.handle_publish.reset_mock()
+     mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+     mock_connection.send.reset_mock()
+
+     # Filter duplicates.
+     session.handle_publish(packet)
+     mock_subscriptions.handle_publish.assert_not_called()
+     mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+     mock_connection.send.reset_mock()
+
+     session.handle_pubrel(MQTTPubRelPacket(reason_code=ack_rc, packet_id=3))
+     mock_connection.send.assert_called_once_with(MQTTPubCompPacket(packet_id=3))
+     mock_connection.send.reset_mock()
+     # After PUBREL, message with same packet_id should be treated as a new application message.
+     session.handle_publish(packet)
+     mock_subscriptions.handle_publish.assert_called_once_with(packet)
+     mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+
+
+def test_session_handle_connack_client_id(mocker: MockerFixture, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
-    mock_connection.can_send.return_value = True
+    session.set_params(ConnectParams(clean_start=True))
+    session.persistence = mocker.Mock()
+    session.persistence.get.return_value = []
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(AssignedClientIdentifier="foo")))
+    assert session.persistence.open.call_args[0][0] == "foo"
 
-    packet = MQTTPublishPacket(
-        topic="test/topic",
-        payload=b"test payload",
-        packet_id=3,
-        qos=MQTTQoS.Q2,
-    )
-    session.handle_publish(packet)
-    mock_subscriptions.handle_publish.assert_called_once_with(packet)
-    mock_subscriptions.handle_publish.reset_mock()
-    mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
-    mock_connection.send.reset_mock()
 
-    # Filter duplicates.
-    session.handle_publish(packet)
-    mock_subscriptions.handle_publish.assert_not_called()
-    mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
-    mock_connection.send.reset_mock()
+def test_session_handle_connack_error(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    with pytest.raises(MQTTError) as excinfo:
+        session.handle_connack(MQTTConnAckPacket(reason_code=MQTTReasonCode.Banned))
+    assert excinfo.value.reason_code == MQTTReasonCode.Banned
 
-    session.handle_pubrel(MQTTPubRelPacket(packet_id=3))
-    mock_connection.send.assert_called_once_with(MQTTPubCompPacket(packet_id=3))
-    mock_connection.send.reset_mock()
-    # After PUBREL, message with same packet_id should be treated as a new application message.
-    session.handle_publish(packet)
-    mock_subscriptions.handle_publish.assert_called_once_with(packet)
-    mock_connection.send.assert_called_once_with(MQTTPubRecPacket(packet_id=3))
+
+def test_session_handle_connack_no_client_id(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    with pytest.raises(MQTTError) as excinfo:
+        session.handle_connack(MQTTConnAckPacket())
+    assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
 def test_session_slots(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
