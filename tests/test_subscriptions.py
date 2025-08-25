@@ -10,6 +10,7 @@ from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import (
     MQTTPublishPacket,
     MQTTSubscribePacket,
+    MQTTUnsubscribePacket,
     MQTTSubAckPacket,
     MQTTUnsubAckPacket,
     MQTTConnAckPacket,
@@ -86,6 +87,36 @@ def test_subscriptions_subscribe_opts(
     ))
 
 
+def test_subscriptions_multi_subscribe(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test subscribing multiple times to the same topic."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    handle1 = subscriptions.subscribe("test/topic", dummy_callback)
+    assert handle1 is not None
+
+    handle2 = subscriptions.subscribe("test/topic", dummy_callback)
+    assert handle2 is not None
+    assert handle1 != handle2
+
+    assert handle1.wait_for_ack(timeout=0.001) is None
+    assert handle1.ack is None
+    assert handle1.failed
+
+    # Simulate receiving a SUBACK packet
+    suback_packet = MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    )
+    subscriptions.handle_suback(suback_packet)
+
+    assert handle2.wait_for_ack(timeout=0.1) == suback_packet
+    assert handle2.ack == suback_packet
+
+
 def test_subscriptions_wait_for_suback(
     mock_handlers: MagicMock,
     mock_client: Mock,
@@ -106,6 +137,55 @@ def test_subscriptions_wait_for_suback(
 
     assert handle.wait_for_ack(timeout=0.1) == suback_packet
     assert handle.ack == suback_packet
+
+    mock_handlers.reset_mock()
+    del mock_handlers
+    mock_client.reset_mock()
+    del mock_client
+    mock_connection.reset_mock()
+    del mock_connection
+    del subscriptions
+    assert handle.wait_for_ack(timeout=0.1) is None
+
+
+def test_subscriptions_wait_for_unsuback(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test waiting for a SUBACK packet."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    subscriptions.subscribe("test/topic", dummy_callback)
+
+    # Simulate receiving a SUBACK packet
+    suback_packet = MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    )
+    subscriptions.handle_suback(suback_packet)
+
+    handle = subscriptions.unsubscribe("test/topic")
+    assert handle is not None
+
+    # Simulate receiving an UNSUBACK packet
+    unsuback_packet = MQTTUnsubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.Success],
+    )
+    subscriptions.handle_unsuback(unsuback_packet)
+
+    assert handle.wait_for_ack(timeout=0.1) == unsuback_packet
+    assert handle.ack == unsuback_packet
+
+    mock_handlers.reset_mock()
+    del mock_handlers
+    mock_client.reset_mock()
+    del mock_client
+    mock_connection.reset_mock()
+    del mock_connection
+    del subscriptions
+    assert handle.wait_for_ack(timeout=0.1) is None
 
 
 @pytest.mark.parametrize("session_present", [True, False])
@@ -142,6 +222,40 @@ def test_subscriptions_subscribe_failure(
             topics=[("test/topic", 2)],
             packet_id=1,
         ))
+
+
+def test_subscriptions_unsubscribe_failure(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    subscriptions.subscribe("test/topic", dummy_callback)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    ))
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+    handle = subscriptions.unsubscribe("test/topic")
+
+    assert handle is not None
+
+    mock_connection.send.side_effect = None
+    mock_connection.reset_mock()
+
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=True))
+
+    mock_connection.send.assert_called_once_with(MQTTUnsubscribePacket(
+        topics=["test/topic"],
+        packet_id=1,
+    ))
+    mock_connection.reset_mock()
 
 
 @pytest.mark.parametrize(("tf", "topic"), [
