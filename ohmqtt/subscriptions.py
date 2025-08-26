@@ -296,6 +296,8 @@ class Subscriptions:
                 # Nothing to unsubscribe.
                 return None
             sub = self._subscriptions[effective_filter]
+            if sub.state == _SubscriptionState.UNSUBSCRIBED:
+                return None
             sub.state = _SubscriptionState.UNSUBSCRIBING
             if (existing := self._unsub_handles.get(effective_filter, None)) is not None and existing.ack is None and not existing.failed:
                 existing.failed = True
