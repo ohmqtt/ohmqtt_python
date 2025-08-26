@@ -70,13 +70,12 @@ class SubscribeHandle:
     def wait_for_ack(self, timeout: float | None = None) -> MQTTSubAckPacket | None:
         """Wait for the subscription acknowledgement.
 
-        Returns the acknowledgement packet if the subscription was sent to the broker and acknowledged.
-
-        Returns None if the subscription was not sent to the broker or timeout was reached."""
+        :raises RuntimeError: The Subscriptions object went out of scope.
+        :return: The ack packet if acked, or None if the operation failed or timeout was reached."""
         subscriptions = self._subscriptions()
         if subscriptions is not None:
             return subscriptions.wait_for_suback(self, timeout=timeout)
-        return None
+        raise RuntimeError("Subscriptions went out of scope")
 
 
 class UnsubscribeHandle:
@@ -95,11 +94,12 @@ class UnsubscribeHandle:
     def wait_for_ack(self, timeout: float | None = None) -> MQTTUnsubAckPacket | None:
         """Wait for the unsubscribe acknowledgement.
 
-        Returns None if the unsubscribe was not sent to the broker or timeout was reached."""
+        :raises RuntimeError: The Subscriptions object went out of scope.
+        :return: The ack packet if acked, or None if the operation failed or timeout was reached."""
         subscriptions = self._subscriptions()
         if subscriptions is not None:
             return subscriptions.wait_for_unsuback(self, timeout=timeout)
-        return None
+        raise RuntimeError("Subscriptions went out of scope")
 
 
 @dataclass(match_args=True, slots=True)

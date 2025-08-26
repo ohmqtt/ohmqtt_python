@@ -146,7 +146,8 @@ def test_subscriptions_wait_for_suback(
     mock_connection.reset_mock()
     del mock_connection
     del subscriptions
-    assert handle.wait_for_ack(timeout=0.001) is None
+    with pytest.raises(RuntimeError, match="Subscriptions went out of scope"):
+        handle.wait_for_ack(timeout=0.001)
 
 
 def test_subscriptions_wait_for_unsuback(
@@ -187,7 +188,8 @@ def test_subscriptions_wait_for_unsuback(
     mock_connection.reset_mock()
     del mock_connection
     del subscriptions
-    assert handle.wait_for_ack(timeout=0.001) is None
+    with pytest.raises(RuntimeError, match="Subscriptions went out of scope"):
+        handle.wait_for_ack(timeout=0.001)
 
 
 @pytest.mark.parametrize("session_present", [True, False])
