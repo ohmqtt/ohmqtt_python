@@ -948,9 +948,20 @@ def test_states_closing_happy_path(
     mock_socket.reset_mock()
     assert fsm.state is ClosingState
 
-    # First handle, write all.
-    mock_select.select.return_value = (False, True)
     env.write_buffer.extend(b"test_data")
+
+    # First handle, write blocked.
+    mock_select.select.return_value = (False, False)
+    ret = ClosingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
+    mock_select.reset_mock()
+    mock_timeout.exceeded.assert_called_once()
+    mock_timeout.reset_mock()
+    assert fsm.state is ClosingState
+
+    # Second handle, write all.
+    mock_select.select.return_value = (False, True)
     mock_socket.send.return_value = len(env.write_buffer)
     ret = ClosingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
@@ -962,7 +973,7 @@ def test_states_closing_happy_path(
     mock_timeout.reset_mock()
     assert fsm.state is ClosingState
 
-    # Second handle, done writing, transition to ClosedState.
+    # Third handle, done writing, transition to ClosedState.
     ret = ClosingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     mock_timeout.exceeded.assert_called_once()
