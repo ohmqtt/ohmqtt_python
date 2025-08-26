@@ -7,8 +7,9 @@ from typing import Callable, Final, Sequence, TYPE_CHECKING
 import weakref
 
 from .connection import Connection, InvalidStateError, MessageHandlers
+from .error import MQTTError
 from .logger import get_logger
-from .mqtt_spec import MAX_PACKET_ID, MQTTQoS
+from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode, MQTTQoS
 from .packet import (
     MQTTPublishPacket,
     MQTTSubscribePacket,
@@ -354,8 +355,7 @@ class Subscriptions:
         with self._cond:
             effective_topic_filter = self._inflight_sub_packet_ids.pop(packet.packet_id, None)
             if effective_topic_filter is None:
-                logger.warning("Received SUBACK for unknown packet ID: %d", packet.packet_id)
-                return
+                raise MQTTError(f"Received SUBACK for unknown packet ID: {packet.packet_id}", MQTTReasonCode.ProtocolError)
             sub = self._subscriptions.get(effective_topic_filter, None)
             if sub is not None and sub.state == _SubscriptionState.SUBSCRIBING:
                 sub.state = _SubscriptionState.SUBSCRIBED
@@ -372,8 +372,7 @@ class Subscriptions:
         with self._cond:
             effective_topic_filter = self._inflight_unsub_packet_ids.pop(packet.packet_id, None)
             if effective_topic_filter is None:
-                logger.warning("Received UNSUBACK for unknown packet ID: %d", packet.packet_id)
-                return
+                raise MQTTError(f"Received UNSUBACK for unknown packet ID: {packet.packet_id}", MQTTReasonCode.ProtocolError)
             sub = self._subscriptions.get(effective_topic_filter, None)
             if sub is not None and sub.state == _SubscriptionState.UNSUBSCRIBING:
                 sub.state = _SubscriptionState.UNSUBSCRIBED

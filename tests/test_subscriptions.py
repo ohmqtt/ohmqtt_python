@@ -7,6 +7,7 @@ from pytest_mock import MockerFixture
 
 from ohmqtt.client import Client
 from ohmqtt.connection import Connection, MessageHandlers, InvalidStateError
+from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import (
     MQTTPublishPacket,
@@ -426,6 +427,27 @@ def test_subscriptions_packet_id(
 
     for n in range(0xffff + 5):
         assert subscriptions._get_next_unsub_packet_id() == (n % 0xffff) + 1  # noqa: SLF001
+
+
+def test_subscriptions_ack_unknown(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    with pytest.raises(MQTTError, match="Received SUBACK for unknown packet ID: 5") as excinfo:
+        subscriptions.handle_suback(MQTTSubAckPacket(
+            packet_id=5,
+            reason_codes=[MQTTReasonCode.GrantedQoS2],
+        ))
+    assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
+    with pytest.raises(MQTTError, match="Received UNSUBACK for unknown packet ID: 6") as excinfo:
+        subscriptions.handle_unsuback(MQTTUnsubAckPacket(
+            packet_id=6,
+            reason_codes=[MQTTReasonCode.Success],
+        ))
+    assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
 def test_subscriptions_slots(
