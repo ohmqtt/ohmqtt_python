@@ -16,7 +16,7 @@ from ohmqtt.packet import (
     MQTTUnsubAckPacket,
     MQTTConnAckPacket,
 )
-from ohmqtt.property import MQTTSubscribeProps
+from ohmqtt.property import MQTTPublishProps, MQTTSubscribeProps
 from ohmqtt.subscriptions import Subscriptions, RetainPolicy
 
 
@@ -353,6 +353,35 @@ def test_subscriptions_handle_publish_shared(
     subscriptions.handle_publish(publish_packet)
 
     assert recvd1 == [publish_packet]
+    assert recvd2 == [publish_packet]
+
+
+def test_subscriptions_handle_publish_sub_id(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test handling a publish packet with subscription identifier."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    recvd1 = []
+    recvd2 = []
+    def callback1(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd1.append(packet)
+    def callback2(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd2.append(packet)
+
+    subscriptions.subscribe("test/topic", callback1)
+    subscriptions.subscribe("test/+", callback2, sub_id=1)
+
+    publish_packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        properties=MQTTPublishProps(SubscriptionIdentifier={1}),
+    )
+    subscriptions.handle_publish(publish_packet)
+
+    assert recvd1 == []
     assert recvd2 == [publish_packet]
 
 
