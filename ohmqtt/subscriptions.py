@@ -23,7 +23,7 @@ from .topic_alias import InboundTopicAlias
 from .topic_filter import validate_topic_filter, validate_share_name, join_share, match_topic_filter
 
 if TYPE_CHECKING:
-    from .client import Client  # pragma: no cover
+    from .client import Client
 
 logger: Final = get_logger("subscriptions")
 

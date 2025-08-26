@@ -1,4 +1,6 @@
+import contextlib
 import nox
+import sqlite3
 import sys
 
 nox.options.default_venv_backend = "uv|virtualenv"
@@ -15,10 +17,29 @@ ALL_PYTHONS = [
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
     complexipy_env = {"PYTHONUTF8": "1"} if sys.platform.startswith("win") else None
+    coverage_file = f".coverage.{sys.platform}.{session.python}"
+    pytest_env = {
+        "COVERAGE_FILE": coverage_file,
+    }
+
     session.install(".")
     session.install("--group", "dev")
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
     session.run("complexipy", "-d", "low", "ohmqtt", "examples", "tests", env=complexipy_env)
-    session.run("pytest")
+    session.run("pytest", env=pytest_env)
+
+    if sys.platform.startswith("win"):
+        with contextlib.closing(sqlite3.connect(coverage_file)) as con, con:
+            con.execute("UPDATE file SET path = REPLACE(path, '\\', '/')")
+            con.execute("DELETE FROM file WHERE SUBSTR(path, 2, 1) == ':'")
+
+
+@nox.session(default=False)
+def cover(session: nox.Session) -> None:
+    """Coverage analysis."""
+    session.install("coverage[toml]>=7.3")
+    session.run("coverage", "combine")
+    session.run("coverage", "report", "--fail-under=100", "--show-missing")
+    session.run("coverage", "erase")

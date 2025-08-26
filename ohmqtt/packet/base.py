@@ -6,7 +6,7 @@ from typing import ClassVar, Sequence, TYPE_CHECKING
 from ..mqtt_spec import MQTTPacketType
 
 if TYPE_CHECKING:
-    from ..property import MQTTProperties  # pragma: no cover
+    from ..property import MQTTProperties
 
 
 class MQTTPacket(metaclass=ABCMeta):

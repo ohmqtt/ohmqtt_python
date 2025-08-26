@@ -2,7 +2,7 @@
 
 .vscode/
 uv.lock
-.coverage
+.coverage*
 .python-version
 .venv/
 docs/_build/
