@@ -354,6 +354,9 @@ class Subscriptions:
             if effective_topic_filter is None:
                 logger.warning("Received SUBACK for unknown packet ID: %d", packet.packet_id)
                 return
+            sub = self._subscriptions.get(effective_topic_filter, None)
+            if sub is not None and sub.state == _SubscriptionState.SUBSCRIBING:
+                sub.state = _SubscriptionState.SUBSCRIBED
             handle = self._sub_handles.pop(effective_topic_filter, None)
             if handle is not None:
                 handle.ack = packet
@@ -369,6 +372,9 @@ class Subscriptions:
             if effective_topic_filter is None:
                 logger.warning("Received UNSUBACK for unknown packet ID: %d", packet.packet_id)
                 return
+            sub = self._subscriptions.get(effective_topic_filter, None)
+            if sub is not None and sub.state == _SubscriptionState.UNSUBSCRIBING:
+                sub.state = _SubscriptionState.UNSUBSCRIBED
             handle = self._unsub_handles.pop(effective_topic_filter, None)
             if handle is not None:
                 handle.ack = packet
