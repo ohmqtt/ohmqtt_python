@@ -262,6 +262,38 @@ def test_subscriptions_unsubscribe_failure(
     mock_connection.reset_mock()
 
 
+def test_subscriptions_unsubscribe_null(mock_handlers: MagicMock, mock_client: Mock, mock_connection: Mock) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    handle = subscriptions.unsubscribe("test/topic")
+    assert handle is None
+
+
+def test_subscriptions_unsubscribe_redundant(mock_handlers: MagicMock, mock_client: Mock, mock_connection: Mock) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    subscriptions.subscribe("test/topic", dummy_callback)
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+
+    handle1 = subscriptions.unsubscribe("test/topic")
+    handle2 = subscriptions.unsubscribe("test/topic")
+    assert handle1 is not None
+    assert handle1.failed
+    subscriptions.handle_unsuback(MQTTUnsubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+    assert handle2 is not None
+    assert handle2.ack is not None
+
+    mock_connection.reset_mock()
+    assert subscriptions.unsubscribe("test/topic") is None
+    mock_connection.send.assert_not_called()
+
+
 @pytest.mark.parametrize(("tf", "topic"), [
     ("test/topic", "test/topic"),
     ("test/+", "test/topic"),
