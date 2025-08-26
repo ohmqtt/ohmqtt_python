@@ -16,7 +16,6 @@ ALL_PYTHONS = [
 
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
-    complexipy_env = {"PYTHONUTF8": "1"} if sys.platform.startswith("win") else None
     coverage_file = f".coverage.{sys.platform}.{session.python}"
     pytest_env = {
         "COVERAGE_FILE": coverage_file,
@@ -27,7 +26,7 @@ def tests(session: nox.Session) -> None:
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
-    session.run("complexipy", "-d", "low", "ohmqtt", "examples", "tests", env=complexipy_env)
+    session.run("complexipy", "-d", "low", "ohmqtt", "examples", "tests")
     session.run("pytest", env=pytest_env)
 
     if sys.platform.startswith("win"):

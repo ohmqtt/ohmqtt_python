@@ -40,7 +40,7 @@ packages = ["ohmqtt", "ohmqtt.connection", "ohmqtt.packet", "ohmqtt.persistence"
 [dependency-groups]
 dev = [
     "build>=1.2.2.post1",
-    "complexipy>=3.0.0",
+    "complexipy>=4.0.2",
     "cryptography>=44.0.2",
     "mypy>=1.15.0",
     "myst-parser>=4.0.1",
