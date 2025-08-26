@@ -94,7 +94,7 @@ def test_subscriptions_multi_subscribe(
     mock_client: Mock,
     mock_connection: Mock
 ) -> None:
-    """Test subscribing multiple times to the same topic."""
+    """Test subscribing multiple times to the same topic before acknowledgement."""
     subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
 
     handle1 = subscriptions.subscribe("test/topic", dummy_callback)
@@ -117,6 +117,88 @@ def test_subscriptions_multi_subscribe(
 
     assert handle2.wait_for_ack(timeout=0.1) == suback_packet
     assert handle2.ack == suback_packet
+
+
+def test_subscriptions_resubscribe(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock,
+) -> None:
+    """Test reconfiguring an existing and acknowledged subscription."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    subscriptions.subscribe("test/topic", dummy_callback, no_local=True)
+    expected_opts = 2 | (True << 2)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", expected_opts)],
+        packet_id=1,
+    ))
+    mock_connection.reset_mock()
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+
+    subscriptions.subscribe("test/topic", dummy_callback, no_local=False)
+    expected_opts = 2
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", expected_opts)],
+        packet_id=2,
+    ))
+    mock_connection.reset_mock()
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=2,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+
+
+def test_subscriptions_fast_subscribe(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test subscribing and unsubscribing quickly."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    subscriptions.subscribe("test/topic", dummy_callback)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    ))
+    mock_connection.reset_mock()
+
+    subscriptions.unsubscribe("test/topic")
+    mock_connection.send.assert_called_once_with(MQTTUnsubscribePacket(
+        topics=["test/topic"],
+        packet_id=1,
+    ))
+    mock_connection.reset_mock()
+
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+
+    # We should not send another UNSUBSCRIBE packet after the SUBACK
+    subscriptions.unsubscribe("test/topic")
+    mock_connection.send.assert_not_called()
+
+    subscriptions.subscribe("test/topic", dummy_callback)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=2,
+    ))
+    mock_connection.reset_mock()
+
+    subscriptions.handle_unsuback(MQTTUnsubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.Success],
+    ))
+
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=2,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
 
 
 def test_subscriptions_wait_for_suback(
