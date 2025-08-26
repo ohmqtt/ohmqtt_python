@@ -385,6 +385,32 @@ def test_subscriptions_handle_publish_sub_id(
     assert recvd2 == [publish_packet]
 
 
+def test_subscriptions_handle_publish_exception(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test handling a publish packet with a broken callback."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    recvd = []
+    def callback1(client: Client, packet: MQTTPublishPacket) -> None:
+        raise RuntimeError("TEST")
+    def callback2(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd.append(packet)
+
+    subscriptions.subscribe("test/topic", callback1)
+    subscriptions.subscribe("test/+", callback2)
+
+    publish_packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+    )
+    subscriptions.handle_publish(publish_packet)
+
+    assert recvd == [publish_packet]
+
+
 def test_subscriptions_packet_id(
     mock_handlers: MagicMock,
     mock_client: Mock,
