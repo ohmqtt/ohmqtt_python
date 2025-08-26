@@ -127,6 +127,7 @@ def test_subscriptions_wait_for_suback(
 
     handle = subscriptions.subscribe("test/topic", dummy_callback)
     assert handle is not None
+    assert handle.wait_for_ack(timeout=0.001) is None
 
     # Simulate receiving a SUBACK packet
     suback_packet = MQTTSubAckPacket(
@@ -135,7 +136,7 @@ def test_subscriptions_wait_for_suback(
     )
     subscriptions.handle_suback(suback_packet)
 
-    assert handle.wait_for_ack(timeout=0.1) == suback_packet
+    assert handle.wait_for_ack(timeout=0.001) == suback_packet
     assert handle.ack == suback_packet
 
     mock_handlers.reset_mock()
@@ -145,7 +146,7 @@ def test_subscriptions_wait_for_suback(
     mock_connection.reset_mock()
     del mock_connection
     del subscriptions
-    assert handle.wait_for_ack(timeout=0.1) is None
+    assert handle.wait_for_ack(timeout=0.001) is None
 
 
 def test_subscriptions_wait_for_unsuback(
@@ -167,6 +168,7 @@ def test_subscriptions_wait_for_unsuback(
 
     handle = subscriptions.unsubscribe("test/topic")
     assert handle is not None
+    assert handle.wait_for_ack(timeout=0.001) is None
 
     # Simulate receiving an UNSUBACK packet
     unsuback_packet = MQTTUnsubAckPacket(
@@ -175,7 +177,7 @@ def test_subscriptions_wait_for_unsuback(
     )
     subscriptions.handle_unsuback(unsuback_packet)
 
-    assert handle.wait_for_ack(timeout=0.1) == unsuback_packet
+    assert handle.wait_for_ack(timeout=0.001) == unsuback_packet
     assert handle.ack == unsuback_packet
 
     mock_handlers.reset_mock()
@@ -185,7 +187,7 @@ def test_subscriptions_wait_for_unsuback(
     mock_connection.reset_mock()
     del mock_connection
     del subscriptions
-    assert handle.wait_for_ack(timeout=0.1) is None
+    assert handle.wait_for_ack(timeout=0.001) is None
 
 
 @pytest.mark.parametrize("session_present", [True, False])
