@@ -532,6 +532,38 @@ def test_subscriptions_ack_unknown(
     assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
+def test_subscriptions_handle_reset(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock,
+) -> None:
+    """Test failing handles when connection is reset."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    handle1 = subscriptions.subscribe("test/topic1", dummy_callback)
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+    handle2 = subscriptions.subscribe("test/topic2", dummy_callback)
+    handle3 = subscriptions.unsubscribe("test/topic1")
+    subscriptions.handle_unsuback(MQTTUnsubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.Success],
+    ))
+    handle4 = subscriptions.unsubscribe("test/topic2")
+
+    subscriptions.handle_connack(MQTTConnAckPacket(
+        session_present=False,
+        reason_code=MQTTReasonCode.Success,
+    ))
+
+    assert not handle1.failed
+    assert handle2.failed
+    assert not handle3.failed
+    assert handle4.failed
+
+
 def test_subscriptions_slots(
     mock_handlers: MagicMock,
     mock_client: Mock,

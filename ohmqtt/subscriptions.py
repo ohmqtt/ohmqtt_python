@@ -393,14 +393,16 @@ class Subscriptions:
             self._next_sub_packet_id = 1
             self._next_unsub_packet_id = 1
             self._topic_alias.reset()
+            should_notify = False
             for sub_handle in self._sub_handles.values():
-                if sub_handle.ack is None:
-                    sub_handle.failed = True
+                sub_handle.failed = True
+                should_notify = True
             self._sub_handles.clear()
             for unsub_handle in self._unsub_handles.values():
-                if unsub_handle.ack is None:
-                    unsub_handle.failed = True
+                unsub_handle.failed = True
+                should_notify = True
             self._unsub_handles.clear()
             self._inflight_sub_packet_ids.clear()
             self._inflight_unsub_packet_ids.clear()
-            self._cond.notify_all()  # Should clear all waiting for handles.
+            if should_notify:
+                self._cond.notify_all()  # Should clear all waiting for handles.
