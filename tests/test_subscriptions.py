@@ -328,6 +328,34 @@ def test_subscriptions_handle_publish(
         subscriptions.handle_publish(publish_packet)
 
 
+def test_subscriptions_handle_publish_shared(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    """Test handling a publish packet with shared subscriptions."""
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    recvd1 = []
+    recvd2 = []
+    def callback1(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd1.append(packet)
+    def callback2(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd2.append(packet)
+
+    subscriptions.subscribe("test/topic", callback1)
+    subscriptions.subscribe("test/topic", callback2, share_name="test_share")
+
+    publish_packet = MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+    )
+    subscriptions.handle_publish(publish_packet)
+
+    assert recvd1 == [publish_packet]
+    assert recvd2 == [publish_packet]
+
+
 def test_subscriptions_packet_id(
     mock_handlers: MagicMock,
     mock_client: Mock,

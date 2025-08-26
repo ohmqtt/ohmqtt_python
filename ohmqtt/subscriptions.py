@@ -337,7 +337,7 @@ class Subscriptions:
             if client is None:
                 raise RuntimeError("Client went out of scope")
             self._topic_alias.handle(packet)
-            subs = [sub for tf, sub in self._subscriptions.items() if match_topic_filter(tf, packet.topic)]
+            subs = [sub for sub in self._subscriptions.values() if match_topic_filter(sub.topic_filter, packet.topic)]
             if packet.properties.SubscriptionIdentifier is not None:
                 subs = [sub for sub in subs if sub.sub_id in packet.properties.SubscriptionIdentifier]
             for sub in subs:
