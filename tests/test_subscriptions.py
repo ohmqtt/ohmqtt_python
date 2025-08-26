@@ -151,7 +151,9 @@ def test_subscriptions_wait_for_suback(
         handle.wait_for_ack(timeout=0.001)
 
 
+@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.UnspecifiedError])
 def test_subscriptions_wait_for_unsuback(
+    ack_rc: MQTTReasonCode,
     mock_handlers: MagicMock,
     mock_client: Mock,
     mock_connection: Mock
@@ -164,7 +166,7 @@ def test_subscriptions_wait_for_unsuback(
     # Simulate receiving a SUBACK packet
     suback_packet = MQTTSubAckPacket(
         packet_id=1,
-        reason_codes=[MQTTReasonCode.GrantedQoS2],
+        reason_codes=[ack_rc],
     )
     subscriptions.handle_suback(suback_packet)
 
@@ -175,7 +177,7 @@ def test_subscriptions_wait_for_unsuback(
     # Simulate receiving an UNSUBACK packet
     unsuback_packet = MQTTUnsubAckPacket(
         packet_id=1,
-        reason_codes=[MQTTReasonCode.Success],
+        reason_codes=[ack_rc],
     )
     subscriptions.handle_unsuback(unsuback_packet)
 
