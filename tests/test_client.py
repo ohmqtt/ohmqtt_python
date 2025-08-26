@@ -140,25 +140,35 @@ def test_client_unsubscribe(mocker: MockerFixture, mock_connection: Mock, mock_h
     assert mock_subscriptions.unsubscribe.call_args[0][0] == "test/topic"
 
 
-def test_client_auth(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+@pytest.mark.parametrize("auth_method", ["test_method", None])
+@pytest.mark.parametrize("auth_data", [b"test_data", None])
+@pytest.mark.parametrize("reason_string", ["reason", None])
+@pytest.mark.parametrize("user_properties", [[("key", "value")], None])
+def test_client_auth(auth_method: str | None, auth_data: bytes | None,
+                     reason_string: str | None, user_properties: list[tuple[str, str]] | None,
+                     mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                      mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
 
     client.auth(
         reason_code=MQTTReasonCode.ReAuthenticate,
-        authentication_method="test_method",
-        authentication_data=b"test_data",
-        reason_string="test_reason",
-        user_properties=[("key", "value")],
+        authentication_method=auth_method,
+        authentication_data=auth_data,
+        reason_string=reason_string,
+        user_properties=user_properties,
     )
+    expected_props = MQTTAuthProps()
+    if auth_method is not None:
+        expected_props.AuthenticationMethod = auth_method
+    if auth_data is not None:
+        expected_props.AuthenticationData = auth_data
+    if reason_string is not None:
+        expected_props.ReasonString = reason_string
+    if user_properties is not None:
+        expected_props.UserProperty = user_properties
     mock_connection.send.assert_called_once_with(MQTTAuthPacket(
         reason_code=MQTTReasonCode.ReAuthenticate,
-        properties=MQTTAuthProps(
-            AuthenticationMethod="test_method",
-            AuthenticationData=b"test_data",
-            ReasonString="test_reason",
-            UserProperty=[("key", "value")],
-        ),
+        properties=expected_props,
     ))
 
 
