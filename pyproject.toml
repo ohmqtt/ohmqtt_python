@@ -122,6 +122,7 @@ filterwarnings = [
 addopts = "--cov=ohmqtt --cov-config=pyproject.toml --cov-report=term-missing --durations=10 -v"
 
 [tool.coverage]
+run.branch = true
 run.relative_files = true
 report.exclude_also = [
   "if TYPE_CHECKING:",
