@@ -287,6 +287,21 @@ def test_subscriptions_handle_publish(
     assert recvd == [publish_packet]
 
 
+def test_subscriptions_packet_id(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    # Test the private methods because the public interface is slow.
+    for n in range(0xffff + 5):
+        assert subscriptions._get_next_sub_packet_id() == (n % 0xffff) + 1  # noqa: SLF001
+
+    for n in range(0xffff + 5):
+        assert subscriptions._get_next_unsub_packet_id() == (n % 0xffff) + 1  # noqa: SLF001
+
+
 def test_subscriptions_slots(
     mock_handlers: MagicMock,
     mock_client: Mock,
