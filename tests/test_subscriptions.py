@@ -1,3 +1,4 @@
+from typing import cast
 from unittest.mock import Mock, MagicMock
 import weakref
 
@@ -303,10 +304,10 @@ def test_subscriptions_handle_publish(
     tf: str,
     topic: str,
     mock_handlers: MagicMock,
-    mock_client: Mock,
     mock_connection: Mock
 ) -> None:
     """Test handling a publish packet."""
+    mock_client = cast(Client, frozenset())
     subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
 
     recvd = []
@@ -321,6 +322,10 @@ def test_subscriptions_handle_publish(
     subscriptions.handle_publish(publish_packet)
 
     assert recvd == [publish_packet]
+
+    del mock_client
+    with pytest.raises(RuntimeError, match="Client went out of scope"):
+        subscriptions.handle_publish(publish_packet)
 
 
 def test_subscriptions_packet_id(
