@@ -215,6 +215,15 @@ def test_fsm_loop_once_error(env: StateEnvironment) -> None:
     assert fsm.previous_state == MockStateErr
 
 
+def test_fsm_loop_once_error_recursion(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=MockStateErr, error_state=MockStateErr)
+
+    with pytest.raises(_TestError):
+        fsm.loop_once()
+    assert fsm.state == MockStateErr
+    assert fsm.previous_state == MockStateErr
+
+
 def test_fsm_change_state(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
 
