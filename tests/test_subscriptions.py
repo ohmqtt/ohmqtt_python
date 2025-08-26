@@ -558,6 +558,10 @@ def test_subscriptions_handle_reset(
         reason_code=MQTTReasonCode.Success,
     ))
 
+    assert handle1 is not None
+    assert handle2 is not None
+    assert handle3 is not None
+    assert handle4 is not None
     assert not handle1.failed
     assert handle2.failed
     assert not handle3.failed
