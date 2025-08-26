@@ -228,6 +228,8 @@ def test_session_publish_alias(db_path: str, qos: MQTTQoS, mock_handlers: Mock, 
     ))
     mock_connection.send.reset_mock()
 
+    # A failed write before an alias is established should not increment the topic alias.
+    mock_connection.send.side_effect = InvalidStateError("TEST")
     session.publish("test/topic2", b"test payload", qos=qos, alias_policy=AliasPolicy.TRY)
     mock_connection.send.assert_called_with(MQTTPublishPacket(
         topic="test/topic2",
@@ -238,16 +240,38 @@ def test_session_publish_alias(db_path: str, qos: MQTTQoS, mock_handlers: Mock, 
     ))
     mock_connection.send.reset_mock()
 
+    mock_connection.send.side_effect = None
+    session.publish("test/topic3", b"test payload", qos=qos, alias_policy=AliasPolicy.TRY)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic3",
+        payload=b"test payload",
+        qos=qos,
+        packet_id=3 if qos > 0 else 0,
+        properties=MQTTPublishProps(TopicAlias=1),
+    ))
+    mock_connection.send.reset_mock()
+
+    # A failed write after an alias is established should not affect aliases.
+    mock_connection.send.side_effect = InvalidStateError("TEST")
+    session.publish("test/topic3", b"test payload", qos=qos, alias_policy=AliasPolicy.TRY)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="",
+        payload=b"test payload",
+        qos=qos,
+        packet_id=4 if qos > 0 else 0,
+        properties=MQTTPublishProps(TopicAlias=1),
+    ))
+    mock_connection.send.reset_mock()
+
     if qos > 0:
         with pytest.raises(ValueError):
-            session.publish("test/topic3", b"test payload", qos=qos, alias_policy=AliasPolicy.ALWAYS)
+            session.publish("test/topic4", b"test payload", qos=qos, alias_policy=AliasPolicy.ALWAYS)
     else:
-        session.publish("test/topic3", b"test payload", qos=qos, alias_policy=AliasPolicy.ALWAYS)
+        session.publish("test/topic4", b"test payload", qos=qos, alias_policy=AliasPolicy.ALWAYS)
         mock_connection.send.assert_called_with(MQTTPublishPacket(
-            topic="test/topic3",
+            topic="test/topic4",
             payload=b"test payload",
             qos=qos,
-            packet_id=3 if qos > 0 else 0,
             properties=MQTTPublishProps(TopicAlias=2),
         ))
         mock_connection.send.reset_mock()

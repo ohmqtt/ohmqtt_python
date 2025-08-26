@@ -138,14 +138,14 @@ class Session:
         with self._lock:
             topic = packet.topic
             lookup = self.topic_alias.lookup(topic, alias_policy)
-            if lookup.alias > 0:
-                packet.properties.TopicAlias = lookup.alias
-                if lookup.existed:
-                    packet.topic = ""
+            assert lookup.alias > 0
+            packet.properties.TopicAlias = lookup.alias
+            if lookup.existed:
+                packet.topic = ""
             try:
                 self._send_packet(packet)
             except InvalidStateError:
-                if lookup.alias > 0 and not lookup.existed:
+                if not lookup.existed:
                     self.topic_alias.pop()
                 raise
 
