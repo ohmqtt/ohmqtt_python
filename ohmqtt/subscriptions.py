@@ -384,25 +384,15 @@ class Subscriptions:
     def handle_connack(self, packet: MQTTConnAckPacket) -> None:
         """Handle incoming CONNACK packets."""
         with self._cond:
-            self._reset_connection_states()
-            self._flush_packets()
-
-    def _reset_connection_states(self) -> None:
-        """Reset all connection-level states."""
-        with self._cond:
             self._next_sub_packet_id = 1
             self._next_unsub_packet_id = 1
             self._topic_alias.reset()
-            should_notify = False
-            for sub_handle in self._sub_handles.values():
-                sub_handle.failed = True
-                should_notify = True
-            self._sub_handles.clear()
-            for unsub_handle in self._unsub_handles.values():
-                unsub_handle.failed = True
-                should_notify = True
-            self._unsub_handles.clear()
             self._inflight_sub_packet_ids.clear()
             self._inflight_unsub_packet_ids.clear()
-            if should_notify:
-                self._cond.notify_all()  # Should clear all waiting for handles.
+            if not packet.session_present:
+                for sub in self._subscriptions.values():
+                    if sub.state == _SubscriptionState.SUBSCRIBED:
+                        sub.state = _SubscriptionState.SUBSCRIBING
+                    elif sub.state == _SubscriptionState.UNSUBSCRIBING:
+                        sub.state = _SubscriptionState.UNSUBSCRIBED
+            self._flush_packets()

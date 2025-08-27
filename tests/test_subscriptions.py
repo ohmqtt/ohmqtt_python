@@ -532,40 +532,89 @@ def test_subscriptions_ack_unknown(
     assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
-def test_subscriptions_handle_reset(
+def test_subscriptions_handle_session_reset(
     mock_handlers: MagicMock,
     mock_client: Mock,
     mock_connection: Mock,
 ) -> None:
-    """Test failing handles when connection is reset."""
+    """Test resetting the session."""
     subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
 
-    handle1 = subscriptions.subscribe("test/topic1", dummy_callback)
+    subscriptions.subscribe("test/topic1", dummy_callback)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        packet_id=1,
+        topics=[("test/topic1", 2)],
+    ))
+    mock_connection.send.reset_mock()
+
+    subscriptions.handle_connack(MQTTConnAckPacket(
+        session_present=True,
+        reason_code=MQTTReasonCode.Success,
+    ))
+
+    # Should replay the unacked subscribe on reconnection.
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        packet_id=1,
+        topics=[("test/topic1", 2)],
+    ))
+    mock_connection.send.reset_mock()
+
     subscriptions.handle_suback(MQTTSubAckPacket(
         packet_id=1,
         reason_codes=[MQTTReasonCode.GrantedQoS2],
     ))
-    handle2 = subscriptions.subscribe("test/topic2", dummy_callback)
-    handle3 = subscriptions.unsubscribe("test/topic1")
-    subscriptions.handle_unsuback(MQTTUnsubAckPacket(
-        packet_id=1,
-        reason_codes=[MQTTReasonCode.Success],
+
+    subscriptions.handle_connack(MQTTConnAckPacket(
+        session_present=True,
+        reason_code=MQTTReasonCode.Success,
     ))
-    handle4 = subscriptions.unsubscribe("test/topic2")
+
+    # Should not replay the acked subscribe on reconnection with session present.
+    mock_connection.send.assert_not_called()
 
     subscriptions.handle_connack(MQTTConnAckPacket(
         session_present=False,
         reason_code=MQTTReasonCode.Success,
     ))
 
-    assert handle1 is not None
-    assert handle2 is not None
-    assert handle3 is not None
-    assert handle4 is not None
-    assert not handle1.failed
-    assert handle2.failed
-    assert not handle3.failed
-    assert handle4.failed
+    # Should replay the acked subscribe on reconnection with no session present.
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        packet_id=1,
+        topics=[("test/topic1", 2)],
+    ))
+    mock_connection.send.reset_mock()
+
+    subscriptions.handle_suback(MQTTSubAckPacket(
+        packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+
+    subscriptions.unsubscribe("test/topic1")
+    mock_connection.send.assert_called_once_with(MQTTUnsubscribePacket(
+        packet_id=1,
+        topics=["test/topic1"],
+    ))
+    mock_connection.send.reset_mock()
+
+    subscriptions.handle_connack(MQTTConnAckPacket(
+        session_present=True,
+        reason_code=MQTTReasonCode.Success,
+    ))
+
+    # Replay unsubscribe if not acked before connection reset.
+    mock_connection.send.assert_called_once_with(MQTTUnsubscribePacket(
+        packet_id=1,
+        topics=["test/topic1"],
+    ))
+    mock_connection.send.reset_mock()
+
+    subscriptions.handle_connack(MQTTConnAckPacket(
+        session_present=False,
+        reason_code=MQTTReasonCode.Success,
+    ))
+
+    # Don't bother replaying unsubscribe after session has been reset.
+    mock_connection.send.assert_not_called()
 
 
 def test_subscriptions_slots(
