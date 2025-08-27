@@ -125,7 +125,13 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 
 ### TODO for 0.1
 
-* Error handling and validation
+* Review error handling and validation
+* Test alternate valid encodings for some control packet types
+
+### TODO for future
+
+* AUTH connection state
+* Session data reset policies
 
 ### Running the Tests
 
