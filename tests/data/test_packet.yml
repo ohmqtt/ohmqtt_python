@@ -398,6 +398,13 @@ test_packet_unsubscribe_encode:
 test_packet_unsubscribe_decode_errors:
   - raw: "a3170001000003666f6f0003626172000362617a0003717578"
     reason_code: 0x81
+  - raw: "a200"
+    reason_code: 0x81
+  - raw: "a2020001"
+    reason_code: 0x81
+  - raw: "a203000100"
+    reason_code: 0x82
+
 
 test_packet_unsuback_encode:
   - args:

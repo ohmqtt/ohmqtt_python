@@ -160,6 +160,8 @@ class MQTTUnsubscribePacket(MQTTPacket):
             topic, topic_length = decode_string(data[offset:])
             offset += topic_length
             topics.append(topic)
+        if not topics:
+            raise MQTTError("No topics in UNSUBSCRIBE packet", MQTTReasonCode.ProtocolError)
         return MQTTUnsubscribePacket(topics, packet_id, properties=props)
 
 
