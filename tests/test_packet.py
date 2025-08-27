@@ -103,6 +103,23 @@ def run_encode_cases(
             hash(packet)
 
 
+def run_decode_alt_cases(
+    cls: type[MQTTPacket],
+    test_data: list[dict[str, Any]],
+    binary_args: Sequence[str] = tuple(),
+    transform_args: Callable[[dict[str, Any]], None] | None = None
+) -> None:
+    for case in test_data:
+        args = extract_args(cls, case["args"], binary_args)
+        if transform_args is not None:
+            transform_args(args)
+
+        decoded = decode_packet(bytes.fromhex(case["raw"]))
+        assert type(decoded) is cls
+        for attr, value in args.items():
+            assert getattr(decoded, attr) == value, f"{attr}: {getattr(decoded, attr)} != {value}"
+
+
 def run_decode_error_cases(test_data: list[dict[str, Any]]) -> None:
     for case in test_data:
         with pytest.raises(MQTTError) as excinfo:
@@ -140,12 +157,20 @@ def test_packet_puback_encode(test_data: list[dict[str, Any]]) -> None:
     run_encode_cases(MQTTPubAckPacket, test_data)
 
 
+def test_packet_puback_decode_alt(test_data: list[dict[str, Any]]) -> None:
+    run_decode_alt_cases(MQTTPubAckPacket, test_data)
+
+
 def test_packet_puback_decode_errors(test_data: list[dict[str, Any]]) -> None:
     run_decode_error_cases(test_data)
 
 
 def test_packet_pubrec_encode(test_data: list[dict[str, Any]]) -> None:
     run_encode_cases(MQTTPubRecPacket, test_data)
+
+
+def test_packet_pubrec_decode_alt(test_data: list[dict[str, Any]]) -> None:
+    run_decode_alt_cases(MQTTPubRecPacket, test_data)
 
 
 def test_packet_pubrec_decode_errors(test_data: list[dict[str, Any]]) -> None:
@@ -156,12 +181,20 @@ def test_packet_pubrel_encode(test_data: list[dict[str, Any]]) -> None:
     run_encode_cases(MQTTPubRelPacket, test_data)
 
 
+def test_packet_pubrel_decode_alt(test_data: list[dict[str, Any]]) -> None:
+    run_decode_alt_cases(MQTTPubRelPacket, test_data)
+
+
 def test_packet_pubrel_decode_errors(test_data: list[dict[str, Any]]) -> None:
     run_decode_error_cases(test_data)
 
 
 def test_packet_pubcomp_encode(test_data: list[dict[str, Any]]) -> None:
     run_encode_cases(MQTTPubCompPacket, test_data)
+
+
+def test_packet_pubcomp_decode_alt(test_data: list[dict[str, Any]]) -> None:
+    run_decode_alt_cases(MQTTPubCompPacket, test_data)
 
 
 def test_packet_pubcomp_decode_errors(test_data: list[dict[str, Any]]) -> None:

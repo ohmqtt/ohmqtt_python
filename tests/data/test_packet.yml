@@ -193,6 +193,16 @@ test_packet_puback_encode:
         - ["asdf", "hjkl"]
     raw: "403000ff812c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
 
+test_packet_puback_decode_alt:
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "4003000100"
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "400400010000"
+
 test_packet_puback_decode_errors:
   - raw: "42020001"
     reason_code: 0x81
@@ -220,6 +230,16 @@ test_packet_pubrec_encode:
         - ["foo", "baz"]
         - ["asdf", "hjkl"]
     raw: "503000ff812c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
+
+test_packet_pubrec_decode_alt:
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "5003000100"
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "500400010000"
 
 test_packet_pubrec_decode_errors:
   - raw: "52020001"
@@ -249,6 +269,16 @@ test_packet_pubrel_encode:
         - ["asdf", "hjkl"]
     raw: "623000ff812c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
 
+test_packet_pubrel_decode_alt:
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "6203000100"
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "620400010000"
+
 test_packet_pubrel_decode_errors:
   - raw: "60020001"
     reason_code: 0x81
@@ -274,6 +304,16 @@ test_packet_pubcomp_encode:
         - ["foo", "baz"]
         - ["asdf", "hjkl"]
     raw: "702700ff8123260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
+
+test_packet_pubcomp_decode_alt:
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "7003000100"
+  - args:
+      packet_id: 1
+      reason_code: 0x00
+    raw: "700400010000"
 
 test_packet_pubcomp_decode_errors:
   - raw: "72020001"
