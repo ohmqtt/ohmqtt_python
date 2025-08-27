@@ -352,6 +352,12 @@ test_packet_subscribe_encode:
 test_packet_subscribe_decode_errors:
   - raw: "841b0001000003666f6f00000362617201000362617a02000371757802"
     reason_code: 0x81
+  - raw: "8200"
+    reason_code: 0x81
+  - raw: "82020001"
+    reason_code: 0x81
+  - raw: "8203000100"
+    reason_code: 0x82
 
 test_packet_suback_encode:
   - args:

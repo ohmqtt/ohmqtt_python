@@ -73,6 +73,8 @@ class MQTTSubscribePacket(MQTTPacket):
             subscribe_opts, subscribe_opts_length = decode_uint8(data[offset:])
             offset += subscribe_opts_length
             topics.append((topic, subscribe_opts))
+        if not topics:
+            raise MQTTError("No topics in SUBSCRIBE packet", MQTTReasonCode.ProtocolError)
         return MQTTSubscribePacket(topics, packet_id, properties=props)
 
 
