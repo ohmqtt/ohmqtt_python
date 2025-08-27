@@ -459,6 +459,14 @@ test_packet_disconnect_encode:
       reason_code: 0x00
     raw: "e000"
 
+test_packet_disconnect_decode_alt:
+  - args:
+      reason_code: 0x00
+    raw: "e00100"
+  - args:
+      reason_code: 0x00
+    raw: "e0020000"
+
 test_packet_disconnect_decode_errors:
   - raw: "e100"
     reason_code: 0x81
@@ -485,10 +493,17 @@ test_packet_auth_encode:
         - ["asdf", "hjkl"]
     raw: "f03c003a150004f09f908d1600048a8a8a8a1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c"
 
+test_packet_auth_decode_alt:
+  - args:
+      reason_code: 0x00
+    raw: "f0020000"
+
 test_packet_auth_decode_errors:
   - raw: "f100"
     reason_code: 0x81
   - raw: "f200"
     reason_code: 0x81
   - raw: "f300"
+    reason_code: 0x81
+  - raw: "f00100"
     reason_code: 0x81

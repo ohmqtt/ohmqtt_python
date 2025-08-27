@@ -283,12 +283,20 @@ def test_packet_disconnect_encode(test_data: list[dict[str, Any]]) -> None:
     run_encode_cases(MQTTDisconnectPacket, test_data)
 
 
+def test_packet_disconnect_decode_alt(test_data: list[dict[str, Any]]) -> None:
+    run_decode_alt_cases(MQTTDisconnectPacket, test_data)
+
+
 def test_packet_disconnect_decode_errors(test_data: list[dict[str, Any]]) -> None:
     run_decode_error_cases(test_data)
 
 
 def test_packet_auth_encode(test_data: list[dict[str, Any]]) -> None:
     run_encode_cases(MQTTAuthPacket, test_data)
+
+
+def test_packet_auth_decode_alt(test_data: list[dict[str, Any]]) -> None:
+    run_decode_alt_cases(MQTTAuthPacket, test_data)
 
 
 def test_packet_auth_decode_errors(test_data: list[dict[str, Any]]) -> None:
