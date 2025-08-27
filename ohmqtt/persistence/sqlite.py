@@ -6,7 +6,7 @@ import weakref
 
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
-from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS
+from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS, MQTTReasonCode
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -146,7 +146,7 @@ class SQLitePersistence(Persistence):
             rows = self._cursor.fetchall()
             return [row[0] for row in rows]
 
-    def ack(self, packet_id: int) -> None:
+    def ack(self, packet_id: int, rc: MQTTReasonCode) -> None:
         with self._cond:
             self._cursor.execute(
                 """
@@ -158,7 +158,7 @@ class SQLitePersistence(Persistence):
             if row is None:
                 raise ValueError(f"Unknown packet_id: {packet_id}")
             message_id, qos, received = row
-            if received or qos == 1:
+            if received or qos == 1 or rc.is_error():
                 # If the message is QoS 1, we need to delete it from the store.
                 self._cursor.execute(
                     """
@@ -167,7 +167,7 @@ class SQLitePersistence(Persistence):
                     (message_id,),
                 )
                 handle = self._handles.pop(message_id, None)
-                if handle is not None:
+                if handle is not None and not rc.is_error():
                     handle.acked = True
                     self._cond.notify_all()
             else:

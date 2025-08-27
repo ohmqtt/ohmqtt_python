@@ -103,7 +103,7 @@ def test_session_publish_qos0_unconnected(mock_handlers: Mock, mock_subscription
     assert handle.wait_for_ack() is False
 
 
-@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
+@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.UnspecifiedError])
 def test_session_publish_qos1(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
     session.set_params(ConnectParams(client_id="test_client", clean_start=True))
@@ -122,8 +122,9 @@ def test_session_publish_qos1(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_
     assert handle.wait_for_ack(0.001) is False
 
     session.handle_puback(MQTTPubAckPacket(packet_id=1, reason_code=ack_rc))
-    assert handle.is_acked() is True
-    assert handle.wait_for_ack(0.001) is True
+    expected_ack = bool(not ack_rc.is_error())
+    assert handle.is_acked() is expected_ack
+    assert handle.wait_for_ack(0.001) is expected_ack
 
 
 def test_session_publish_qos1_unconnected(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
@@ -139,8 +140,8 @@ def test_session_publish_qos1_unconnected(mock_handlers: Mock, mock_subscription
     assert handle.wait_for_ack(0.001) is False
 
 
-@pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
-def test_session_publish_qos2(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+@pytest.mark.parametrize("comp_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
+def test_session_publish_qos2(comp_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
     session.set_params(ConnectParams(client_id="test_client", clean_start=True))
     session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
@@ -157,16 +158,41 @@ def test_session_publish_qos2(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
 
-    session.handle_pubrec(MQTTPubRecPacket(reason_code=ack_rc, packet_id=1))
+    session.handle_pubrec(MQTTPubRecPacket(packet_id=1))
     assert handle.is_acked() is False
     assert handle.wait_for_ack(0.001) is False
 
     mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1))
     mock_connection.send.reset_mock()
 
-    session.handle_pubcomp(MQTTPubCompPacket(reason_code=ack_rc, packet_id=1))
-    assert handle.is_acked() is True
-    assert handle.wait_for_ack(0.001) is True
+    session.handle_pubcomp(MQTTPubCompPacket(reason_code=comp_rc, packet_id=1))
+    expected_ack = bool(not comp_rc.is_error())
+    assert handle.is_acked() is expected_ack
+    assert handle.wait_for_ack(0.001) is expected_ack
+
+
+def test_session_publish_qos2_rec_error(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.can_send.return_value = True
+
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2)
+    mock_connection.send.assert_called_with(MQTTPublishPacket(
+        topic="test/topic",
+        payload=b"test payload",
+        qos=MQTTQoS.Q2,
+        packet_id=1,
+    ))
+    mock_connection.send.reset_mock()
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack(0.001) is False
+
+    session.handle_pubrec(MQTTPubRecPacket(reason_code=MQTTReasonCode.UnspecifiedError, packet_id=1))
+    assert handle.is_acked() is False
+    assert handle.wait_for_ack(0.001) is False
+
+    mock_connection.send.assert_not_called()
 
 
 def test_session_publish_qos2_disconnect_race(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:

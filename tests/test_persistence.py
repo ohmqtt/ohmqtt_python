@@ -5,7 +5,7 @@ from typing import Final, Generator
 
 import pytest
 
-from ohmqtt.mqtt_spec import MQTTQoS
+from ohmqtt.mqtt_spec import MQTTQoS, MQTTReasonCode
 from ohmqtt.packet import MQTTPublishPacket, MQTTPubRelPacket
 from ohmqtt.persistence.base import Persistence
 from ohmqtt.persistence.in_memory import InMemoryPersistence
@@ -92,7 +92,7 @@ def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> No
     assert len(persistence.get(10)) == 0
 
     # Acknowledge the message.
-    persistence.ack(1)
+    persistence.ack(1, MQTTReasonCode.Success)
     assert len(persistence) == 0
     assert handle.is_acked()
 
@@ -136,7 +136,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     assert len(persistence.get(10)) == 0
 
     # Acknowledge the message.
-    persistence.ack(1)
+    persistence.ack(1, MQTTReasonCode.Success)
     assert len(persistence) == 1
     assert not handle.is_acked()
 
@@ -155,7 +155,7 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     assert len(persistence.get(10)) == 0
 
     # Acknowledge the message.
-    persistence.ack(1)
+    persistence.ack(1, MQTTReasonCode.Success)
     assert len(persistence) == 0
     assert handle.is_acked()
 
@@ -298,7 +298,29 @@ def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
     persistence.open("test_client")
 
     with pytest.raises(ValueError, match="Unknown packet_id: 42"):
-        persistence.ack(42)
+        persistence.ack(42, MQTTReasonCode.Success)
+
+
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_error_ack(persistence_class: type[Persistence]) -> None:
+    """An error in PUBREC must complete a QoS2 message."""
+    persistence = persistence_class()
+    persistence.open("test_client")
+
+    persistence.add(
+        "test/topic",
+        b"test payload",
+        qos=MQTTQoS.Q2,
+        retain=False,
+        properties=MQTTPublishProps(),
+        alias_policy=AliasPolicy.NEVER,
+    )
+    message_ids = persistence.get(10)
+    persistence.render(message_ids[0])
+    persistence.ack(1, MQTTReasonCode.UnspecifiedError)
+
+    with pytest.raises(ValueError, match="Unknown packet_id: 1"):
+        persistence.ack(1, MQTTReasonCode.Success)
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
@@ -333,7 +355,7 @@ def test_persistence_unlimited_ids(persistence_class: type[Persistence]) -> None
             except Exception:
                 print(f"{block=} {n=}")
                 raise
-            persistence.ack(rendered.packet.packet_id)
+            persistence.ack(rendered.packet.packet_id, MQTTReasonCode.Success)
     assert checked == num
 
 

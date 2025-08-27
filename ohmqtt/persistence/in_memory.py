@@ -6,7 +6,7 @@ import weakref
 
 from .base import Persistence, ReliablePublishHandle, RenderedPacket
 from ..logger import get_logger
-from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS
+from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS, MQTTReasonCode
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -79,14 +79,14 @@ class InMemoryPersistence(Persistence):
     def get(self, count: int) -> Sequence[int]:
         return [self._pending[i] for i in range(min(count, len(self._pending)))]
 
-    def ack(self, packet_id: int) -> None:
+    def ack(self, packet_id: int, rc: MQTTReasonCode) -> None:
         if packet_id not in self._packet_id_to_msg_id:
             raise ValueError(f"Unknown packet_id: {packet_id}")
         msg_id = self._packet_id_to_msg_id[packet_id]
         message = self._messages[msg_id]
-        if message.qos == MQTTQoS.Q1 or message.received:
+        if message.qos == MQTTQoS.Q1 or message.received or rc.is_error():
             handle = message.handle()
-            if handle is not None:
+            if handle is not None and not rc.is_error():
                 with self._cond:
                     handle.acked = True
                     self._cond.notify_all()

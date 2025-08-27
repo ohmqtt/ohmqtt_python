@@ -196,16 +196,16 @@ class Session:
         if packet.reason_code.is_error():
             logger.error("Received PUBACK with error code: %s", packet.reason_code)
         with self._lock:
-            self.persistence.ack(packet.packet_id)
+            self.persistence.ack(packet.packet_id, packet.reason_code)
             self.inflight -= 1
             self._flush()
 
     def handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
-        if packet.reason_code.is_error():
-            logger.error("Received PUBREC with error code: %s", packet.reason_code)
         with self._lock:
-            self.persistence.ack(packet.packet_id)
+            if packet.reason_code.is_error():
+                logger.error("Received PUBREC with error code: %s", packet.reason_code)
+            self.persistence.ack(packet.packet_id, packet.reason_code)
             self.inflight -= 1
             self._flush()
 
@@ -222,7 +222,7 @@ class Session:
         if packet.reason_code.is_error():
             logger.error("Received PUBCOMP with error code: %s", packet.reason_code)
         with self._lock:
-            self.persistence.ack(packet.packet_id)
+            self.persistence.ack(packet.packet_id, packet.reason_code)
             self.inflight -= 1
             self._flush()
 

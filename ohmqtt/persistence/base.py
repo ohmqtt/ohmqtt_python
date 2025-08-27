@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from threading import Condition
 from typing import ClassVar, NamedTuple, Sequence
 
-from ..mqtt_spec import MQTTQoS
+from ..mqtt_spec import MQTTQoS, MQTTReasonCode
 from ..packet import MQTTPublishPacket, MQTTPubRelPacket
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
@@ -89,7 +89,7 @@ class Persistence(metaclass=ABCMeta):
         """Get the packet ids of some pending messages from the store."""
 
     @abstractmethod
-    def ack(self, packet_id: int) -> None:
+    def ack(self, packet_id: int, rc: MQTTReasonCode) -> None:
         """Ack a PUBLISH or PUBREL message in the persistence store.
 
         Raises ValueError if the packet_id is not found in the store."""
