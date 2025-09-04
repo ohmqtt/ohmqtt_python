@@ -4,10 +4,18 @@ from threading import Condition
 from typing import Final
 import weakref
 
-from .base import Persistence, ReliablePublishHandle, RenderedPacket
+from .base import Persistence, RenderedPacket
+from ..error import MQTTError
+from ..handles import PublishHandle
 from ..logger import get_logger
-from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS, MQTTReasonCode
-from ..packet import MQTTPublishPacket, MQTTPubRelPacket
+from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS
+from ..packet import (
+    MQTTPublishPacket,
+    MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
+)
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
 
@@ -22,7 +30,7 @@ class SQLitePersistence(Persistence):
     __slots__ = ("_cond", "_conn", "_cursor", "_db_path", "_handles")
     def __init__(self, db_path: str, *, db_fast: bool = False) -> None:
         self._cond = Condition()
-        self._handles: weakref.WeakValueDictionary[int, ReliablePublishHandle] = weakref.WeakValueDictionary({})
+        self._handles: weakref.WeakValueDictionary[int, PublishHandle] = weakref.WeakValueDictionary({})
         self._db_path = db_path
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._cursor = self._conn.cursor()
@@ -113,7 +121,7 @@ class SQLitePersistence(Persistence):
         retain: bool,
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
-    ) -> ReliablePublishHandle:
+    ) -> PublishHandle:
         if alias_policy == AliasPolicy.ALWAYS:
             raise ValueError("AliasPolicy must not be ALWAYS for retained messages.")
         with self._cond:
@@ -128,7 +136,7 @@ class SQLitePersistence(Persistence):
             self._conn.commit()
             message_id = self._cursor.lastrowid
             assert message_id is not None
-            handle = ReliablePublishHandle(self._cond)
+            handle = PublishHandle(self._cond)
             self._handles[message_id] = handle
             return handle
 
@@ -146,7 +154,9 @@ class SQLitePersistence(Persistence):
             rows = self._cursor.fetchall()
             return [row[0] for row in rows]
 
-    def ack(self, packet_id: int, rc: MQTTReasonCode) -> None:
+    def ack(self, packet: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubCompPacket) -> None:
+        packet_id = packet.packet_id
+        rc = packet.reason_code
         with self._cond:
             self._cursor.execute(
                 """
@@ -167,8 +177,10 @@ class SQLitePersistence(Persistence):
                     (message_id,),
                 )
                 handle = self._handles.pop(message_id, None)
-                if handle is not None and not rc.is_error():
-                    handle.acked = True
+                if handle is not None:
+                    handle.ack = packet
+                    if rc.is_error():
+                        handle.exc = MQTTError("Error code in acknowledgement packet", rc)
                     self._cond.notify_all()
             else:
                 # If the message is QoS 2, we need to mark it as received.

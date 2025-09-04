@@ -8,6 +8,7 @@ import weakref
 
 from .connection import Connection, InvalidStateError, MessageHandlers
 from .error import MQTTError
+from .handles import SubscribeHandle, UnsubscribeHandle
 from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode, MQTTQoS
 from .packet import (
@@ -34,6 +35,10 @@ class NoMatchingSubscriptionError(Exception):
     """Exception raised when no matching subscription is found when unsubscribing."""
 
 
+class ReconfiguredError(Exception):
+    """A subscribe operation was reconfigured before being acknowledged."""
+
+
 class RetainPolicy(IntEnum):
     """Policy for broker sending retained messages upon a subscription.
 
@@ -53,54 +58,6 @@ class _SubscriptionState(IntEnum):
     SUBSCRIBED = 1
     UNSUBSCRIBING = 2
     UNSUBSCRIBED = 3
-
-
-class SubscribeHandle:
-    """Represents a subscription to a topic filter with a callback."""
-    __slots__ = ("__weakref__", "_subscriptions", "ack", "failed")
-
-    ack: MQTTSubAckPacket | None
-    failed: bool
-    _subscriptions: weakref.ReferenceType[Subscriptions]
-
-    def __init__(self, data: Subscription, subscriptions: weakref.ReferenceType[Subscriptions]) -> None:
-        self._subscriptions = subscriptions
-        self.ack = None
-        self.failed = False
-
-    def wait_for_ack(self, timeout: float | None = None) -> MQTTSubAckPacket | None:
-        """Wait for the subscription acknowledgement.
-
-        :raises RuntimeError: The Subscriptions object went out of scope.
-        :return: The ack packet if acked, or None if the operation failed or timeout was reached."""
-        subscriptions = self._subscriptions()
-        if subscriptions is not None:
-            return subscriptions.wait_for_suback(self, timeout=timeout)
-        raise RuntimeError("Subscriptions went out of scope")
-
-
-class UnsubscribeHandle:
-    """Represents an unsubscribe request which was sent to the broker."""
-    __slots__ = ("__weakref__", "_subscriptions", "ack", "failed")
-
-    ack: MQTTUnsubAckPacket | None
-    failed: bool
-    _subscriptions: weakref.ReferenceType[Subscriptions]
-
-    def __init__(self, subscriptions: weakref.ReferenceType[Subscriptions]) -> None:
-        self.ack = None
-        self.failed = False
-        self._subscriptions = subscriptions
-
-    def wait_for_ack(self, timeout: float | None = None) -> MQTTUnsubAckPacket | None:
-        """Wait for the unsubscribe acknowledgement.
-
-        :raises RuntimeError: The Subscriptions object went out of scope.
-        :return: The ack packet if acked, or None if the operation failed or timeout was reached."""
-        subscriptions = self._subscriptions()
-        if subscriptions is not None:
-            return subscriptions.wait_for_unsuback(self, timeout=timeout)
-        raise RuntimeError("Subscriptions went out of scope")
 
 
 @dataclass(match_args=True, slots=True)
@@ -216,10 +173,10 @@ class Subscriptions:
         )
         with self._cond:
             self._subscriptions[sub.effective_filter] = sub
-            if (existing := self._sub_handles.get(sub.effective_filter, None)) is not None and existing.ack is None and not existing.failed:
-                existing.failed = True
+            if (existing := self._sub_handles.get(sub.effective_filter, None)) is not None and existing.ack is None and existing.exc is None:
+                existing.exc = ReconfiguredError("Topic was reconfigured")
                 self._cond.notify_all()
-            handle = SubscribeHandle(sub, weakref.ref(self))
+            handle = SubscribeHandle(self._cond)
             self._sub_handles[sub.effective_filter] = handle
             self._flush_packets()
             return handle
@@ -267,21 +224,6 @@ class Subscriptions:
             self._next_sub_packet_id = 1
         return sub_id
 
-    def wait_for_suback(
-        self,
-        handle: SubscribeHandle,
-        timeout: float | None = None,
-    ) -> MQTTSubAckPacket | None:
-        """Wait for a SUBACK for a SubscribeHandle.
-
-        Returns the SUBACK packet if the subscription was sent to the broker and acknowledged.
-
-        :return: None if the subscription was not sent to the broker or timeout was reached."""
-        with self._cond:
-            if self._cond.wait_for(lambda: handle.ack is not None or handle.failed, timeout=timeout):
-                return handle.ack
-            return None
-
     def unsubscribe(
         self,
         topic_filter: str,
@@ -300,10 +242,10 @@ class Subscriptions:
             if sub.state == _SubscriptionState.UNSUBSCRIBED:
                 return None
             sub.state = _SubscriptionState.UNSUBSCRIBING
-            if (existing := self._unsub_handles.get(effective_filter, None)) is not None and existing.ack is None and not existing.failed:
-                existing.failed = True
+            if (existing := self._unsub_handles.get(effective_filter, None)) is not None and existing.ack is None and existing.exc is None:
+                existing.exc = ReconfiguredError("Topic was reconfigured")
                 self._cond.notify_all()
-            handle = UnsubscribeHandle(weakref.ref(self))
+            handle = UnsubscribeHandle(self._cond)
             self._unsub_handles[effective_filter] = handle
             self._flush_packets()
             return handle
@@ -315,21 +257,6 @@ class Subscriptions:
         if self._next_unsub_packet_id > MAX_PACKET_ID:
             self._next_unsub_packet_id = 1
         return unsub_id
-
-    def wait_for_unsuback(
-        self,
-        handle: UnsubscribeHandle,
-        timeout: float | None = None,
-    ) -> MQTTUnsubAckPacket | None:
-        """Wait for a UNSUBACK for an UnsubscribeHandle.
-
-        Returns the UNSUBACK packet if the subscription was sent to the broker and acknowledged.
-
-        Returns None if the subscription was not sent to the broker or timeout was reached."""
-        with self._cond:
-            if self._cond.wait_for(lambda: handle.ack is not None or handle.failed, timeout=timeout):
-                return handle.ack
-            return None
 
     def handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle incoming PUBLISH packets."""

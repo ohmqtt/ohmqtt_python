@@ -5,8 +5,15 @@ from typing import Final, Generator
 
 import pytest
 
+from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTQoS, MQTTReasonCode
-from ohmqtt.packet import MQTTPublishPacket, MQTTPubRelPacket
+from ohmqtt.packet import (
+    MQTTPublishPacket,
+    MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
+)
 from ohmqtt.persistence.base import Persistence
 from ohmqtt.persistence.in_memory import InMemoryPersistence
 from ohmqtt.persistence.sqlite import SQLitePersistence
@@ -92,9 +99,10 @@ def test_persistence_happy_path_qos1(persistence_class: type[Persistence]) -> No
     assert len(persistence.get(10)) == 0
 
     # Acknowledge the message.
-    persistence.ack(1, MQTTReasonCode.Success)
+    ack_packet = MQTTPubAckPacket(packet_id=1)
+    persistence.ack(ack_packet)
     assert len(persistence) == 0
-    assert handle.is_acked()
+    assert handle.wait_for_ack(0.001) == ack_packet
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
@@ -136,9 +144,9 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     assert len(persistence.get(10)) == 0
 
     # Acknowledge the message.
-    persistence.ack(1, MQTTReasonCode.Success)
+    persistence.ack(MQTTPubRecPacket(packet_id=1))
     assert len(persistence) == 1
-    assert not handle.is_acked()
+    assert handle.ack is None
 
     # Retrieve the PUBREL from the store.
     message_ids = persistence.get(10)
@@ -155,9 +163,10 @@ def test_persistence_happy_path_qos2(persistence_class: type[Persistence]) -> No
     assert len(persistence.get(10)) == 0
 
     # Acknowledge the message.
-    persistence.ack(1, MQTTReasonCode.Success)
+    ack_packet = MQTTPubCompPacket(packet_id=1)
+    persistence.ack(ack_packet)
     assert len(persistence) == 0
-    assert handle.is_acked()
+    assert handle.wait_for_ack(0.001) == ack_packet
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
@@ -292,13 +301,15 @@ def test_persistence_render_order(persistence_class: type[Persistence]) -> None:
         persistence.render(queued[1])
 
 
-@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
-def test_persistence_unknown_ack(persistence_class: type[Persistence]) -> None:
-    persistence = persistence_class()
+@pytest.mark.parametrize("persistence_cls", [SQLiteInMemory, InMemoryPersistence])
+@pytest.mark.parametrize("ack_cls", [MQTTPubAckPacket, MQTTPubRecPacket, MQTTPubCompPacket])
+def test_persistence_unknown_ack(persistence_cls: type[Persistence], ack_cls: type[MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubCompPacket]) -> None:
+    persistence = persistence_cls()
     persistence.open("test_client")
 
+    ack_packet = ack_cls(packet_id=42)
     with pytest.raises(ValueError, match="Unknown packet_id: 42"):
-        persistence.ack(42, MQTTReasonCode.Success)
+        persistence.ack(ack_packet)
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
@@ -307,7 +318,7 @@ def test_persistence_error_ack(persistence_class: type[Persistence]) -> None:
     persistence = persistence_class()
     persistence.open("test_client")
 
-    persistence.add(
+    handle = persistence.add(
         "test/topic",
         b"test payload",
         qos=MQTTQoS.Q2,
@@ -317,10 +328,15 @@ def test_persistence_error_ack(persistence_class: type[Persistence]) -> None:
     )
     message_ids = persistence.get(10)
     persistence.render(message_ids[0])
-    persistence.ack(1, MQTTReasonCode.UnspecifiedError)
+    rec_packet = MQTTPubRecPacket(packet_id=1, reason_code=MQTTReasonCode.UnspecifiedError)
+    persistence.ack(rec_packet)
+
+    assert handle.ack == rec_packet
+    assert isinstance(handle.exc, MQTTError)
+    assert handle.exc.reason_code == MQTTReasonCode.UnspecifiedError
 
     with pytest.raises(ValueError, match="Unknown packet_id: 1"):
-        persistence.ack(1, MQTTReasonCode.Success)
+        persistence.ack(MQTTPubCompPacket(packet_id=1))
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
@@ -355,7 +371,7 @@ def test_persistence_unlimited_ids(persistence_class: type[Persistence]) -> None
             except Exception:
                 print(f"{block=} {n=}")
                 raise
-            persistence.ack(rendered.packet.packet_id, MQTTReasonCode.Success)
+            persistence.ack(MQTTPubAckPacket(packet_id=rendered.packet.packet_id))
     assert checked == num
 
 

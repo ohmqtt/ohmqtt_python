@@ -4,10 +4,18 @@ from threading import Condition
 from typing import Final, Sequence
 import weakref
 
-from .base import Persistence, ReliablePublishHandle, RenderedPacket
+from .base import Persistence, RenderedPacket
+from ..error import MQTTError
+from ..handles import PublishHandle
 from ..logger import get_logger
-from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS, MQTTReasonCode
-from ..packet import MQTTPublishPacket, MQTTPubRelPacket
+from ..mqtt_spec import MAX_PACKET_ID, MQTTQoS
+from ..packet import (
+    MQTTPublishPacket,
+    MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubRelPacket,
+    MQTTPubCompPacket,
+)
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
 
@@ -25,7 +33,7 @@ class RetainedMessage:
     properties: MQTTPublishProps
     dup: bool
     received: bool
-    handle: weakref.ReferenceType[ReliablePublishHandle]
+    handle: weakref.ReferenceType[PublishHandle]
     alias_policy: AliasPolicy
 
 
@@ -53,13 +61,13 @@ class InMemoryPersistence(Persistence):
         retain: bool,
         properties: MQTTPublishProps,
         alias_policy: AliasPolicy,
-    ) -> ReliablePublishHandle:
+    ) -> PublishHandle:
         if alias_policy == AliasPolicy.ALWAYS:
             raise ValueError("AliasPolicy must not be ALWAYS for retained messages.")
         msg_id = self._next_msg_id
         self._next_msg_id += 1
 
-        handle = ReliablePublishHandle(self._cond)
+        handle = PublishHandle(self._cond)
         message = RetainedMessage(
             topic=topic,
             payload=payload,
@@ -79,16 +87,20 @@ class InMemoryPersistence(Persistence):
     def get(self, count: int) -> Sequence[int]:
         return [self._pending[i] for i in range(min(count, len(self._pending)))]
 
-    def ack(self, packet_id: int, rc: MQTTReasonCode) -> None:
+    def ack(self, packet: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubCompPacket) -> None:
+        packet_id = packet.packet_id
+        rc = packet.reason_code
         if packet_id not in self._packet_id_to_msg_id:
             raise ValueError(f"Unknown packet_id: {packet_id}")
         msg_id = self._packet_id_to_msg_id[packet_id]
         message = self._messages[msg_id]
         if message.qos == MQTTQoS.Q1 or message.received or rc.is_error():
             handle = message.handle()
-            if handle is not None and not rc.is_error():
+            if handle is not None:
                 with self._cond:
-                    handle.acked = True
+                    handle.ack = packet
+                    if rc.is_error():
+                        handle.exc = MQTTError("Error code in acknowledgement packet", rc)
                     self._cond.notify_all()
             del self._packet_id_to_msg_id[packet_id]
             del self._messages[msg_id]

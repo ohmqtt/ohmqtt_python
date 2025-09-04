@@ -12,13 +12,13 @@ else:
     from typing_extensions import Self
 
 from .connection import Address, ConnectParams, Connection, MessageHandlers
+from .handles import PublishHandle, SubscribeHandle, UnsubscribeHandle
 from .logger import get_logger
 from .mqtt_spec import MQTTReasonCode, MQTTQoS
 from .packet import MQTTAuthPacket
 from .property import MQTTAuthProps, MQTTConnectProps, MQTTPublishProps, MQTTWillProps
-from .persistence.base import PublishHandle
 from .session import Session
-from .subscriptions import Subscriptions, SubscribeCallback, SubscribeHandle, UnsubscribeHandle, RetainPolicy
+from .subscriptions import Subscriptions, SubscribeCallback, RetainPolicy
 from .topic_alias import AliasPolicy
 
 logger: Final = get_logger("client")

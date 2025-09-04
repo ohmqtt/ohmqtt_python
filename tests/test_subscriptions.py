@@ -18,7 +18,7 @@ from ohmqtt.packet import (
     MQTTConnAckPacket,
 )
 from ohmqtt.property import MQTTPublishProps, MQTTSubscribeProps
-from ohmqtt.subscriptions import Subscriptions, RetainPolicy
+from ohmqtt.subscriptions import ReconfiguredError, Subscriptions, RetainPolicy
 
 
 def dummy_callback(client: Client, packet: MQTTPublishPacket) -> None:
@@ -104,9 +104,9 @@ def test_subscriptions_multi_subscribe(
     assert handle2 is not None
     assert handle1 != handle2
 
-    assert handle1.wait_for_ack(timeout=0.001) is None
+    with pytest.raises(ReconfiguredError):
+        handle1.wait_for_ack(timeout=0.001)
     assert handle1.ack is None
-    assert handle1.failed
 
     # Simulate receiving a SUBACK packet
     suback_packet = MQTTSubAckPacket(
@@ -211,7 +211,8 @@ def test_subscriptions_wait_for_suback(
 
     handle = subscriptions.subscribe("test/topic", dummy_callback)
     assert handle is not None
-    assert handle.wait_for_ack(timeout=0.001) is None
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(timeout=0.001)
 
     # Simulate receiving a SUBACK packet
     suback_packet = MQTTSubAckPacket(
@@ -222,16 +223,6 @@ def test_subscriptions_wait_for_suback(
 
     assert handle.wait_for_ack(timeout=0.001) == suback_packet
     assert handle.ack == suback_packet
-
-    mock_handlers.reset_mock()
-    del mock_handlers
-    mock_client.reset_mock()
-    del mock_client
-    mock_connection.reset_mock()
-    del mock_connection
-    del subscriptions
-    with pytest.raises(RuntimeError, match="Subscriptions went out of scope"):
-        handle.wait_for_ack(timeout=0.001)
 
 
 @pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.UnspecifiedError])
@@ -255,7 +246,8 @@ def test_subscriptions_wait_for_unsuback(
 
     handle = subscriptions.unsubscribe("test/topic")
     assert handle is not None
-    assert handle.wait_for_ack(timeout=0.001) is None
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(timeout=0.001)
 
     # Simulate receiving an UNSUBACK packet
     unsuback_packet = MQTTUnsubAckPacket(
@@ -266,16 +258,6 @@ def test_subscriptions_wait_for_unsuback(
 
     assert handle.wait_for_ack(timeout=0.001) == unsuback_packet
     assert handle.ack == unsuback_packet
-
-    mock_handlers.reset_mock()
-    del mock_handlers
-    mock_client.reset_mock()
-    del mock_client
-    mock_connection.reset_mock()
-    del mock_connection
-    del subscriptions
-    with pytest.raises(RuntimeError, match="Subscriptions went out of scope"):
-        handle.wait_for_ack(timeout=0.001)
 
 
 @pytest.mark.parametrize("session_present", [True, False])
@@ -367,7 +349,6 @@ def test_subscriptions_unsubscribe_redundant(mock_handlers: MagicMock, mock_clie
     handle1 = subscriptions.unsubscribe("test/topic")
     handle2 = subscriptions.unsubscribe("test/topic")
     assert handle1 is not None
-    assert handle1.failed
     subscriptions.handle_unsuback(MQTTUnsubAckPacket(
         packet_id=1,
         reason_codes=[MQTTReasonCode.GrantedQoS2],

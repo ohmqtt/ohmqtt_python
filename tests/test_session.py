@@ -48,8 +48,9 @@ def test_session_publish_qos0(mock_handlers: Mock, mock_subscriptions: Mock, moc
         payload=b"test payload",
     ))
     mock_connection.send.reset_mock()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack() is False
+    assert handle.ack is None
+    with pytest.raises(ValueError, match="QoS 0 messages will not be acknowledged"):
+        handle.wait_for_ack(timeout=1)
 
 
 def test_session_publish_qos0_aliased(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
@@ -99,8 +100,9 @@ def test_session_publish_qos0_unconnected(mock_handlers: Mock, mock_subscription
         payload=b"test payload",
     ))
     mock_connection.send.reset_mock()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack() is False
+    assert handle.ack is None
+    with pytest.raises(ValueError, match="QoS 0 messages will not be acknowledged"):
+        handle.wait_for_ack(0.001)
 
 
 @pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.UnspecifiedError])
@@ -118,13 +120,17 @@ def test_session_publish_qos1(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_
         packet_id=1,
     ))
     mock_connection.send.reset_mock()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
-    session.handle_puback(MQTTPubAckPacket(packet_id=1, reason_code=ack_rc))
-    expected_ack = bool(not ack_rc.is_error())
-    assert handle.is_acked() is expected_ack
-    assert handle.wait_for_ack(0.001) is expected_ack
+    ack = MQTTPubAckPacket(packet_id=1, reason_code=ack_rc)
+    session.handle_puback(ack)
+    if ack_rc.is_error():
+        with pytest.raises(MQTTError) as excinfo:
+            handle.wait_for_ack(0.001)
+        assert excinfo.value.reason_code == ack_rc
+    else:
+        assert handle.wait_for_ack() is ack
 
 
 def test_session_publish_qos1_unconnected(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
@@ -136,8 +142,9 @@ def test_session_publish_qos1_unconnected(mock_handlers: Mock, mock_subscription
 
     handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
     mock_connection.send.assert_not_called()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    assert handle.ack is None
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
 
 @pytest.mark.parametrize("comp_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
@@ -155,20 +162,24 @@ def test_session_publish_qos2(comp_rc: MQTTReasonCode, mock_handlers: Mock, mock
         packet_id=1,
     ))
     mock_connection.send.reset_mock()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
     session.handle_pubrec(MQTTPubRecPacket(packet_id=1))
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
     mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1))
     mock_connection.send.reset_mock()
 
-    session.handle_pubcomp(MQTTPubCompPacket(reason_code=comp_rc, packet_id=1))
-    expected_ack = bool(not comp_rc.is_error())
-    assert handle.is_acked() is expected_ack
-    assert handle.wait_for_ack(0.001) is expected_ack
+    ack = MQTTPubCompPacket(packet_id=1, reason_code=comp_rc)
+    session.handle_pubcomp(ack)
+    if comp_rc.is_error():
+        with pytest.raises(MQTTError) as excinfo:
+            handle.wait_for_ack(0.001)
+        assert excinfo.value.reason_code == comp_rc
+    else:
+        assert handle.wait_for_ack(0.001) is ack
 
 
 def test_session_publish_qos2_rec_error(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
@@ -185,12 +196,13 @@ def test_session_publish_qos2_rec_error(mock_handlers: Mock, mock_subscriptions:
         packet_id=1,
     ))
     mock_connection.send.reset_mock()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
     session.handle_pubrec(MQTTPubRecPacket(reason_code=MQTTReasonCode.UnspecifiedError, packet_id=1))
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(MQTTError) as excinfo:
+        handle.wait_for_ack(0.001)
+    assert excinfo.value.reason_code == MQTTReasonCode.UnspecifiedError
 
     mock_connection.send.assert_not_called()
 
@@ -209,15 +221,15 @@ def test_session_publish_qos2_disconnect_race(mock_handlers: Mock, mock_subscrip
         packet_id=1,
     ))
     mock_connection.send.reset_mock()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
     mock_connection.can_send.return_value = True
     mock_connection.send.side_effect = InvalidStateError("TEST")
 
     session.handle_pubrec(MQTTPubRecPacket(packet_id=1))
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
     mock_connection.send.assert_called_with(MQTTPubRelPacket(packet_id=1))
     mock_connection.send.reset_mock()
@@ -232,8 +244,8 @@ def test_session_publish_qos2_unconnected(mock_handlers: Mock, mock_subscription
 
     handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2)
     mock_connection.send.assert_not_called()
-    assert handle.is_acked() is False
-    assert handle.wait_for_ack(0.001) is False
+    with pytest.raises(TimeoutError):
+        handle.wait_for_ack(0.001)
 
 
 @pytest.mark.parametrize("db_path", [":memory:", ""])

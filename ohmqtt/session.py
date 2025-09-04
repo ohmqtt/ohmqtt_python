@@ -4,6 +4,7 @@ from typing import Final, TypeAlias
 
 from .connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
 from .error import MQTTError
+from .handles import PublishHandle
 from .logger import get_logger
 from .mqtt_spec import MAX_PACKET_ID, MQTTReasonCode, MQTTQoS
 from .packet import (
@@ -15,7 +16,7 @@ from .packet import (
     MQTTPubCompPacket,
 )
 from .property import MQTTPublishProps
-from .persistence.base import Persistence, PublishHandle, ReliablePublishHandle, UnreliablePublishHandle
+from .persistence.base import Persistence
 from .persistence.in_memory import InMemoryPersistence
 from .persistence.sqlite import SQLitePersistence
 from .subscriptions import Subscriptions
@@ -34,7 +35,7 @@ SessionSendablePacketT: TypeAlias = (
 
 class Session:
     __slots__ = (
-        "_lock",
+        "_cond",
         "connection",
         "inflight",
         "params",
@@ -54,7 +55,7 @@ class Session:
         db_path: str = "",
         db_fast: bool = False,
     ) -> None:
-        self._lock = connection.fsm.lock
+        self._cond = connection.fsm.cond
         self.topic_alias = OutboundTopicAlias()
         self.inflight = 0
         self.params = ConnectParams()
@@ -74,7 +75,7 @@ class Session:
         handlers.register(MQTTPubCompPacket, self.handle_pubcomp)
 
     def set_params(self, params: ConnectParams) -> None:
-        with self._lock:
+        with self._cond:
             self.params = params
 
     def publish(
@@ -90,8 +91,8 @@ class Session:
         """Publish a message to a topic."""
         properties = properties if properties is not None else MQTTPublishProps()
         if qos > MQTTQoS.Q0:
-            with self._lock:
-                handle: ReliablePublishHandle = self.persistence.add(
+            with self._cond:
+                handle = self.persistence.add(
                     topic=topic,
                     payload=payload,
                     qos=qos,
@@ -117,7 +118,9 @@ class Session:
             except InvalidStateError:
                 # Not being able to send a packet is not an error for QoS 0.
                 logger.debug("Failed to send QoS 0 packet (invalid connection state), ignoring")
-            return UnreliablePublishHandle()
+            handle = PublishHandle(self._cond)
+            handle.exc = ValueError("QoS 0 messages will not be acknowledged")
+            return handle
 
     def _send_packet(self, packet: SessionSendablePacketT) -> None:
         """Try to send a packet to the server."""
@@ -135,7 +138,7 @@ class Session:
             # Fast path for no aliasing.
             self._send_packet(packet)
             return
-        with self._lock:
+        with self._cond:
             topic = packet.topic
             lookup = self.topic_alias.lookup(topic, alias_policy)
             assert lookup.alias > 0
@@ -154,7 +157,7 @@ class Session:
         if packet.reason_code.is_error():
             logger.error("CONNACK error code: %s", packet.reason_code)
             raise MQTTError("Connection failed", packet.reason_code)
-        with self._lock:
+        with self._cond:
             self.inflight = 0
             self.topic_alias.reset()
             if packet.properties.ReceiveMaximum is not None:
@@ -195,17 +198,17 @@ class Session:
         """Handle a PUBACK packet from the server."""
         if packet.reason_code.is_error():
             logger.error("Received PUBACK with error code: %s", packet.reason_code)
-        with self._lock:
-            self.persistence.ack(packet.packet_id, packet.reason_code)
+        with self._cond:
+            self.persistence.ack(packet)
             self.inflight -= 1
             self._flush()
 
     def handle_pubrec(self, packet: MQTTPubRecPacket) -> None:
         """Handle a PUBREC packet from the server."""
-        with self._lock:
+        with self._cond:
             if packet.reason_code.is_error():
                 logger.error("Received PUBREC with error code: %s", packet.reason_code)
-            self.persistence.ack(packet.packet_id, packet.reason_code)
+            self.persistence.ack(packet)
             self.inflight -= 1
             self._flush()
 
@@ -221,14 +224,14 @@ class Session:
         """Handle a PUBCOMP packet from the server."""
         if packet.reason_code.is_error():
             logger.error("Received PUBCOMP with error code: %s", packet.reason_code)
-        with self._lock:
-            self.persistence.ack(packet.packet_id, packet.reason_code)
+        with self._cond:
+            self.persistence.ack(packet)
             self.inflight -= 1
             self._flush()
 
     def _flush(self) -> None:
         """Send queued packets up to the server's receive maximum."""
-        with self._lock:
+        with self._cond:
             allowed_count = self.server_receive_maximum - self.inflight
             pending_message_ids = self.persistence.get(allowed_count)
             for message_id in pending_message_ids:
