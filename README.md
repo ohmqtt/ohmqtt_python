@@ -58,8 +58,7 @@ Besides compressing your payloads, you can reduce MQTT publish overhead by using
 Instruct the broker that it can send topic aliases while connecting:
 
 ```python
-from ohmqtt.client import Client
-from ohmqtt.property import MQTTConnectProps
+from ohmqtt import Client, MQTTConnectProps
 
 # The maximum value for TopicAliasMaximum is USHRT_MAX (65535).
 # It must be >0 for the broker to use topic aliases when sending messages to the client.
@@ -71,18 +70,36 @@ with Client() as client:
 Specify that topic aliases should be used when publishing messages:
 
 ```python
-from ohmqtt.topic_alias import AliasPolicy
+from ohmqtt import AliasPolicy
 
 client.publish("some/topic", b"the payload", alias_policy=AliasPolicy.TRY)
 ```
 
 This will automatically assign topic aliases to topics up to the maximum topic alias ID reported by the broker.
 
-Increasing QoS levels will use more overall bandwidth.
+Higher QoS levels will use more overall bandwidth.
 You may force a maximum QoS level when subscribing to a topic:
 
 ```python
 client.subscribe("some/topic", callback, max_qos=0)
+```
+
+### Reliable Messaging
+
+You can wait for QoS>0 messages to be acknowledged and access the acknowledgement packets.
+For QoS 1 this will be PUBACK, for QoS 2 it may be PUBREC (in case of an error) or PUBCOMP.
+
+```python
+from ohmqtt import MQTTError, MQTTQoS
+
+handle = client.publish("topic", b"payload", qos=MQTTQoS.Q1)
+try:
+    ack = handle.wait_for_ack(timeout=5.0)
+    print(ack)
+except TimeoutError:  # Was not acknowledged in time
+    ...
+except MQTTError as exc:  # The acknowledgement had an error code
+    print(f"Error from server while publishing: {exc.reason_code}")
 ```
 
 ### Persistence
@@ -97,8 +114,7 @@ Specify the path to the database when creating the `Client` (a new database will
 Also specify a `client_id` and session expiry interval when connecting to the broker:
 
 ```python
-from ohmqtt.client import Client
-from ohmqtt.property import MQTTConnectProps
+from ohmqtt import Client, MQTTConnectProps
 
 # Set SessionExpiryInterval=UINT_MAX to indicate that the session should never expire.
 # Otherwise the interval is in seconds and must be >0 to persist the session.
@@ -113,8 +129,7 @@ You can specify to use a faster, less synchronous configuration which may be goo
 The implementation will use SQLite WAL. Set `db_fast=True` when constructing the client like so:
 
 ```python
-from ohmqtt.client import Client
-from ohmqtt.property import MQTTConnectProps
+from ohmqtt import Client, MQTTConnectProps
 
 connect_props = MQTTConnectProps(SessionExpiryInterval=0xffffffff)
 with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
