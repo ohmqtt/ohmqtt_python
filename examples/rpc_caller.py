@@ -39,7 +39,7 @@ class RPCCaller:
             payload,
             qos=MQTTQoS.Q2,
             properties=MQTTPublishProps(ResponseTopic=response_topic),
-        ).wait_for_ack()
+        ).wait_for_ack(timeout=5.0)
 
         print(f"Sent RPC request with response topic: {response_topic}")
 

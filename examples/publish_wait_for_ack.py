@@ -19,8 +19,9 @@ def main(args: argparse.Namespace) -> None:
         client.wait_for_connect(timeout=5.0)
 
         for n in range(1, 9):
-            publish_handle = client.publish("ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=MQTTQoS.Q2)
-            assert publish_handle.wait_for_ack()
+            client.publish(
+                "ohmqtt/examples/publish_wait_for_ack", b"test_payload: " + str(n).encode(), qos=MQTTQoS.Q2
+            ).wait_for_ack(timeout=5.0)
 
         client.disconnect()
         client.wait_for_disconnect(timeout=5.0)

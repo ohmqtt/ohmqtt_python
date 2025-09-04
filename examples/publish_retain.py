@@ -16,7 +16,7 @@ def main(args: argparse.Namespace) -> None:
         print("*** Connected to broker")
 
         pub = client.publish("ohmqtt/examples/publish_retain", b"test_payload", qos=MQTTQoS.Q1, retain=True)
-        assert pub.wait_for_ack()
+        pub.wait_for_ack(timeout=5.0)
 
         q: Queue[MQTTPublishPacket] = Queue()
         def callback(_: Client, msg: MQTTPublishPacket) -> None:
