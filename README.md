@@ -90,13 +90,15 @@ You can wait for QoS>0 messages to be acknowledged and access the acknowledgemen
 For QoS 1 this will be PUBACK, for QoS 2 it may be PUBREC (in case of an error) or PUBCOMP.
 
 ```python
-from ohmqtt import MQTTError, MQTTQoS
+from ohmqtt import LostMessageError, MQTTError, MQTTQoS
 
 handle = client.publish("topic", b"payload", qos=MQTTQoS.Q1)
 try:
     ack = handle.wait_for_ack(timeout=5.0)
     print(ack)
 except TimeoutError:  # Was not acknowledged in time
+    ...
+except LostMessageError:  # The message was dropped upon new session from the broker
     ...
 except MQTTError as exc:  # The acknowledgement had an error code
     print(f"Error from server while publishing: {exc.reason_code}")

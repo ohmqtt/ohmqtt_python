@@ -14,6 +14,10 @@ from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
 
 
+class LostMessageError(Exception):
+    """Raised when a message is lost from the persistence store and can not be acknowledged."""
+
+
 class RenderedPacket(NamedTuple):
     """Represents a rendered packet."""
     packet: MQTTPublishPacket | MQTTPubRelPacket

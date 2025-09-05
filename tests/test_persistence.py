@@ -14,7 +14,7 @@ from ohmqtt.packet import (
     MQTTPubRelPacket,
     MQTTPubCompPacket,
 )
-from ohmqtt.persistence.base import Persistence
+from ohmqtt.persistence.base import LostMessageError, Persistence
 from ohmqtt.persistence.in_memory import InMemoryPersistence
 from ohmqtt.persistence.sqlite import SQLitePersistence
 from ohmqtt.property import MQTTPublishProps
@@ -337,6 +337,27 @@ def test_persistence_error_ack(persistence_class: type[Persistence]) -> None:
 
     with pytest.raises(ValueError, match="Unknown packet_id: 1"):
         persistence.ack(MQTTPubCompPacket(packet_id=1))
+
+
+@pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_lost_message(persistence_class: type[Persistence]) -> None:
+    persistence = persistence_class()
+    persistence.open("test_client")
+
+    handle = persistence.add(
+        "test/topic",
+        b"test payload",
+        qos=MQTTQoS.Q2,
+        retain=False,
+        properties=MQTTPublishProps(),
+        alias_policy=AliasPolicy.NEVER,
+    )
+    message_ids = persistence.get(10)
+    persistence.render(message_ids[0])
+    persistence.clear()
+
+    with pytest.raises(LostMessageError):
+        handle.wait_for_ack(0.001)
 
 
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])

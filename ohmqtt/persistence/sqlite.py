@@ -4,7 +4,7 @@ from threading import Condition
 from typing import Final
 import weakref
 
-from .base import Persistence, RenderedPacket
+from .base import LostMessageError, Persistence, RenderedPacket
 from ..error import MQTTError
 from ..handles import PublishHandle
 from ..logger import get_logger
@@ -307,6 +307,10 @@ class SQLitePersistence(Persistence):
                 COMMIT;
                 """
             )
+            if self._handles:
+                for handle in self._handles.values():
+                    handle.exc = LostMessageError("Message lost from persistence store")
+                self._cond.notify_all()
             self._handles.clear()
 
     def open(self, client_id: str, clear: bool = False) -> None:

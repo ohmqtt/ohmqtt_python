@@ -22,6 +22,7 @@ from .packet import MQTTUnsubscribePacket as MQTTUnsubscribePacket
 from .packet import MQTTUnsubAckPacket as MQTTUnsubAckPacket
 from .packet import MQTTPingReqPacket as MQTTPingReqPacket
 from .packet import MQTTPingRespPacket as MQTTPingRespPacket
+from .persistence.base import LostMessageError as LostMessageError
 from .property import MQTTProperties as MQTTProperties
 from .property import MQTTAuthProps as MQTTAuthProps
 from .property import MQTTConnectProps as MQTTConnectProps

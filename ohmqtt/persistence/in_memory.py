@@ -4,7 +4,7 @@ from threading import Condition
 from typing import Final, Sequence
 import weakref
 
-from .base import Persistence, RenderedPacket
+from .base import LostMessageError, Persistence, RenderedPacket
 from ..error import MQTTError
 from ..handles import PublishHandle
 from ..logger import get_logger
@@ -160,6 +160,12 @@ class InMemoryPersistence(Persistence):
 
     def clear(self) -> None:
         with self._cond:
+            if self._messages:
+                for message in self._messages.values():
+                    handle = message.handle()
+                    if handle is not None:
+                        handle.exc = LostMessageError("Message lost from persistence store")
+                self._cond.notify_all()
             self._messages.clear()
             self._pending.clear()
             self._packet_id_to_msg_id.clear()
