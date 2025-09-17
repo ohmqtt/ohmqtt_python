@@ -209,7 +209,7 @@ class MQTTConnAckPacket(MQTTPacket):
 
         session_present, _ = decode_bool(data[0:])
         reason_code = MQTTReasonCode(decode_uint8(data[1:])[0])
-        props, props_sz = MQTTConnAckProps.decode(data[2:])
+        props, _ = MQTTConnAckProps.decode(data[2:])
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
 
@@ -253,5 +253,5 @@ class MQTTDisconnectPacket(MQTTPacket):
         if len(data) == 1:
             # If the packet only contains the reason code, it has no properties.
             return MQTTDisconnectPacket(reason_code)
-        props, props_sz = MQTTDisconnectProps.decode(data[1:])
+        props, _ = MQTTDisconnectProps.decode(data[1:])
         return MQTTDisconnectPacket(reason_code, properties=props)

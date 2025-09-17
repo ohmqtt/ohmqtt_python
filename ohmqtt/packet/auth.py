@@ -53,5 +53,5 @@ class MQTTAuthPacket(MQTTPacket):
             # An empty packet means success with no properties.
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
-        props, props_sz = MQTTAuthProps.decode(data[sz:])
+        props, _ = MQTTAuthProps.decode(data[sz:])
         return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)
