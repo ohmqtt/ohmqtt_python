@@ -25,7 +25,10 @@ class Handle(Generic[_T]):
         self._cond = weakref.ref(cond)
 
     def wait_for_ack(self, timeout: float | None = None) -> _T:
-        """Wait for the ack packet or raise an exception if the operation failed."""
+        """Wait for the ack packet or raise an exception if the operation failed.
+
+        :raise TimeoutError: Acknowledgement timed out.
+        :return: The final acknowledgement packet."""
         cond = self._cond()
         if cond is None:
             raise RuntimeError("Condition variable is no longer available")
