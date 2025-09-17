@@ -4,6 +4,7 @@ import tempfile
 from typing import Final, Generator
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTQoS, MQTTReasonCode
@@ -454,3 +455,10 @@ def test_persistence_sqlite_open(db_fast: bool, tempdbpath: str) -> None:
     persistence.open("test_client_2")
     assert len(persistence) == 0
     assert persistence.check_rec(incoming_packet) is True
+
+
+def test_persistence_sqlite_schema_version(mocker: MockerFixture) -> None:
+    """Reject opening a database with the wrong schema version."""
+    mocker.patch("ohmqtt.persistence.sqlite.SCHEMA_VERSION", 9999)
+    with pytest.raises(Exception, match=r"Database version .* does not match library version .*"):
+        SQLitePersistence(":memory:")

@@ -21,6 +21,12 @@ from ..topic_alias import AliasPolicy
 
 logger: Final = get_logger("persistence.sqlite")
 
+SCHEMA_VERSION: Final[int] = 0
+
+
+class SchemaError(Exception):
+    """Database schema error."""
+
 
 class SQLitePersistence(Persistence):
     """SQLite persistence for MQTT messages.
@@ -41,6 +47,10 @@ class SQLitePersistence(Persistence):
                 PRAGMA synchronous = NORMAL;
                 """
             )
+        self._cursor.execute("PRAGMA user_version")
+        current_version = self._cursor.fetchone()[0]
+        if current_version != SCHEMA_VERSION:
+            raise SchemaError(f"Database version {current_version} does not match library version {SCHEMA_VERSION}")
         self._create_tables()
 
     def __del__(self) -> None:
@@ -63,6 +73,7 @@ class SQLitePersistence(Persistence):
     def _create_tables(self) -> None:
         """Create the necessary tables in the SQLite database."""
         with self._cond:
+            self._cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             self._cursor.executescript(
                 """
                 BEGIN;
