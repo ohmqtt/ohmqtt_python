@@ -41,3 +41,8 @@ from .property import MQTTWillProps as MQTTWillProps
 from .subscriptions import RetainPolicy as RetainPolicy
 from .topic_alias import AliasPolicy as AliasPolicy
 from .topic_alias import MaxOutboundAliasError as MaxOutboundAliasError
+
+from importlib.metadata import version
+
+__version__ = version("ohmqtt")
+__version_info__ = tuple(int(x) for x in __version__.split(".") if x.isdigit())
