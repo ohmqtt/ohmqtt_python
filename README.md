@@ -140,11 +140,6 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 
 ## Development
 
-### TODO for future
-
-* AUTH connection state
-* Session data reset policies
-
 ### Running the Tests
 
 This project uses `nox` and `uv` to run the tests against all supported Python versions.
