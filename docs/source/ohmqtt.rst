@@ -5,6 +5,10 @@
     :members:
     :member-order: bysource
 
+.. autoexception:: ohmqtt.LostMessageError
+    :members:
+    :member-order: bysource
+
 .. autoexception:: ohmqtt.MQTTError
     :members:
     :member-order: bysource
