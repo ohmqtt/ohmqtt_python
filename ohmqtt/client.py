@@ -122,7 +122,7 @@ class Client:
     def publish(
         self,
         topic: str,
-        payload: bytes,
+        payload: bytes | bytearray | str,
         *,
         qos: int | MQTTQoS = MQTTQoS.Q0,
         retain: bool = False,
@@ -132,12 +132,16 @@ class Client:
         """Publish a message to a topic.
 
         :param topic: The topic to publish to.
-        :param payload: The payload of the message.
+        :param payload: The payload of the message. If a string is provided, it will be encoded as UTF-8.
         :param qos: The QoS level for the message (0, 1, or 2).
         :param retain: If True, the message will be retained by the broker.
         :param properties: Properties for the PUBLISH packet.
         :param alias_policy: The policy for using automatic topic aliases.
         """
+        if isinstance(payload, str):
+            payload = payload.encode("utf-8")
+        elif not isinstance(payload, bytes):
+            payload = bytes(payload)
         if not isinstance(qos, MQTTQoS):
             qos = MQTTQoS(qos)
         properties = properties if properties is not None else None

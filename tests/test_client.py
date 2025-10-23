@@ -77,15 +77,16 @@ def test_client_shutdown(mocker: MockerFixture, mock_connection: Mock, mock_hand
     mock_connection.shutdown.assert_called_once()
 
 
+@pytest.mark.parametrize("payload", [b"test_payload", bytearray(b"test_payload"), "test_payload"])
 @pytest.mark.parametrize("qos", [0, 1, 2, MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
-def test_client_publish(qos: int | MQTTQoS, mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
-                       mock_session: Mock, mock_subscriptions: Mock) -> None:
+def test_client_publish(payload: bytes | bytearray | str, qos: int | MQTTQoS, mocker: MockerFixture,
+                        mock_connection: Mock, mock_handlers: MagicMock, mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
 
     mock_session.publish.return_value = mocker.Mock()
     publish_handle = client.publish(
         "test/topic",
-        b"test_payload",
+        payload,
         qos=qos,
         retain=True,
         properties=MQTTPublishProps(
@@ -98,9 +99,10 @@ def test_client_publish(qos: int | MQTTQoS, mocker: MockerFixture, mock_connecti
     )
     assert publish_handle == mock_session.publish.return_value
     expected_qos = MQTTQoS(qos) if not isinstance(qos, MQTTQoS) else qos
+    expected_payload = payload.encode("utf-8") if isinstance(payload, str) else bytes(payload)
     mock_session.publish.assert_called_once_with(
         "test/topic",
-        b"test_payload",
+        expected_payload,
         qos=expected_qos,
         retain=True,
         properties=MQTTPublishProps(
