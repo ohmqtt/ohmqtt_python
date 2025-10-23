@@ -1,5 +1,4 @@
 import threading
-import time
 
 import pytest
 
@@ -40,15 +39,15 @@ def _test_ack(
 
     def do_ack() -> None:
         start.wait()
-        time.sleep(0.001)
         with cond:
             handle.ack = ack  # type: ignore[assignment]
             cond.notify_all()
     thread = threading.Thread(target=do_ack)
     thread.start()
 
-    start.set()
-    assert handle.wait_for_ack(timeout=0.01) == ack
+    with cond:
+        start.set()
+        assert handle.wait_for_ack(timeout=0.01) == ack
 
     thread.join()
 
@@ -65,16 +64,16 @@ def _test_exc(
 
     def do_ack() -> None:
         start.wait()
-        time.sleep(0.001)
         with cond:
             handle.exc = ValueError("TEST")
             cond.notify_all()
     thread = threading.Thread(target=do_ack)
     thread.start()
 
-    start.set()
-    with pytest.raises(ValueError, match="TEST"):
-        handle.wait_for_ack(timeout=0.01)
+    with cond:
+        start.set()
+        with pytest.raises(ValueError, match="TEST"):
+            handle.wait_for_ack(timeout=0.01)
 
     thread.join()
 
