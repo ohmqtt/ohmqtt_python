@@ -13,10 +13,10 @@ from ohmqtt.connection import (
 )
 from ohmqtt.connection.fsm import FSM
 from ohmqtt.connection.states import (
-    ConnectingState,
-    ConnectedState,
-    ClosingState,
     ClosedState,
+    ClosingState,
+    ConnectedState,
+    ConnectingState,
     ReconnectWaitState,
     ShutdownState,
 )

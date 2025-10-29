@@ -35,7 +35,13 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["ohmqtt", "ohmqtt.connection", "ohmqtt.packet", "ohmqtt.persistence"]
+packages = [
+    "ohmqtt",
+    "ohmqtt.connection",
+    "ohmqtt.connection.states",
+    "ohmqtt.packet",
+    "ohmqtt.persistence",
+]
 
 [dependency-groups]
 dev = [

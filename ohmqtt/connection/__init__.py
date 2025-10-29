@@ -8,11 +8,11 @@ from .fsm import InvalidStateError as InvalidStateError
 from .handlers import MessageHandlers as MessageHandlers
 from .states import (
     ClosingState,
-    ClosedState,
-    ConnectingState,
     ConnectedState,
+    ConnectingState,
     ReconnectWaitState,
     ShutdownState,
+    ClosedState,
 )
 from .types import ConnectParams as ConnectParams
 from .types import StateEnvironment, ReceivablePacketT, SendablePacketT
@@ -111,7 +111,7 @@ class Connection:
         self.fsm.loop_once(max_wait)
 
     def loop_forever(self) -> None:
-        """Run the state machine until the connection is closed."""
+        """Run the state machine until the connection is shut down."""
         self.fsm.loop_until_state((ShutdownState,))
 
     def loop_until_connected(self, timeout: float | None = None) -> bool:

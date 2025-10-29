@@ -8,7 +8,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ohmqtt.connection import Address
-from ohmqtt.connection.fsm import FSM, FSMState, InvalidStateError
+from ohmqtt.connection.fsm import FSM, InvalidStateError
+from ohmqtt.connection.states.base import FSMState
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 
 

@@ -72,7 +72,7 @@ def env(callbacks: EnvironmentCallbacks) -> StateEnvironment:
 @pytest.fixture
 def mock_socket(mocker: MockerFixture) -> Mock:
     mock_socket = mocker.Mock(spec=ssl.SSLSocket)
-    mocker.patch("ohmqtt.connection.states._get_socket", return_value=mock_socket)
+    mocker.patch("ohmqtt.connection.states.connecting._get_socket", return_value=mock_socket)
     return mock_socket  # type: ignore[no-any-return]
 
 @pytest.fixture

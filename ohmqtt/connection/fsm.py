@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import threading
-from typing import ClassVar, Final, Sequence
+from typing import Final, Sequence
 
 from .selector import InterruptibleSelector
+from .states.base import FSMState
 from .timeout import Timeout
 from .types import ConnectParams, StateData, StateEnvironment
 from ..logger import get_logger
@@ -167,27 +168,3 @@ class FSM:
                 if to_exceeded or self._in_final_state() or not self.cond.wait(to.get_timeout()):
                     # Either reached and completed a final state or timed out.
                     return False
-
-
-class FSMState:
-    """A finite state in the FSM."""
-    can_request_from: ClassVar[Sequence[type[FSMState]]] = ()
-    transitions_to: ClassVar[Sequence[type[FSMState]]] = ()
-
-    def __init__(self) -> None:
-        raise TypeError("Do not instantiate FSMStates")
-
-    @classmethod
-    def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        """Called when entering the state.
-
-        This method must not block."""
-
-    @classmethod
-    def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
-        """Called when handling the state.
-
-        This method may block if max_wait is >0 or None.
-
-        :return: True if the state is finished."""
-        return True
