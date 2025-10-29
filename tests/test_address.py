@@ -34,7 +34,10 @@ def test_address_valid(test_data: list[AddressTestCase]) -> None:
     """Test the Address class with a Unix socket address."""
     for case in test_data:
         case_addr = case["address"]
-        address = Address(case_addr)
+        try:
+            address = Address(case_addr)
+        except Exception as exc:
+            raise Exception(f"Failed to parse address {case_addr}") from exc
         assert address.scheme == case["scheme"], f"scheme for {case_addr}"
         assert address.family == lookup_family(case["family"]), f"family for {case_addr}"
         assert address.host == case["host"], f"host for {case_addr}"
@@ -42,6 +45,7 @@ def test_address_valid(test_data: list[AddressTestCase]) -> None:
         assert address.username == case.get("username", None), f"username for {case_addr}"
         assert address.password == case.get("password", None), f"password for {case_addr}"
         assert address.use_tls is case.get("use_tls", False), f"use_tls for {case_addr}"
+        assert address.path == case.get("path", ""), f"path for {case_addr}"
         assert repr(address)
         if case.get("password", None) is not None:
             assert str(case["password"]) not in repr(address), f"password not hidden for {case_addr}"

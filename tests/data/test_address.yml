@@ -239,6 +239,121 @@ test_address_valid:
     password: "pw"
     use_tls: true
 
+  ### WEBSOCKETS
+  # Non-TLS
+  - address: "ws://localhost"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/"
+  - address: "ws://user@localhost"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/"
+    username: "user"
+  - address: "ws://user:pass@localhost"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/"
+    username: "user"
+    password: "pass"
+  - address: "ws://localhost:1234"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/"
+  - address: "ws://localhost/"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/"
+  - address: "ws://localhost:1234/"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/"
+  - address: "ws://localhost/mqtt"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/mqtt"
+  - address: "ws://localhost:1234/mqtt"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/mqtt"
+
+  # TLS
+  - address: "wss://localhost"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 443
+    path: "/"
+    use_tls: true
+  - address: "wss://user@localhost"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 443
+    path: "/"
+    use_tls: true
+    username: "user"
+  - address: "wss://user:pass@localhost"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 443
+    path: "/"
+    use_tls: true
+    username: "user"
+    password: "pass"
+  - address: "wss://localhost:1234"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/"
+    use_tls: true
+  - address: "wss://localhost/"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 443
+    path: "/"
+    use_tls: true
+  - address: "wss://localhost:1234/"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/"
+    use_tls: true
+  - address: "wss://localhost/mqtt"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 443
+    path: "/mqtt"
+    use_tls: true
+  - address: "wss://localhost:1234/mqtt"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/mqtt"
+    use_tls: true
+
 test_address_unix:
   ### UNIX
   # Unix domain sockets
@@ -281,3 +396,9 @@ test_address_invalid:
   - address: "unix://"
   - address: "unix://user@"
   - address: "unix://user:pw@"
+  - address: "ws://"
+  - address: "ws://user@"
+  - address: "ws://user:pw@"
+  - address: "wss://"
+  - address: "wss://user@"
+  - address: "wss://user:pw@"

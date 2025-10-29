@@ -10,6 +10,8 @@ DEFAULT_PORTS: Final[Mapping[str, int]] = {
     "mqtt": 1883,
     "mqtts": 8883,
     "unix": 0,
+    "ws": 80,
+    "wss": 443,
 }
 
 
@@ -26,7 +28,7 @@ def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     """Get the address family based on the parsed URL scheme."""
     if HAS_AF_UNIX and parsed.scheme == "unix":
         return AF_UNIX
-    if parsed.scheme in ("mqtt", "mqtts"):
+    if parsed.scheme in ("mqtt", "mqtts", "ws", "wss"):
         if not parsed.hostname:
             raise ValueError("Hostname is required for mqtt and mqtts schemes")
         if is_ipv6(parsed.hostname):
@@ -41,6 +43,7 @@ class Address:
     family: socket.AddressFamily
     host: str
     port: int
+    path: str
     username: str | None
     password: str | None
 
@@ -64,6 +67,8 @@ class Address:
         if HAS_AF_UNIX and self.family == AF_UNIX and self.host == "/":
             raise ValueError("'/' is not a valid Unix socket path")
         object.__setattr__(self, "port", parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme])
+        default_path = "/" if self.scheme in ("ws", "wss") else ""
+        object.__setattr__(self, "path", parsed.path if parsed.path and parsed.hostname else default_path)
         object.__setattr__(self, "username", parsed.username)
         object.__setattr__(self, "password", parsed.password)
 
@@ -83,9 +88,11 @@ class Address:
             host = self.host
         if self.scheme != "unix":
             host = f"{host}:{self.port}"
+        if self.path:
+            host = f"{host}{self.path}"
         return f"Address({self.scheme}://{host})"
 
     @property
     def use_tls(self) -> bool:
         """Check if the address uses TLS."""
-        return getattr(self, "scheme", None) == "mqtts"
+        return getattr(self, "scheme", None) in ("mqtts", "wss")
