@@ -87,6 +87,8 @@ class StateData:
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
     connack: MQTTConnAckPacket | None = field(init=False, default=None)
     open_called: bool = field(init=False, default=False)
+    ws_nonce: str = field(init=False, default="")
+    ws_handshake_buffer: bytearray = field(init=False, default_factory=bytearray)
 
 
 @dataclass(slots=True, kw_only=True)

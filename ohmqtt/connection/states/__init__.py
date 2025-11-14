@@ -7,13 +7,19 @@ from .mqtt_handshake_connect import MQTTHandshakeConnectState as MQTTHandshakeCo
 from .reconnect_wait import ReconnectWaitState as ReconnectWaitState
 from .shutdown import ShutdownState as ShutdownState
 from .tls_handshake import TLSHandshakeState as TLSHandshakeState
+from .websocket_handshake_request import WebsocketHandshakeRequestState as WebsocketHandshakeRequestState
+from .websocket_handshake_response import WebsocketHandshakeResponseState as WebsocketHandshakeResponseState
 
 
 # Hook up transitions.
 ConnectingState.transitions_to = (ClosingState, ClosedState, ShutdownState, TLSHandshakeState, MQTTHandshakeConnectState)
-ConnectingState.can_request_from = (ClosedState, ReconnectWaitState)
+ConnectingState.can_request_from = (ClosedState, ReconnectWaitState, WebsocketHandshakeRequestState)
 
-TLSHandshakeState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnectState)
+TLSHandshakeState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnectState, WebsocketHandshakeRequestState)
+
+WebsocketHandshakeRequestState.transitions_to = (ClosingState, ClosedState, ShutdownState, WebsocketHandshakeResponseState)
+
+WebsocketHandshakeResponseState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnectState)
 
 MQTTHandshakeConnectState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnAckState)
 

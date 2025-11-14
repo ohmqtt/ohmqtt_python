@@ -96,3 +96,7 @@ class Address:
     def use_tls(self) -> bool:
         """Check if the address uses TLS."""
         return getattr(self, "scheme", None) in ("mqtts", "wss")
+
+    def is_default_port(self) -> bool:
+        """Check if the port is the default for the scheme."""
+        return getattr(self, "port", None) == DEFAULT_PORTS.get(getattr(self, "scheme", ""), None)

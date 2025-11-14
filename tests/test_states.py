@@ -24,6 +24,7 @@ from ohmqtt.connection.states import (
     ClosingState,
     ClosedState,
     ShutdownState,
+    WebsocketHandshakeRequestState,
 )
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
@@ -1186,5 +1187,61 @@ def test_states_shutdown_enter(
     decoder.reset.assert_called_once()
     env.write_buffer.clear.assert_called_once()
     assert fsm.state is ShutdownState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "address", [
+        "ws://test_host:1234",
+        "wss://test_host:1234",
+    ],
+)
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_request_happy_path(
+    address: str,
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+    mocker: MockerFixture,
+) -> None:
+    env.write_buffer = mocker.Mock()
+    params = ConnectParams(address=Address(address))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeRequestState, error_state=ShutdownState)
+    mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
+
+    # Enter state.
+    WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
+    assert state_data.ws_nonce
+    env.write_buffer.clear.assert_called_once()
+    env.write_buffer.extend.assert_called_once()
+    data = env.write_buffer.extend.call_args[0][0]
+    env.write_buffer.reset_mock()
+    env.write_buffer = bytearray(data)
+    body = data.decode()
+    assert "GET / HTTP/1.1\r" in body
+    assert "Host: test_host:1234\r" in body
+    assert "Upgrade: websocket" in body
+    assert "Connection: Upgrade" in body
+    assert f"Sec-WebSocket-Key: {state_data.ws_nonce}" in body
+    assert "Sec-WebSocket-Version: 13" in body
+    assert fsm.state is WebsocketHandshakeRequestState
+
+    # First handle, blocked write.
+    mock_socket.send.side_effect = BlockingIOError
+    ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait=max_wait)
+    assert ret is False
+    if max_wait:
+        mock_select.select.assert_called_once_with(write=True, timeout=1)
+
+    # Second handle, complete.
+    mock_socket.send.side_effect = None
+    mock_socket.send.return_value = len(data)
+    ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait=max_wait)
+    assert ret is True
 
     callbacks.assert_not_called()
