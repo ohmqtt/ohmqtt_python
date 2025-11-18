@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import base64
-import hashlib
 from http.client import HTTPResponse
 from io import BytesIO
 import socket
@@ -12,14 +10,13 @@ from .closed import ClosedState
 from .mqtt_handshake_connect import MQTTHandshakeConnectState
 from ..decoder import ClosedSocketError
 from ..types import ConnectParams, StateData, StateEnvironment
+from ..wslib import validate_handshake_key
 from ...logger import get_logger
 
 if TYPE_CHECKING:
     from ..fsm import FSM
 
 logger: Final = get_logger("ohmqtt.connection.states.mqtt_handshake_connack")
-
-WS_GUID: Final = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 class MockSocket:
@@ -77,10 +74,7 @@ class WebsocketHandshakeResponseState(FSMState):
                 logger.error("Websocket handshake failed with status %d", response.status)
                 return False
             accept_key = response.getheader("Sec-WebSocket-Accept")
-            expected_key = nonce + WS_GUID
-            expected_key_digest = hashlib.sha1(expected_key.encode("utf-8")).digest()
-            expected_key_b64 = base64.b64encode(expected_key_digest).decode("utf-8")
-            if accept_key != expected_key_b64:
+            if accept_key is None or not validate_handshake_key(nonce, accept_key):
                 logger.error("Websocket handshake failed: invalid Sec-WebSocket-Accept")
                 return False
             protocol = response.getheader("Sec-WebSocket-Protocol")
