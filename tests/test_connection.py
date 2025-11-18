@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Callable
 from unittest.mock import Mock
 
@@ -89,10 +90,12 @@ def test_connection_can_send(mock_fsm: Mock, mock_handlers: Mock) -> None:
 def test_connection_send(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
     mock_fsm.get_state.return_value = ConnectedState
-    mock_fsm.env.write_buffer = bytearray()
+    mock_fsm.env.packet_buffer = deque()
     packet = MQTTPublishPacket(topic="test/topic", payload=b"test")
     connection.send(packet)
-    assert mock_fsm.env.write_buffer == packet.encode()
+    assert mock_fsm.env.packet_buffer.popleft() == packet
+    assert not mock_fsm.env.packet_buffer  # Buffer should be empty now
+    mock_fsm.selector.interrupt.assert_called_once_with()
     mock_fsm.get_state.return_value = ClosedState
     with pytest.raises(InvalidStateError):
         connection.send(packet)

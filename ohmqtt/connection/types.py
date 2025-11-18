@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 import socket
 import ssl
@@ -11,6 +12,7 @@ from .keepalive import KeepAlive
 from .timeout import Timeout
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import (
+    MQTTPacket,
     MQTTConnAckPacket,
     MQTTDisconnectPacket,
     MQTTAuthPacket,
@@ -89,6 +91,7 @@ class StateData:
     open_called: bool = field(init=False, default=False)
     ws_nonce: str = field(init=False, default="")
     ws_handshake_buffer: bytearray = field(init=False, default_factory=bytearray)
+    write_buffer: bytearray = field(init=False, default_factory=bytearray)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -97,4 +100,4 @@ class StateEnvironment:
 
     Data in this class is shared with the outside world."""
     packet_callback: ConnectionReadCallback
-    write_buffer: bytearray = field(init=False, default_factory=bytearray)
+    packet_buffer: deque[MQTTPacket] = field(init=False, default_factory=deque)

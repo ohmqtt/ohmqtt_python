@@ -26,15 +26,14 @@ class ClosedState(FSMState):
 
         if state_data.open_called:
             state_data.open_called = False
-            with fsm.selector:
-                if state_data.disconnect_rc is not None and not env.write_buffer:
-                    disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
-                    # Try to send a DISCONNECT packet, but no problem if we can't.
-                    try:
-                        state_data.sock.send(disconnect_packet.encode())
-                        logger.debug("---> %s", disconnect_packet)
-                    except OSError:
-                        logger.debug("Failed to send DISCONNECT packet")
+            if state_data.disconnect_rc is not None and not state_data.write_buffer:
+                disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
+                # Try to send a DISCONNECT packet, but no problem if we can't.
+                try:
+                    state_data.sock.send(disconnect_packet.encode())
+                    logger.debug("---> %s", disconnect_packet)
+                except OSError:
+                    logger.debug("Failed to send DISCONNECT packet")
             if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:
                 fsm.change_state(ReconnectWaitState)
         try:
@@ -46,5 +45,5 @@ class ClosedState(FSMState):
         except OSError as exc:
             logger.debug("Error while closing socket: %s", exc)
         state_data.decoder.reset()
-        with fsm.selector:
-            env.write_buffer.clear()
+        state_data.write_buffer.clear()
+        env.packet_buffer.clear()

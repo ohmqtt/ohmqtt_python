@@ -59,8 +59,7 @@ class Connection:
                 state = self.fsm.get_state()
                 raise InvalidStateError(f"Cannot send data in state {state.__name__}")
             logger.debug("---> %s", packet)
-            data = packet.encode()
-            self.fsm.env.write_buffer.extend(data)
+            self.fsm.env.packet_buffer.append(packet)
             self.fsm.selector.interrupt()
 
     def connect(self, params: ConnectParams) -> None:

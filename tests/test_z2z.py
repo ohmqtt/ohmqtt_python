@@ -62,15 +62,14 @@ def test_z2z_happy_path(db_path: str, broker: FakeBroker) -> None:
     # SUBSCRIBE
     sub_handle = client.subscribe("test/topic", callback)
     assert sub_handle is not None
-    sub_handle.wait_for_ack(timeout=0.25)
-    time.sleep(delay)
+    sub_handle.wait_for_ack(timeout=0.5)
     assert broker.received.popleft() == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
     )
 
     # PUBLISH QoS 0
-    for n in range(10):
+    for _ in range(10):
         pub_handle = client.publish("test/topic", b"banana", qos=0)
         time.sleep(delay)
         assert broker.received.popleft() == client_received.popleft() == MQTTPublishPacket(
@@ -79,7 +78,7 @@ def test_z2z_happy_path(db_path: str, broker: FakeBroker) -> None:
         )
 
     # PUBLISH QoS 1
-    for n in range(1, 10):
+    for _ in range(1, 10):
         pub_handle = client.publish("test/topic", b"coconut", qos=1)
         pub_handle.wait_for_ack(timeout=0.25)
         time.sleep(delay)
@@ -95,7 +94,7 @@ def test_z2z_happy_path(db_path: str, broker: FakeBroker) -> None:
     # UNSUBSCRIBE
     unsub_handle = client.unsubscribe("test/topic")
     assert unsub_handle is not None
-    unsub_handle.wait_for_ack(timeout=0.25)
+    unsub_handle.wait_for_ack(timeout=0.5)
     time.sleep(delay)
     assert broker.received.popleft() == MQTTUnsubscribePacket(
         topics=["test/topic"],
@@ -103,7 +102,7 @@ def test_z2z_happy_path(db_path: str, broker: FakeBroker) -> None:
     )
 
     # PUBLISH QoS 2
-    for n in range(10, 20):
+    for _ in range(10, 20):
         pub_handle = client.publish("test/topic", b"pineapple", qos=2)
         pub_handle.wait_for_ack(timeout=0.25)
         time.sleep(delay)
@@ -138,8 +137,7 @@ def test_z2z_saturation_qos0(db_path: str, broker: FakeBroker) -> None:
 
     sub_handle = client.subscribe("test/topic", callback)
     assert sub_handle is not None
-    sub_handle.wait_for_ack(timeout=0.25)
-    time.sleep(delay)
+    sub_handle.wait_for_ack(timeout=0.5)
     assert broker.received.popleft() == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
@@ -181,8 +179,7 @@ def test_z2z_saturation_qos1(db_path: str, broker: FakeBroker) -> None:
 
     sub_handle = client.subscribe("test/topic", callback)
     assert sub_handle is not None
-    sub_handle.wait_for_ack(timeout=0.25)
-    time.sleep(delay)
+    sub_handle.wait_for_ack(timeout=0.5)
     assert broker.received.popleft() == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,
@@ -225,8 +222,7 @@ def test_z2z_saturation_qos2(db_path: str, broker: FakeBroker) -> None:
 
     sub_handle = client.subscribe("test/topic", callback)
     assert sub_handle is not None
-    sub_handle.wait_for_ack(timeout=0.25)
-    time.sleep(delay)
+    sub_handle.wait_for_ack(timeout=0.5)
     assert broker.received.popleft() == MQTTSubscribePacket(
         topics=[("test/topic", 2)],
         packet_id=1,

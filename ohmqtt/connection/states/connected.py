@@ -11,7 +11,7 @@ from ..types import ConnectParams, ReceivablePacketT, StateData, StateEnvironmen
 from ...error import MQTTError
 from ...logger import get_logger
 from ...mqtt_spec import MQTTPacketType, MQTTReasonCode
-from ...packet import PING, PONG
+from ...packet import MQTTPingReqPacket, MQTTPingRespPacket
 
 if TYPE_CHECKING:
     from ..fsm import FSM
@@ -24,8 +24,8 @@ class ConnectedState(FSMState):
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.keepalive.mark_init()
-        with fsm.selector:
-            env.write_buffer.clear()
+        env.packet_buffer.clear()
+        state_data.write_buffer.clear()
         assert state_data.connack is not None, "Got to ConnectedState without a CONNACK"
         env.packet_callback(state_data.connack)
         state_data.open_called = True
@@ -39,20 +39,22 @@ class ConnectedState(FSMState):
 
         if state_data.keepalive.should_send_ping():
             logger.debug("---> PING")
-            with fsm.selector:
-                env.write_buffer.extend(PING)
+            env.packet_buffer.append(MQTTPingReqPacket())
             state_data.keepalive.mark_ping()
 
-        timeout = state_data.keepalive.get_next_timeout(max_wait)
         with fsm.selector:
-            write_check = bool(env.write_buffer)
+            if env.packet_buffer:
+                packet = env.packet_buffer.popleft()
+                state_data.write_buffer.extend(packet.encode())
+
+            timeout = state_data.keepalive.get_next_timeout(max_wait)
+            write_check = bool(state_data.write_buffer)
             readable, writable = fsm.selector.select(read=True, write=write_check, timeout=timeout)
 
         if writable:
             try:
-                with fsm.selector:
-                    sent = state_data.sock.send(env.write_buffer)
-                    del env.write_buffer[:sent]
+                sent = state_data.sock.send(state_data.write_buffer)
+                del state_data.write_buffer[:sent]
                 state_data.keepalive.mark_send()
             except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
                 pass
@@ -62,10 +64,8 @@ class ConnectedState(FSMState):
                 return True
 
         if readable:
-            want_read = True
             try:
-                while want_read:  # Read all available packets.
-                    want_read = cls.read_packet(fsm, state_data, env, params)
+                cls.read_packet(fsm, state_data, env, params)
             except ClosedSocketError:
                 logger.debug("Connection closed")
                 fsm.change_state(ClosedState)
@@ -97,8 +97,7 @@ class ConnectedState(FSMState):
             state_data.keepalive.mark_pong()
         elif packet.packet_type == MQTTPacketType.PINGREQ:
             logger.debug("<--- PING PONG --->")
-            with fsm.selector:
-                env.write_buffer.extend(PONG)
+            env.packet_buffer.append(MQTTPingRespPacket())
         elif packet.packet_type == MQTTPacketType.DISCONNECT:
             logger.debug("<--- %s", packet)
             logger.info("Broker sent DISCONNECT, closing connection")

@@ -25,6 +25,7 @@ class ShutdownState(FSMState):
         except OSError as exc:
             logger.debug("Error while closing socket: %s", exc)
         state_data.decoder.reset()
+        state_data.write_buffer.clear()
         with fsm.selector:
-            env.write_buffer.clear()
+            env.packet_buffer.clear()
             fsm.selector.close()

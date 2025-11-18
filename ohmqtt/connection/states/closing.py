@@ -53,23 +53,24 @@ class ClosingState(FSMState):
             fsm.change_state(ClosedState)
             return True
 
+        if not state_data.write_buffer:
+            logger.debug("No more data to send, connection closed")
+            fsm.change_state(ClosedState)
+            return True
+
         with fsm.selector:
-            if not env.write_buffer:
-                logger.debug("No more data to send, connection closed")
-                fsm.change_state(ClosedState)
-                return True
             timeout = state_data.timeout.get_timeout(max_wait)
             _, writable = fsm.selector.select(write=True, timeout=timeout)
 
-            if writable:
-                try:
-                    sent = state_data.sock.send(env.write_buffer)
-                    del env.write_buffer[:sent]
-                    state_data.keepalive.mark_send()
-                except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                    pass
-                except BrokenPipeError:
-                    logger.error("Socket lost while closing")
-                    fsm.change_state(ClosedState)
-                    return True
+        if writable:
+            try:
+                sent = state_data.sock.send(state_data.write_buffer)
+                del state_data.write_buffer[:sent]
+                state_data.keepalive.mark_send()
+            except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                pass
+            except BrokenPipeError:
+                logger.error("Socket lost while closing")
+                fsm.change_state(ClosedState)
+                return True
         return False
