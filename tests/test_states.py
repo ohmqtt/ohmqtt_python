@@ -1456,6 +1456,7 @@ def test_states_websocket_handshake_request_no_send(
     callbacks: EnvironmentCallbacks,
     state_data: StateData,
     env: StateEnvironment,
+    mock_socket: Mock,
     mock_timeout: Mock
 ) -> None:
     params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
@@ -1463,8 +1464,7 @@ def test_states_websocket_handshake_request_no_send(
 
     fsm.previous_state = ConnectingState
     WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
-    mock_timeout.exceeded.return_value = False
-    state_data.sock.send.return_value = 0
+    mock_socket.send.return_value = 0
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
