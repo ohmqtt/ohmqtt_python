@@ -75,6 +75,18 @@ class Client:
         """Connect to the broker.
 
         :param address: The address of the broker to connect to.
+            Addresses may be in the form:
+            - mqtt://host:port      (TCP)
+            - mqtts://host:port     (TLS)
+            - ws://host:port        (WebSocket)
+            - wss://host:port       (WebSocket/TLS)
+            - unix:/path/to/socket  (if supported on the platform)
+            - When the protocol is omitted, mqtt:// is assumed.
+            - When the port is omitted, the default port for the protocol is used.
+                - mqtt: 1883
+                - mqtts: 8883
+                - ws: 80
+                - wss: 443
         :param client_id: The client ID to use for the connection, or empty string to request one from the broker.
         :param clean_start: If True, an existing session will not be resumed.
         :param connect_timeout: Timeout for the connection attempt in seconds, or None for no timeout.
