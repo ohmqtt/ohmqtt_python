@@ -44,17 +44,17 @@ class ConnectedState(FSMState):
             state_data.keepalive.mark_ping()
 
         with fsm.selector:
-            if env.packet_buffer:
-                packet = env.packet_buffer.popleft()
-                if params.address.is_websocket():
-                    ws_frame = frame_ws_data(OpCode.BINARY, packet.encode())
-                    state_data.write_buffer.extend(ws_frame)
-                else:
-                    state_data.write_buffer.extend(packet.encode())
-
             timeout = state_data.keepalive.get_next_timeout(max_wait)
-            write_check = bool(state_data.write_buffer)
+            write_check = bool(state_data.write_buffer or env.packet_buffer)
             readable, writable = fsm.selector.select(read=True, write=write_check, timeout=timeout)
+
+        if env.packet_buffer and not state_data.write_buffer:
+            packet = env.packet_buffer.popleft()
+            if params.address.is_websocket():
+                ws_frame = frame_ws_data(OpCode.BINARY, packet.encode())
+                state_data.write_buffer.extend(ws_frame)
+            else:
+                state_data.write_buffer.extend(packet.encode())
 
         if writable:
             try:
