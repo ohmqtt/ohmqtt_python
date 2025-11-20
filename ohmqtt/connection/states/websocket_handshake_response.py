@@ -46,9 +46,11 @@ class WebsocketHandshakeResponseState(FSMState):
 
         validation_result = cls.validate_response(state_data.ws_nonce, state_data.ws_handshake_buffer)
         if validation_result is True:
+            state_data.ws_handshake_buffer.clear()
             fsm.change_state(MQTTHandshakeConnectState)
             return True
         if validation_result is False:
+            state_data.ws_handshake_buffer.clear()
             fsm.change_state(ClosedState)
             return True
 
