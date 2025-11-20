@@ -5,6 +5,7 @@ from typing import Final, TYPE_CHECKING
 
 from .base import FSMState
 from ..types import ConnectParams, StateData, StateEnvironment
+from ..wslib import frame_ws_data, OpCode
 from ...logger import get_logger
 from ...packet import MQTTDisconnectPacket
 
@@ -29,8 +30,11 @@ class ClosedState(FSMState):
             if state_data.disconnect_rc is not None and not state_data.write_buffer:
                 disconnect_packet = MQTTDisconnectPacket(reason_code=state_data.disconnect_rc)
                 # Try to send a DISCONNECT packet, but no problem if we can't.
+                payload = disconnect_packet.encode()
+                if params.address.is_websocket():
+                    payload = frame_ws_data(OpCode.BINARY, payload)
                 try:
-                    state_data.sock.send(disconnect_packet.encode())
+                    state_data.sock.send(payload)
                     logger.debug("---> %s", disconnect_packet)
                 except OSError:
                     logger.debug("Failed to send DISCONNECT packet")

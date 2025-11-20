@@ -12,7 +12,7 @@ from .websocket_handshake_response import WebsocketHandshakeResponseState as Web
 
 
 # Hook up transitions.
-ConnectingState.transitions_to = (ClosingState, ClosedState, ShutdownState, TLSHandshakeState, MQTTHandshakeConnectState)
+ConnectingState.transitions_to = (ClosingState, ClosedState, ShutdownState, TLSHandshakeState, WebsocketHandshakeRequestState, MQTTHandshakeConnectState)
 ConnectingState.can_request_from = (ClosedState, ReconnectWaitState, WebsocketHandshakeRequestState)
 
 TLSHandshakeState.transitions_to = (ClosingState, ClosedState, ShutdownState, MQTTHandshakeConnectState, WebsocketHandshakeRequestState)

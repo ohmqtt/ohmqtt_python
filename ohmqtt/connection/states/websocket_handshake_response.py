@@ -3,12 +3,12 @@ from __future__ import annotations
 from http.client import HTTPResponse
 from io import BytesIO
 import socket
+import ssl
 from typing import cast, Final, TYPE_CHECKING
 
 from .base import FSMState
 from .closed import ClosedState
 from .mqtt_handshake_connect import MQTTHandshakeConnectState
-from ..decoder import ClosedSocketError
 from ..types import ConnectParams, StateData, StateEnvironment
 from ..wslib import validate_handshake_key
 from ...logger import get_logger
@@ -40,11 +40,9 @@ class WebsocketHandshakeResponseState(FSMState):
             return True
 
         try:
-            state_data.sock.recv_into(state_data.ws_handshake_buffer, 4096)
-        except ClosedSocketError:
-            logger.exception("Socket was closed")
-            fsm.change_state(ClosedState)
-            return True
+            state_data.ws_handshake_buffer.extend(state_data.sock.recv(0xffff))
+        except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
+            logger.debug("Websocket handshake response recv would block, waiting for readable")
 
         validation_result = cls.validate_response(state_data.ws_nonce, state_data.ws_handshake_buffer)
         if validation_result is True:

@@ -7,6 +7,7 @@ from .base import FSMState
 from .closed import ClosedState
 from .mqtt_handshake_connect import MQTTHandshakeConnectState
 from .tls_handshake import TLSHandshakeState
+from .websocket_handshake_request import WebsocketHandshakeRequestState
 from ..types import ConnectParams, StateData, StateEnvironment
 from ...logger import get_logger
 from ...platform import AF_UNIX, HAS_AF_UNIX
@@ -38,6 +39,7 @@ class ConnectingState(FSMState):
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
+        state_data.ws_decoder.reset()
         state_data.open_called = False
         with fsm.selector:
             fsm.selector.change_sock(state_data.sock)
@@ -70,6 +72,8 @@ class ConnectingState(FSMState):
             logger.debug("Socket connected to broker")
             if params.address.use_tls:
                 fsm.change_state(TLSHandshakeState)
+            elif params.address.is_websocket():
+                fsm.change_state(WebsocketHandshakeRequestState)
             else:
                 fsm.change_state(MQTTHandshakeConnectState)
             state_data.sock.setblocking(False)

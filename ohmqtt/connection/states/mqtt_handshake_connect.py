@@ -7,6 +7,7 @@ from .base import FSMState
 from .closed import ClosedState
 from .mqtt_handshake_connack import MQTTHandshakeConnAckState
 from ..types import ConnectParams, StateData, StateEnvironment
+from ..wslib import OpCode, frame_ws_data
 from ...logger import get_logger
 from ...packet import MQTTConnectPacket
 
@@ -36,7 +37,12 @@ class MQTTHandshakeConnectState(FSMState):
         )
         logger.debug("---> %s", connect_packet)
         state_data.write_buffer.clear()
-        state_data.write_buffer.extend(connect_packet.encode())
+        payload = connect_packet.encode()
+        if params.address.is_websocket():
+            ws_frame = frame_ws_data(OpCode.BINARY, payload)
+            state_data.write_buffer.extend(ws_frame)
+        else:
+            state_data.write_buffer.extend(payload)
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:

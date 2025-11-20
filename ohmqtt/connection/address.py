@@ -100,3 +100,7 @@ class Address:
     def is_default_port(self) -> bool:
         """Check if the port is the default for the scheme."""
         return getattr(self, "port", None) == DEFAULT_PORTS.get(getattr(self, "scheme", ""), None)
+
+    def is_websocket(self) -> bool:
+        """Check if the address uses WebSocket."""
+        return getattr(self, "scheme", None) in ("ws", "wss")

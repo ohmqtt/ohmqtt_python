@@ -10,6 +10,7 @@ from .address import Address
 from .decoder import IncrementalDecoder
 from .keepalive import KeepAlive
 from .timeout import Timeout
+from .ws_decoder import WebsocketDecoder
 from ..mqtt_spec import MQTTReasonCode
 from ..packet import (
     MQTTPacket,
@@ -89,6 +90,7 @@ class StateData:
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
     connack: MQTTConnAckPacket | None = field(init=False, default=None)
     open_called: bool = field(init=False, default=False)
+    ws_decoder: WebsocketDecoder = field(init=False, default_factory=WebsocketDecoder)
     ws_nonce: str = field(init=False, default="")
     ws_handshake_buffer: bytearray = field(init=False, default_factory=bytearray)
     write_buffer: bytearray = field(init=False, default_factory=bytearray)

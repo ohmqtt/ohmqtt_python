@@ -7,9 +7,10 @@ from .closed import ClosedState
 from .connected import ConnectedState
 from ..decoder import ClosedSocketError
 from ..types import ConnectParams, StateData, StateEnvironment
+from ..wslib import OpCode, WebsocketError
 from ...logger import get_logger
 from ...mqtt_spec import MQTTPacketType
-from ...packet import MQTTConnAckPacket
+from ...packet import decode_packet, MQTTConnAckPacket, MQTTPacket
 
 if TYPE_CHECKING:
     from ..fsm import FSM
@@ -28,9 +29,12 @@ class MQTTHandshakeConnAckState(FSMState):
 
         want_read = False
         try:
-            packet = state_data.decoder.decode(state_data.sock)
-            if packet is None:
-                want_read = True
+            packet = cls.get_packet(state_data, params)
+            want_read = packet is None
+        except WebsocketError as exc:
+            logger.error("WebSocket error while waiting for CONNACK: %s", exc)
+            fsm.change_state(ClosedState)
+            return True
         except ClosedSocketError:
             logger.exception("Socket was closed")
             fsm.change_state(ClosedState)
@@ -54,3 +58,19 @@ class MQTTHandshakeConnAckState(FSMState):
         logger.error("Unexpected '%s' packet while waiting for CONNACK", pt)
         fsm.change_state(ClosedState)
         return True
+
+    @classmethod
+    def get_packet(cls, state_data: StateData, params: ConnectParams) -> MQTTPacket | None:
+        """Get a packet from the socket.
+
+        :returns: The received packet, or None if incomplete.
+        :raises WebsocketError: A protocol error was encountered."""
+        if params.address.is_websocket():
+            decode_result = state_data.ws_decoder.decode(state_data.sock)
+            if decode_result is None:
+                return None
+            opcode, payload = decode_result
+            if opcode != OpCode.BINARY:
+                raise WebsocketError(f"Unexpected WebSocket opcode {opcode.name} while waiting for CONNACK")
+            return decode_packet(payload)
+        return state_data.decoder.decode(state_data.sock)

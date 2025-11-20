@@ -6,6 +6,7 @@ from typing import cast, Final, TYPE_CHECKING
 from .base import FSMState
 from .closed import ClosedState
 from .mqtt_handshake_connect import MQTTHandshakeConnectState
+from .websocket_handshake_request import WebsocketHandshakeRequestState
 from ..types import ConnectParams, StateData, StateEnvironment
 from ...logger import get_logger
 
@@ -40,7 +41,10 @@ class TLSHandshakeState(FSMState):
         try:
             logger.debug("trying TLS handshake")
             sock.do_handshake()
-            fsm.change_state(MQTTHandshakeConnectState)
+            if params.address.is_websocket():
+                fsm.change_state(WebsocketHandshakeRequestState)
+            else:
+                fsm.change_state(MQTTHandshakeConnectState)
             return True
         except ssl.SSLWantReadError:
             logger.debug("TLS handshake wants read")

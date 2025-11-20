@@ -88,3 +88,13 @@ def test_address_empty() -> None:
         assert not hasattr(address, attr), attr
     assert not address.use_tls
     repr(address)
+
+
+def test_address_is_websocket() -> None:
+    """Test the is_websocket property of the Address class."""
+    ws_address = Address("ws://example.com/path")
+    assert ws_address.is_websocket()
+    wss_address = Address("wss://example.com/path")
+    assert wss_address.is_websocket()
+    non_ws_address = Address("mqtt://example.com:1883")
+    assert not non_ws_address.is_websocket()
