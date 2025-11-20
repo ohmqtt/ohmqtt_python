@@ -5,6 +5,8 @@ from ohmqtt.connection.wslib import (
     validate_handshake_key,
     generate_mask,
     apply_mask,
+    frame_ws_data,
+    OpCode,
 )
 
 
@@ -57,3 +59,31 @@ def test_wslib_apply_mask_large_data() -> None:
     masked_data = apply_mask(mask, data)
     unmasked_data = apply_mask(mask, masked_data)
     assert unmasked_data == data
+
+
+@pytest.mark.parametrize("opcode", [OpCode.CONT, OpCode.TEXT, OpCode.BINARY, OpCode.CLOSE, OpCode.PING, OpCode.PONG])
+@pytest.mark.parametrize("data_length", [0, 125, 126, 127, 65535, 65536])
+def test_wslib_frame_ws_data(opcode: OpCode, data_length: int) -> None:
+    data = b"\x55" * data_length
+    framed_data = frame_ws_data(opcode, data)
+
+    assert framed_data[0] == 0x80 | opcode.value  # FIN + opcode
+    length_byte = framed_data[1]
+    assert length_byte & 0x80  # Mask bit should be set
+    if data_length <= 125:
+        assert (length_byte & 0x7F) == data_length
+        mask_start = 2
+    elif data_length <= 0xFFFF:
+        assert (length_byte & 0x7F) == 126
+        extended_length = int.from_bytes(framed_data[2:4], "big")
+        assert extended_length == data_length
+        mask_start = 4
+    else:
+        assert (length_byte & 0x7F) == 127
+        extended_length = int.from_bytes(framed_data[2:10], "big")
+        assert extended_length == data_length
+        mask_start = 10
+    mask = framed_data[mask_start:mask_start+4]
+    masked_payload = framed_data[mask_start+4:]
+    unmasked_payload = apply_mask(mask, masked_payload)
+    assert unmasked_payload == data

@@ -1,6 +1,7 @@
 """RFC 6455 Websocket protocol library."""
 
 import base64
+from enum import IntEnum
 import hashlib
 import secrets
 import sys
@@ -8,6 +9,16 @@ from typing import Final
 
 
 GUID: Final = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+
+class OpCode(IntEnum):
+    """Websocket OpCode values."""
+    CONT = 0x00
+    TEXT = 0x01
+    BINARY = 0x02
+    CLOSE = 0x08
+    PING = 0x09
+    PONG = 0x0A
 
 
 def generate_nonce() -> str:
@@ -42,3 +53,20 @@ def apply_mask(mask: bytes, data: bytes) -> bytes:
     mask_repeated = mask * (len(data) // 4) + mask[:len(data) % 4]
     mask_int = int.from_bytes(mask_repeated, sys.byteorder)
     return (data_int ^ mask_int).to_bytes(len(data), sys.byteorder)
+
+
+def frame_ws_data(opcode: OpCode, data: bytes) -> bytes:
+    """Frame data for WebSocket transport.
+
+    All data frames sent to the broker will be singular, final frames."""
+    header = bytes([0x80 | opcode.value])
+    length = len(data)
+    if length <= 125:
+        length_encoded = bytes([length | 0x80])
+    elif length <= 0xffff:
+        length_encoded = bytes([126 | 0x80]) + length.to_bytes(2, "big")
+    else:
+        length_encoded = bytes([127 | 0x80]) + length.to_bytes(8, "big")
+    mask = generate_mask()
+    masked_data = apply_mask(mask, data)
+    return header + length_encoded + mask + masked_data
