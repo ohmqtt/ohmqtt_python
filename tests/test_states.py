@@ -1398,14 +1398,75 @@ def test_states_websocket_handshake_request_happy_path(
     # First handle, blocked write.
     mock_socket.send.side_effect = BlockingIOError
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait=max_wait)
+    mock_socket.send.assert_called_once_with(state_data.write_buffer)
+    mock_socket.reset_mock()
     assert ret is False
     if max_wait:
         mock_select.select.assert_called_once_with(write=True, timeout=1)
+        mock_select.reset_mock()
 
-    # Second handle, complete.
+    # Second handle, partial write.
     mock_socket.send.side_effect = None
-    mock_socket.send.return_value = len(data)
+    mock_socket.send.return_value = 10
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait=max_wait)
+    mock_socket.send.assert_called_once_with(state_data.write_buffer)
+    mock_socket.reset_mock()
+    assert ret is False
+    if max_wait:
+        mock_select.select.assert_called_once_with(write=True, timeout=1)
+        mock_select.reset_mock()
+    # Check remaining contents of write buffer.
+    assert state_data.write_buffer == bytearray(data[10:])
+
+    # Third handle, complete.
+    mock_socket.send.side_effect = None
+    mock_socket.send.return_value = len(data) - 10
+    ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait=max_wait)
+    mock_socket.send.assert_called_once_with(state_data.write_buffer)
+    mock_socket.reset_mock()
     assert ret is True
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_request_timeout(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_timeout: Mock
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeRequestState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectingState
+    WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
+    mock_timeout.exceeded.return_value = True
+    ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_request_no_send(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_timeout: Mock
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeRequestState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectingState
+    WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
+    mock_timeout.exceeded.return_value = False
+    state_data.sock.send.return_value = 0
+    ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
 
     callbacks.assert_not_called()
