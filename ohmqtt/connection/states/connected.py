@@ -48,7 +48,7 @@ class ConnectedState(FSMState):
             write_check = bool(state_data.write_buffer or env.packet_buffer)
             readable, writable = fsm.selector.select(read=True, write=write_check, timeout=timeout)
 
-        if env.packet_buffer and not state_data.write_buffer:
+        while env.packet_buffer:
             packet = env.packet_buffer.popleft()
             if params.address.is_websocket():
                 ws_frame = frame_ws_data(OpCode.BINARY, packet.encode())
