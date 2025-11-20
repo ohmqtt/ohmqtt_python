@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 from collections import deque
+import hashlib
 import socket
 import ssl
 from threading import Condition
@@ -26,11 +28,12 @@ from ohmqtt.connection.states import (
     ClosedState,
     ShutdownState,
     WebsocketHandshakeRequestState,
+    WebsocketHandshakeResponseState,
 )
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 from ohmqtt.connection.ws_decoder import WebsocketDecoder
-from ohmqtt.connection.wslib import OpCode, apply_mask, frame_ws_data, WebsocketError
+from ohmqtt.connection.wslib import OpCode, apply_mask, frame_ws_data, generate_nonce, GUID, WebsocketError
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
@@ -1468,5 +1471,189 @@ def test_states_websocket_handshake_request_no_send(
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_response_happy_path(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    state_data.ws_nonce = generate_nonce()
+    expected_key = state_data.ws_nonce + GUID
+    expected_key = base64.b64encode(hashlib.sha1(expected_key.encode()).digest()).decode()
+
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Accept: {expected_key}\r\n"
+        "Sec-WebSocket-Protocol: mqtt\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is MQTTHandshakeConnectState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_response_invalid(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    state_data.ws_nonce = generate_nonce()
+    expected_key = state_data.ws_nonce + GUID
+    expected_key = base64.b64encode(hashlib.sha1(expected_key.encode()).digest()).decode()
+
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+
+    # Invalid response status line.
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Accept: {expected_key}\r\n"
+        "Sec-WebSocket-Protocol: mqtt\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.reset_mock()
+
+    # Missing Sec-WebSocket-Accept header.
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.reset_mock()
+
+    # Invalid Sec-WebSocket-Accept header.
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: invalid_key\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.reset_mock()
+
+    # Missing Sec-WebSocket-Protocol header.
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Accept: {expected_key}\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.reset_mock()
+
+    # Invalid Sec-WebSocket-Protocol header.
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Accept: {expected_key}\r\n"
+        "Sec-WebSocket-Protocol: invalid_protocol\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.reset_mock()
+
+    # Incomplete response.
+    mock_socket.recv.return_value = "HTTP/1.1".encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    assert fsm.state is WebsocketHandshakeResponseState
+    if max_wait:
+        mock_select.select.assert_called_once_with(read=True, timeout=1)
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_response_timeout(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_timeout: Mock
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+
+    fsm.previous_state = WebsocketHandshakeRequestState
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_timeout.exceeded.return_value = True
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+@pytest.mark.parametrize("exc", [ssl.SSLWantReadError, ssl.SSLWantWriteError, BlockingIOError])
+def test_states_websocket_handshake_response_errors(
+    max_wait: float | None,
+    exc: type[Exception],
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+
+    fsm.previous_state = WebsocketHandshakeRequestState
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+
+    mock_select.select.return_value = (True, False)
+    mock_socket.recv.side_effect = exc("TEST")
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    assert fsm.state is WebsocketHandshakeResponseState
 
     callbacks.assert_not_called()
