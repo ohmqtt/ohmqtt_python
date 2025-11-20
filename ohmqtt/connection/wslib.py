@@ -11,6 +11,10 @@ from typing import Final
 GUID: Final = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
+class WebsocketError(Exception):
+    """Exception raised for WebSocket protocol errors."""
+
+
 class OpCode(IntEnum):
     """Websocket OpCode values."""
     CONT = 0x00
