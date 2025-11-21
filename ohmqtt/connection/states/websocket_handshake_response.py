@@ -33,6 +33,10 @@ class MockSocket:
 class WebsocketHandshakeResponseState(FSMState):
     """Receiving Websocket handshake response from the broker."""
     @classmethod
+    def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
+        state_data.ws_handshake_buffer.clear()
+
+    @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         if state_data.timeout.exceeded():
             logger.debug("Websocket handshake response keepalive timeout")
