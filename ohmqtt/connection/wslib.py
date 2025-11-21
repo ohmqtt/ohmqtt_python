@@ -7,7 +7,10 @@ import secrets
 import sys
 from typing import Final
 
+from ..logger import get_logger
 
+
+logger: Final = get_logger("ohmqtt.connection.wslib")
 GUID: Final = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
@@ -31,12 +34,11 @@ def generate_nonce() -> str:
     return base64.b64encode(random_bytes).decode("utf-8")
 
 
-def validate_handshake_key(nonce: str, accept_key: str) -> bool:
-    """Validate the Sec-WebSocket-Accept key from the server."""
+def generate_handshake_key(nonce: str) -> str:
+    """Generate the expected Sec-WebSocket-Accept key from the server."""
     expected_key = nonce + GUID
     expected_key_digest = hashlib.sha1(expected_key.encode("utf-8")).digest()
-    expected_key_b64 = base64.b64encode(expected_key_digest).decode("utf-8")
-    return accept_key == expected_key_b64
+    return base64.b64encode(expected_key_digest).decode("utf-8")
 
 
 def generate_mask() -> bytes:
@@ -59,18 +61,69 @@ def apply_mask(mask: bytes, data: bytes) -> bytes:
     return (data_int ^ mask_int).to_bytes(len(data), sys.byteorder)
 
 
-def frame_ws_data(opcode: OpCode, data: bytes) -> bytes:
+def frame_ws_data(opcode: OpCode, payload: bytes, do_mask: bool = True) -> bytes:
     """Frame data for WebSocket transport.
 
     All data frames sent to the broker will be singular, final frames."""
     header = bytes([0x80 | opcode.value])
-    length = len(data)
+    length = len(payload)
+    mask_bit = 0x80 if do_mask else 0x00
     if length <= 125:
-        length_encoded = bytes([length | 0x80])
+        length_encoded = bytes([length | mask_bit])
     elif length <= 0xffff:
-        length_encoded = bytes([126 | 0x80]) + length.to_bytes(2, "big")
+        length_encoded = bytes([126 | mask_bit]) + length.to_bytes(2, "big")
     else:
-        length_encoded = bytes([127 | 0x80]) + length.to_bytes(8, "big")
-    mask = generate_mask()
-    masked_data = apply_mask(mask, data)
-    return header + length_encoded + mask + masked_data
+        length_encoded = bytes([127 | mask_bit]) + length.to_bytes(8, "big")
+    if do_mask:
+        mask = generate_mask()
+        payload = apply_mask(mask, payload)
+        return header + length_encoded + mask + payload
+    return header + length_encoded + payload
+
+
+def deframe_ws_data(buffer: bytearray | bytes) -> tuple[OpCode, bytes, bool, int] | None:
+    """Deframe data from WebSocket transport.
+
+    Returns a tuple of (OpCode, payload, masked) if a complete frame is available,
+        or None if more data is needed."""
+    if len(buffer) < 2:
+        logger.debug("Deframe needs at least 2 bytes, has %d", len(buffer))
+        return None
+
+    fin = (buffer[0] & 0x80) != 0
+    if not fin:
+        raise WebsocketError("Fragmented WebSocket frames are not supported")
+    opcode = OpCode(buffer[0] & 0x0F)
+    masked = (buffer[1] & 0x80) != 0
+    payload_length = buffer[1] & 0x7F
+
+    index = 2
+    if payload_length == 126:
+        if len(buffer) < index + 2:
+            logger.debug("Deframe needs at least %d bytes for extended payload length, has %d", index + 2, len(buffer))
+            return None
+        payload_length = int.from_bytes(buffer[index:index + 2], "big")
+        index += 2
+    elif payload_length == 127:
+        if len(buffer) < index + 8:
+            logger.debug("Deframe needs at least %d bytes for extended payload length, has %d", index + 8, len(buffer))
+            return None
+        payload_length = int.from_bytes(buffer[index:index + 8], "big")
+        index += 8
+
+    frame_length = index + masked * 4 + payload_length
+    if len(buffer) < frame_length:
+        logger.debug("Deframe needs at least %d bytes for complete frame, has %d", frame_length, len(buffer))
+        return None
+
+    mask: bytes | None = None
+    if masked:
+        mask = bytes(buffer[index:index + 4])
+        index += 4
+
+    payload = bytes(buffer[index:frame_length])
+
+    if masked and mask is not None:
+        payload = apply_mask(mask, payload)
+
+    return opcode, payload, masked, frame_length

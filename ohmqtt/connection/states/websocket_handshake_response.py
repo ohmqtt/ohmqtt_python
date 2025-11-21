@@ -10,7 +10,7 @@ from .base import FSMState
 from .closed import ClosedState
 from .mqtt_handshake_connect import MQTTHandshakeConnectState
 from ..types import ConnectParams, StateData, StateEnvironment
-from ..wslib import validate_handshake_key
+from ..wslib import generate_handshake_key
 from ...logger import get_logger
 
 if TYPE_CHECKING:
@@ -78,7 +78,8 @@ class WebsocketHandshakeResponseState(FSMState):
                 logger.error("Websocket handshake failed with status %d", response.status)
                 return False
             accept_key = response.getheader("Sec-WebSocket-Accept")
-            if accept_key is None or not validate_handshake_key(nonce, accept_key):
+            expected_key = generate_handshake_key(nonce)
+            if accept_key is None or accept_key != expected_key:
                 logger.error("Websocket handshake failed: invalid Sec-WebSocket-Accept")
                 return False
             protocol = response.getheader("Sec-WebSocket-Protocol")

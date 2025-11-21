@@ -12,9 +12,11 @@ from typing import Callable, cast, Final
 import uuid
 
 from ohmqtt.connection.decoder import ClosedSocketError, IncrementalDecoder
+from ohmqtt.connection.wslib import deframe_ws_data, frame_ws_data, generate_handshake_key, OpCode
 from ohmqtt.logger import get_logger
 from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import (
+    decode_packet,
     MQTTPacket,
     MQTTConnectPacket,
     MQTTConnAckPacket,
@@ -39,6 +41,7 @@ logger: Final = get_logger("tests.util.fake_broker")
 
 class FakeBrokerHandler(socketserver.BaseRequestHandler):
     server: FakeBrokerServer
+    subscriptions: set[str]
 
     def setup(self) -> None:
         self.decoder = IncrementalDecoder()
@@ -74,7 +77,10 @@ class FakeBrokerHandler(socketserver.BaseRequestHandler):
 
         for pkt in outbound:
             logger.info("FakeBroker ---> %s", pkt)
-            self.request.sendall(pkt.encode())
+            self._send_packet(pkt)
+
+    def _send_packet(self, packet: MQTTPacket) -> None:
+        self.request.sendall(packet.encode())
 
     def _handle_connect(self, packet: MQTTConnectPacket) -> list[MQTTPacket]:
         if packet.client_id:
@@ -126,6 +132,70 @@ class FakeBrokerHandler(socketserver.BaseRequestHandler):
         self.request.close()
         return []
 
+
+class FakeWebsocketBrokerHandler(FakeBrokerHandler):
+    buffer: bytearray
+    handshake_done: bool
+
+    def setup(self) -> None:
+        self.buffer = bytearray()
+        self.handshake_done = False
+        self.subscriptions: set[str] = set()
+
+    def handle(self) -> None:
+        logger.debug("FakeWebsocketBrokerHandler handle()")
+        if not self.handshake_done:
+            self.server.sock = self.request
+            data = self.request.recv(0xffff)
+            lines = data.split(b"\r\n")
+            head = lines[0]
+            assert head.startswith(b"GET "), "Invalid websocket handshake method"
+            assert head.endswith(b" HTTP/1.1"), "Invalid websocket handshake version"
+            headers = {
+                line.split(b":", 1)[0].lower().strip(): line.split(b":", 1)[1].strip()
+                for line in lines[1:]
+                if b": " in line
+            }
+            assert b"sec-websocket-key" in headers, "Invalid websocket handshake"
+            assert headers.get(b"upgrade", b"").lower() == b"websocket", "Invalid websocket upgrade header"
+            assert headers.get(b"connection", b"").lower() == b"upgrade", "Invalid websocket connection header"
+            assert headers.get(b"sec-websocket-version", b"") == b"13", "Invalid websocket version header"
+            assert headers.get(b"sec-websocket-protocol", b"") == b"mqtt", "Invalid websocket protocol header"
+            nonce = headers[b"sec-websocket-key"]
+            accept_key = generate_handshake_key(nonce.decode("utf-8"))
+
+            response = (
+                "HTTP/1.1 101 Switching Protocols\r\n"
+                "Upgrade: websocket\r\n"
+                "Connection: Upgrade\r\n"
+                f"Sec-WebSocket-Accept: {accept_key}\r\n"
+                "Sec-WebSocket-Protocol: mqtt\r\n"
+                "\r\n"
+            ).encode("utf-8")
+            self.request.sendall(response)
+            self.handshake_done = True
+            logger.info("FakeBroker handshake responded")
+
+        try:
+            while (data := self.request.recv(0xffff)):
+                self.buffer.extend(data)
+                logger.debug("FakeBroker has %d bytes of websocket data", len(self.buffer))
+
+                while (frame := deframe_ws_data(self.buffer)) is not None:
+                    opcode, payload, was_masked, frame_length = frame
+                    assert was_masked, "Client-to-broker frames must be masked"
+                    del self.buffer[:frame_length]
+                    if opcode == OpCode.BINARY:
+                        packet = decode_packet(payload)
+                        self._handle_packet(packet)
+        except OSError:
+            pass
+
+    def _send_packet(self, packet: MQTTPacket) -> None:
+        frame = frame_ws_data(OpCode.BINARY, packet.encode(), do_mask=False)
+        self.request.sendall(frame)
+
+
 class FakeBrokerServer(socketserver.TCPServer):
     received: deque[MQTTPacket]
     sock: socket.socket | None
@@ -137,9 +207,11 @@ class FakeBrokerServer(socketserver.TCPServer):
 
 
 class FakeBroker(threading.Thread):
+    handler_class: type[socketserver.BaseRequestHandler] = FakeBrokerHandler
+
     def __init__(self) -> None:
         super().__init__(daemon=True)
-        self.server = FakeBrokerServer(("localhost", 0), FakeBrokerHandler)
+        self.server = FakeBrokerServer(("localhost", 0), self.handler_class)
         self.port = self.server.server_address[1]
 
     def __enter__(self) -> FakeBroker:
@@ -172,3 +244,15 @@ class FakeBroker(threading.Thread):
             raise RuntimeError("Broker-to-client socket is not initialized")
         logger.info("FakeBroker ---> %s", packet)
         self.sock.sendall(packet.encode())
+
+
+class FakeWebsocketBroker(FakeBroker):
+    handler_class: type[socketserver.BaseRequestHandler] = FakeWebsocketBrokerHandler
+
+    def send(self, packet: MQTTPacket) -> None:
+        """Send a packet from the broker to the client."""
+        if self.sock is None:
+            raise RuntimeError("Broker-to-client socket is not initialized")
+        logger.info("FakeBroker ---> %s", packet)
+        frame = frame_ws_data(OpCode.BINARY, packet.encode(), do_mask=False)
+        self.sock.sendall(frame)

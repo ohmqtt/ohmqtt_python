@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import base64
 from collections import deque
-import hashlib
 import socket
 import ssl
 from threading import Condition
@@ -33,7 +31,14 @@ from ohmqtt.connection.states import (
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 from ohmqtt.connection.ws_decoder import WebsocketDecoder
-from ohmqtt.connection.wslib import OpCode, apply_mask, frame_ws_data, generate_nonce, GUID, WebsocketError
+from ohmqtt.connection.wslib import (
+    OpCode,
+    apply_mask,
+    frame_ws_data,
+    generate_nonce,
+    generate_handshake_key,
+    WebsocketError,
+)
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTReasonCode
 from ohmqtt.packet import (
@@ -1487,8 +1492,7 @@ def test_states_websocket_handshake_response_happy_path(
     params = ConnectParams(address=Address("ws://testhost"))
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     state_data.ws_nonce = generate_nonce()
-    expected_key = state_data.ws_nonce + GUID
-    expected_key = base64.b64encode(hashlib.sha1(expected_key.encode()).digest()).decode()
+    expected_key = generate_handshake_key(state_data.ws_nonce)
 
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.recv.return_value = (
@@ -1519,8 +1523,7 @@ def test_states_websocket_handshake_response_invalid(
     params = ConnectParams(address=Address("ws://testhost"))
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     state_data.ws_nonce = generate_nonce()
-    expected_key = state_data.ws_nonce + GUID
-    expected_key = base64.b64encode(hashlib.sha1(expected_key.encode()).digest()).decode()
+    expected_key = generate_handshake_key(state_data.ws_nonce)
 
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
 

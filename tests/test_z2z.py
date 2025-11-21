@@ -8,7 +8,7 @@ from typing import Final, Iterator
 
 import pytest
 
-from .util.fake_broker import FakeBroker
+from .util.fake_broker import FakeBroker, FakeWebsocketBroker
 from ohmqtt.client import Client
 from ohmqtt.logger import get_logger
 from ohmqtt.mqtt_spec import MQTTQoS
@@ -28,16 +28,17 @@ logger: Final = get_logger("tests.test_z2z")
 
 @pytest.fixture
 def broker() -> Iterator[FakeBroker]:
-    with FakeBroker() as broker:
+    broker = FakeBroker()
+    with broker:
         yield broker
 
 
-def get_client(broker: FakeBroker, db_path: str) -> Client:
+def get_client(broker: FakeBroker, scheme: str, db_path: str) -> Client:
     client = Client(db_path)
     client.start_loop()
 
     client.connect(
-        address=f"localhost:{broker.port}",
+        address=f"{scheme}://localhost:{broker.port}",
         client_id="test_client",
         clean_start=True,
     )
@@ -50,77 +51,80 @@ def get_client(broker: FakeBroker, db_path: str) -> Client:
     return client
 
 
+@pytest.mark.parametrize("scheme", ["mqtt", "ws"])
 @pytest.mark.parametrize("db_path", ["", ":memory:"])
-def test_z2z_happy_path(db_path: str, broker: FakeBroker) -> None:
-    client = get_client(broker, db_path)
-    delay: Final = 0.01  # seconds grace period
+def test_z2z_happy_path(db_path: str, scheme: str) -> None:
+    broker = FakeWebsocketBroker() if scheme == "ws" else FakeBroker()
+    with broker:
+        client = get_client(broker, scheme, db_path)
+        delay: Final = 0.01  # seconds grace period
 
-    client_received: deque[MQTTPacket] = deque()
-    def callback(client: Client, packet: MQTTPacket) -> None:
-        client_received.append(packet)
+        client_received: deque[MQTTPacket] = deque()
+        def callback(client: Client, packet: MQTTPacket) -> None:
+            client_received.append(packet)
 
-    # SUBSCRIBE
-    sub_handle = client.subscribe("test/topic", callback)
-    assert sub_handle is not None
-    sub_handle.wait_for_ack(timeout=0.5)
-    assert broker.received.popleft() == MQTTSubscribePacket(
-        topics=[("test/topic", 2)],
-        packet_id=1,
-    )
-
-    # PUBLISH QoS 0
-    for _ in range(10):
-        pub_handle = client.publish("test/topic", b"banana", qos=0)
-        time.sleep(delay)
-        assert broker.received.popleft() == client_received.popleft() == MQTTPublishPacket(
-            topic="test/topic",
-            payload=b"banana",
+        # SUBSCRIBE
+        sub_handle = client.subscribe("test/topic", callback)
+        assert sub_handle is not None
+        sub_handle.wait_for_ack(timeout=0.5)
+        assert broker.received.popleft() == MQTTSubscribePacket(
+            topics=[("test/topic", 2)],
+            packet_id=1,
         )
 
-    # PUBLISH QoS 1
-    for _ in range(1, 10):
-        pub_handle = client.publish("test/topic", b"coconut", qos=1)
-        pub_handle.wait_for_ack(timeout=0.25)
+        # PUBLISH QoS 0
+        for _ in range(10):
+            pub_handle = client.publish("test/topic", b"banana", qos=0)
+            time.sleep(delay)
+            assert broker.received.popleft() == client_received.popleft() == MQTTPublishPacket(
+                topic="test/topic",
+                payload=b"banana",
+            )
+
+        # PUBLISH QoS 1
+        for _ in range(1, 10):
+            pub_handle = client.publish("test/topic", b"coconut", qos=1)
+            pub_handle.wait_for_ack(timeout=0.25)
+            time.sleep(delay)
+            broker_rec = broker.received.popleft()
+            client_rec = client_received.popleft()
+            assert isinstance(broker_rec, MQTTPublishPacket)
+            assert isinstance(client_rec, MQTTPublishPacket)
+            assert broker_rec.topic == client_rec.topic == "test/topic"
+            assert broker_rec.payload == client_rec.payload == b"coconut"
+            assert broker_rec.qos == client_rec.qos == MQTTQoS.Q1
+            assert broker.received.popleft() == MQTTPubAckPacket(packet_id=broker_rec.packet_id)
+
+        # UNSUBSCRIBE
+        unsub_handle = client.unsubscribe("test/topic")
+        assert unsub_handle is not None
+        unsub_handle.wait_for_ack(timeout=0.5)
         time.sleep(delay)
-        broker_rec = broker.received.popleft()
-        client_rec = client_received.popleft()
-        assert isinstance(broker_rec, MQTTPublishPacket)
-        assert isinstance(client_rec, MQTTPublishPacket)
-        assert broker_rec.topic == client_rec.topic == "test/topic"
-        assert broker_rec.payload == client_rec.payload == b"coconut"
-        assert broker_rec.qos == client_rec.qos == MQTTQoS.Q1
-        assert broker.received.popleft() == MQTTPubAckPacket(packet_id=broker_rec.packet_id)
+        assert broker.received.popleft() == MQTTUnsubscribePacket(
+            topics=["test/topic"],
+            packet_id=1,
+        )
 
-    # UNSUBSCRIBE
-    unsub_handle = client.unsubscribe("test/topic")
-    assert unsub_handle is not None
-    unsub_handle.wait_for_ack(timeout=0.5)
-    time.sleep(delay)
-    assert broker.received.popleft() == MQTTUnsubscribePacket(
-        topics=["test/topic"],
-        packet_id=1,
-    )
+        # PUBLISH QoS 2
+        for _ in range(10, 20):
+            pub_handle = client.publish("test/topic", b"pineapple", qos=2)
+            pub_handle.wait_for_ack(timeout=0.25)
+            time.sleep(delay)
+            broker_rec = broker.received.popleft()
+            assert isinstance(broker_rec, MQTTPublishPacket)
+            assert broker_rec.topic == "test/topic"
+            assert broker_rec.payload == b"pineapple"
+            assert broker_rec.qos == MQTTQoS.Q2
+            assert broker.received.popleft() == MQTTPubRelPacket(packet_id=broker_rec.packet_id)
 
-    # PUBLISH QoS 2
-    for _ in range(10, 20):
-        pub_handle = client.publish("test/topic", b"pineapple", qos=2)
-        pub_handle.wait_for_ack(timeout=0.25)
+        # DISCONNECT
+        client.disconnect()
+        client.wait_for_disconnect(timeout=0.25)
         time.sleep(delay)
-        broker_rec = broker.received.popleft()
-        assert isinstance(broker_rec, MQTTPublishPacket)
-        assert broker_rec.topic == "test/topic"
-        assert broker_rec.payload == b"pineapple"
-        assert broker_rec.qos == MQTTQoS.Q2
-        assert broker.received.popleft() == MQTTPubRelPacket(packet_id=broker_rec.packet_id)
+        assert broker.received.popleft() == MQTTDisconnectPacket()
 
-    # DISCONNECT
-    client.disconnect()
-    client.wait_for_disconnect(timeout=0.25)
-    time.sleep(delay)
-    assert broker.received.popleft() == MQTTDisconnectPacket()
-
-    client.shutdown()
-    client.wait_for_shutdown(timeout=0.25)
+        client.shutdown()
+        client.wait_for_shutdown(timeout=0.25)
 
 
 @pytest.mark.parametrize("db_path", ["", ":memory:"])
@@ -129,7 +133,7 @@ def test_z2z_saturation_qos0(db_path: str, broker: FakeBroker) -> None:
     timeout: Final = 5.0  # seconds
     sz: Final = 1000
     delay: Final = 0.01  # seconds grace period
-    client = get_client(broker, db_path)
+    client = get_client(broker, "mqtt", db_path)
 
     client_received: deque[MQTTPacket] = deque()
     def callback(client: Client, packet: MQTTPacket) -> None:
@@ -171,7 +175,7 @@ def test_z2z_saturation_qos1(db_path: str, broker: FakeBroker) -> None:
     timeout: Final = 5.0  # seconds
     sz: Final = 1000
     delay: Final = 0.01  # seconds grace period
-    client = get_client(broker, db_path)
+    client = get_client(broker, "mqtt", db_path)
 
     client_received: deque[MQTTPacket] = deque()
     def callback(client: Client, packet: MQTTPacket) -> None:
@@ -214,7 +218,7 @@ def test_z2z_saturation_qos2(db_path: str, broker: FakeBroker) -> None:
     timeout: Final = 5.0  # seconds
     sz: Final = 1000
     delay: Final = 0.01  # seconds grace period
-    client = get_client(broker, db_path)
+    client = get_client(broker, "mqtt", db_path)
 
     client_received: deque[MQTTPacket] = deque()
     def callback(client: Client, packet: MQTTPacket) -> None:
