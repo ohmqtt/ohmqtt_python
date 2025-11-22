@@ -6,5 +6,3 @@
 ### Persistence
 * Session data reset policies
 
-### Web Sockets
-* Web Socket client
