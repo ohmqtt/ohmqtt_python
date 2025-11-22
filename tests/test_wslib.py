@@ -130,3 +130,17 @@ def test_wslib_deframe_ws_data_fragment() -> None:
     framed_data = bytearray([OpCode.BINARY, 0x00])  # FIN=0, opcode=BINARY, no payload
     with pytest.raises(WebsocketError, match="Fragmented WebSocket frames are not supported"):
         deframe_ws_data(framed_data)
+
+
+@pytest.mark.parametrize("do_mask", [True, False])
+def test_wslib_frame_large_data(do_mask: bool) -> None:
+    data_length = 256 * 1024 * 1024  # 256MB, maximum MQTT packet size
+    data = b"\x88" * data_length
+    framed_data = frame_ws_data(OpCode.BINARY, data, do_mask=do_mask)
+    frame = deframe_ws_data(bytearray(framed_data))
+    assert frame is not None
+    opcode, payload, was_masked, length = frame
+    assert opcode == OpCode.BINARY
+    assert payload == data
+    assert was_masked is do_mask
+    assert length == len(framed_data)
