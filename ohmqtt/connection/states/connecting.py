@@ -34,12 +34,13 @@ class ConnectingState(FSMState):
         state_data.timeout.mark()
         state_data.connack = None
         state_data.disconnect_rc = None
-        state_data.ws_nonce = ""
         state_data.sock = _get_socket(params.address.family)
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
         state_data.ws_decoder.reset()
+        state_data.ws_handshake_buffer.clear()
+        state_data.ws_nonce = ""
         state_data.open_called = False
         with fsm.selector:
             fsm.selector.change_sock(state_data.sock)
