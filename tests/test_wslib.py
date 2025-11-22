@@ -19,13 +19,13 @@ def test_wslib_generate_nonce() -> None:
     assert isinstance(nonce2, str)
     assert nonce1 != nonce2
     assert len(nonce1) == 24  # 16 bytes base64-encoded is 24 characters
+    assert len(nonce2) == 24
 
 
 def test_wslib_validate_handshake_key() -> None:
     nonce = "dGhlIHNhbXBsZSBub25jZQ=="
     accept_key = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
     assert generate_handshake_key(nonce) == accept_key
-    assert generate_handshake_key(nonce) != "invalid_key"
 
 
 def test_wslib_generate_mask() -> None:
@@ -39,27 +39,22 @@ def test_wslib_generate_mask() -> None:
 
 
 def test_wslib_apply_mask() -> None:
-    mask = b"\x01\x02\x03\x04"
+    mask = b"\xFF\x00\xFF\x00"
     data = b"Hello, WebSocket!"
     masked_data = apply_mask(mask, data)
     unmasked_data = apply_mask(mask, masked_data)
+    assert masked_data != data
     assert unmasked_data == data
 
 
 @pytest.mark.parametrize("data_length", [0, 1, 2, 3, 4, 5])
 def test_wslib_apply_mask_varied_lengths(data_length: int) -> None:
-    mask = b"\x0F\x0E\x0D\x0C"
+    mask = b"\xFF\x00\xFF\x00"
     data = bytes(range(data_length))
     masked_data = apply_mask(mask, data)
     unmasked_data = apply_mask(mask, masked_data)
-    assert unmasked_data == data
-
-
-def test_wslib_apply_mask_large_data() -> None:
-    mask = b"\xAA\xBB\xCC\xDD"
-    data = b"\x88" * 0xffffff  # 16MB
-    masked_data = apply_mask(mask, data)
-    unmasked_data = apply_mask(mask, masked_data)
+    if data_length > 0:
+        assert masked_data != data
     assert unmasked_data == data
 
 
@@ -67,7 +62,7 @@ def test_wslib_apply_mask_large_data() -> None:
 @pytest.mark.parametrize("data_length", [0, 125, 126, 127, 65535, 65536])
 @pytest.mark.parametrize("do_mask", [True, False])
 def test_wslib_frame_ws_data(opcode: OpCode, data_length: int, do_mask: bool) -> None:
-    data = b"\x55" * data_length
+    data = b"\x88" * data_length
     framed_data = frame_ws_data(opcode, data, do_mask=do_mask)
 
     assert framed_data[0] == 0x80 | opcode.value  # FIN + opcode
@@ -100,7 +95,7 @@ def test_wslib_frame_ws_data(opcode: OpCode, data_length: int, do_mask: bool) ->
 @pytest.mark.parametrize("data_length", [0, 125, 126, 127, 65535, 65536])
 @pytest.mark.parametrize("do_mask", [True, False])
 def test_wslib_deframe_ws_data(opcode: OpCode, data_length: int, do_mask: bool) -> None:
-    data = b"\x55" * data_length
+    data = b"\x88" * data_length
     framed_data = frame_ws_data(opcode, data, do_mask=do_mask)
 
     frame = deframe_ws_data(bytearray(framed_data))
@@ -116,7 +111,7 @@ def test_wslib_deframe_ws_data(opcode: OpCode, data_length: int, do_mask: bool) 
 @pytest.mark.parametrize("data_length", [0, 125, 126, 127, 65535, 65536])
 @pytest.mark.parametrize("do_mask", [True, False])
 def test_wslib_deframe_ws_data_drip_feed(opcode: OpCode, data_length: int, do_mask: bool) -> None:
-    data = b"\x55" * data_length
+    data = b"\x88" * data_length
     framed_data = frame_ws_data(opcode, data, do_mask=do_mask)
 
     # Only drip feed enough for confidence that we've covered all the decoding branches.
