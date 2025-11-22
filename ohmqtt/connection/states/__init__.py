@@ -33,6 +33,8 @@ ClosingState.can_request_from = (
     TLSHandshakeState,
     MQTTHandshakeConnectState,
     MQTTHandshakeConnAckState,
+    WebsocketHandshakeRequestState,
+    WebsocketHandshakeResponseState,
     ConnectedState,
     ReconnectWaitState,
 )
@@ -46,6 +48,8 @@ ShutdownState.can_request_from = (
     TLSHandshakeState,
     MQTTHandshakeConnectState,
     MQTTHandshakeConnAckState,
+    WebsocketHandshakeRequestState,
+    WebsocketHandshakeResponseState,
     ConnectedState,
     ReconnectWaitState,
     ClosingState,
