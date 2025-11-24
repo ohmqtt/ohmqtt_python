@@ -13,6 +13,12 @@ ALL_PYTHONS = [
     if cls.startswith("Programming Language :: Python :: 3.")
 ]
 
+# Include free threading builds where available
+FT_PYTHONS = ["3.14"]
+for py in FT_PYTHONS:
+    if py in ALL_PYTHONS:
+        ALL_PYTHONS.append(f"{py}t")
+
 
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
