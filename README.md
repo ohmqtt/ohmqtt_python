@@ -90,11 +90,15 @@ You can wait for QoS>0 messages to be acknowledged and access the acknowledgemen
 For QoS 1 this will be PUBACK, for QoS 2 it may be PUBREC (in case of an error) or PUBCOMP.
 
 ```python
-from ohmqtt import LostMessageError, MQTTError, MQTTQoS
+from ohmqtt import LostMessageError, MQTTError, MQTTQoS, MQTTReasonCode
 
-handle = client.publish("topic", b"payload", qos=MQTTQoS.Q1)
+handle = client.publish("topic", b"payload", qos=MQTTQoS.Q2)
 try:
     ack = handle.wait_for_ack(timeout=5.0)
+    # The broker MAY use this reason code when it knows there are no subscribers.
+    #   Verify that your broker supports this for QoS 1 and/or 2.
+    if ack.reason_code == MQTTReasonCode.NoMatchingSubscribers:
+        raise Exception("Broker reported no subscribers!")
     print(ack)
 except TimeoutError:  # Was not acknowledged in time
     ...
@@ -139,6 +143,18 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 ```
 
 ## Development
+
+I wrote ΩQTT in 2025 as a personal challenge.
+I set out to create the fastest,
+most complete,
+most analyzed,
+most tested,
+best architected,
+and most maintainable stand-alone FOSS MQTT 5.0 client implementation for pure Python.
+
+### Support
+
+Contact me at <matt@endpointdev.com> for support.
 
 ### Running the Tests
 
