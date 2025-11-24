@@ -65,6 +65,8 @@ class Client:
         tcp_nodelay: bool = True,
         tls_context: ssl.SSLContext | None = None,
         tls_hostname: str = "",
+        username: str | None = None,
+        password: bytes | None = None,
         will_topic: str = "",
         will_payload: bytes = b"",
         will_qos: int = 0,
@@ -95,6 +97,8 @@ class Client:
         :param tcp_nodelay: If True, enable TCP_NODELAY to disable Nagle's algorithm.
         :param tls_context: An SSLContext for TLS connections, or None to use the default.
         :param tls_hostname: The hostname to use for TLS connections, or empty string to determine from the address.
+        :param username: The username for MQTT authentication, or None to disable.
+        :param password: The password for MQTT authentication, or None to disable.
         :param will_topic: The topic for the Will message, or empty string to disable.
         :param will_payload: The payload for the Will message.
         :param will_qos: The QoS level for the Will message (0, 1, or 2).
@@ -113,6 +117,8 @@ class Client:
             tcp_nodelay=tcp_nodelay,
             tls_context=tls_context,
             tls_hostname=tls_hostname,
+            username=username,
+            password=password,
             will_topic=will_topic,
             will_payload=will_payload,
             will_qos=will_qos,

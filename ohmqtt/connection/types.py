@@ -68,6 +68,8 @@ class ConnectParams:
     tls_hostname: str = ""
     protocol_version: int = 5
     clean_start: bool = False
+    username: str | None = None
+    password: bytes | None = None
     will_topic: str = ""
     will_payload: bytes = b""
     will_qos: int = 0

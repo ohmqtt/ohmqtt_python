@@ -347,18 +347,8 @@ def test_states_tls_handshake_timeout(
     callbacks.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    ("address", "user", "pwd"), [
-        ("mqtt://testhost", None, None),
-        ("ws://testhost", None, None),
-        ("mqtt://test_user:test_pass@testhost", "test_user", "test_pass"),
-    ],
-)
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_mqtt_connect_happy_path(
-    address: str,
-    user: str | None,
-    pwd: str | None,
     max_wait: float | None,
     callbacks: EnvironmentCallbacks,
     state_data: StateData,
@@ -368,6 +358,7 @@ def test_states_mqtt_connect_happy_path(
     mock_timeout: Mock,
     mocker: MockerFixture
 ) -> None:
+    address = "mqtt://testhost"
     mock_write_buffer = mocker.Mock()
     state_data.write_buffer = mock_write_buffer
     params = ConnectParams(
@@ -375,6 +366,8 @@ def test_states_mqtt_connect_happy_path(
         client_id="test_client",
         keepalive_interval=60,
         clean_start=True,
+        username="johndoe",
+        password=b"secret",
         will_topic="test_topic",
         will_payload=b"test_payload",
         will_qos=1,
@@ -417,8 +410,8 @@ def test_states_mqtt_connect_happy_path(
     assert packet.will_retain is params.will_retain
     assert packet.will_props == params.will_properties
     assert packet.properties == params.connect_properties
-    assert packet.username == user
-    assert packet.password == (pwd.encode() if pwd else None)
+    assert packet.username == params.username
+    assert packet.password == params.password
     assert fsm.state is MQTTHandshakeConnectState
 
     # First handle, blocked write.

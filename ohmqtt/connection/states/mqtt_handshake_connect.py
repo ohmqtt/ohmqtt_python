@@ -32,8 +32,8 @@ class MQTTHandshakeConnectState(FSMState):
             will_qos=params.will_qos,
             will_retain=params.will_retain,
             will_props=params.will_properties,
-            username=params.address.username,
-            password=params.address.password.encode() if params.address.password else None,
+            username=params.username,
+            password=params.password,
         )
         logger.debug("---> %s", connect_packet)
         state_data.write_buffer.clear()
