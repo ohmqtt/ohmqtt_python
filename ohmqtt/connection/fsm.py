@@ -73,7 +73,7 @@ class FSM:
         with self.cond:
             if state is self.state:
                 return
-            if state not in self.state.transitions_to:
+            if not self.state.can_transition_to(state):
                 raise InvalidStateError(f"Cannot transition from {self.state.__name__} to {state.__name__}")
             self.previous_state = self.state
             self.state = state
@@ -83,7 +83,7 @@ class FSM:
     def request_state(self, state: type[FSMState]) -> None:
         """Request a state change from outside the FSM."""
         with self.cond:
-            if state not in self.state.transitions_to or self.state not in state.can_request_from:
+            if not self.state.can_transition_to(state) or not state.can_request_from(self.state):
                 logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, state.__name__)
                 return
             logger.debug("Requesting state change from %s to %s", self.state.__name__, state.__name__)
@@ -97,7 +97,7 @@ class FSM:
         :raises InvalidStateError: The error state cannot be transitioned to from the current state."""
         with self.cond:
             if self.state != self.error_state:
-                if self.error_state not in self.state.transitions_to:
+                if not self.state.can_transition_to(self.error_state):
                     logger.exception("Unhandled exception in FSM loop, cannot transition to %s, exploding", self.error_state.__name__)
                     raise InvalidStateError(f"Cannot transition to error state {self.error_state.__name__} from {self.state.__name__}") from exc
                 logger.exception("Unhandled exception in FSM loop, going to %s", self.error_state.__name__)
@@ -117,7 +117,7 @@ class FSM:
             with self.cond:
                 # Consume state change requests.
                 if self._state_requested:
-                    if self.requested_state not in self.state.transitions_to or self.state not in self.requested_state.can_request_from:
+                    if not self.state.can_transition_to(self.requested_state) or not self.requested_state.can_request_from(self.state):
                         logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, self.requested_state.__name__)
                         self._state_requested = False
                         self.requested_state = self.state
@@ -141,15 +141,6 @@ class FSM:
             self._handle_exception(exc)
             raise
 
-    def _in_final_state(self) -> bool:
-        """Check if the current state is a final state.
-
-        :return: True if the state is final, False otherwise."""
-        with self.cond:
-            if self.state.transitions_to:
-                return False
-        return True
-
     def loop_until_state(self, targets: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Run the state machine until a specific state(s) has been entered.
 
@@ -165,6 +156,6 @@ class FSM:
                 if not to_exceeded and (not state_done or self._state_requested or self._state_changed):
                     # Continue running the state machine.
                     continue
-                if to_exceeded or self._in_final_state() or not self.cond.wait(to.get_timeout()):
+                if to_exceeded or self.state.is_final_state() or not self.cond.wait(to.get_timeout()):
                     # Either reached and completed a final state or timed out.
                     return False

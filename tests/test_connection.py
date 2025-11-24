@@ -106,7 +106,7 @@ def test_connection_connect(mock_fsm: Mock, mock_handlers: Mock) -> None:
     params = ConnectParams(address=Address("test_address"))
     connection.connect(params)
     mock_fsm.set_params.assert_called_once_with(params)
-    mock_fsm.request_state.assert_called_once_with(ConnectingState)
+    mock_fsm.change_state.assert_called_once_with(ConnectingState)
     mock_fsm.selector.interrupt.assert_called_once_with()
 
 

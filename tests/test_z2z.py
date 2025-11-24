@@ -10,6 +10,7 @@ import pytest
 
 from .util.fake_broker import FakeBroker, FakeWebsocketBroker
 from ohmqtt.client import Client
+from ohmqtt.connection import InvalidStateError
 from ohmqtt.logger import get_logger
 from ohmqtt.mqtt_spec import MQTTQoS
 from ohmqtt.packet import (
@@ -29,6 +30,13 @@ logger: Final = get_logger("tests.test_z2z")
 @pytest.fixture
 def broker() -> Iterator[FakeBroker]:
     broker = FakeBroker()
+    with broker:
+        yield broker
+
+
+@pytest.fixture
+def ws_broker() -> Iterator[FakeWebsocketBroker]:
+    broker = FakeWebsocketBroker()
     with broker:
         yield broker
 
@@ -253,3 +261,45 @@ def test_z2z_saturation_qos2(db_path: str, broker: FakeBroker) -> None:
         assert broker_rec.topic == client_rec.topic == "test/topic"
         assert broker_rec.payload == client_rec.payload == b"x" * sz
         assert broker_rec.qos == client_rec.qos == MQTTQoS.Q2
+
+
+def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker) -> None:
+    with Client() as client:
+
+        # Connect to TCP broker
+        client.connect(
+            address=f"mqtt://localhost:{broker.port}",
+            client_id="test_client",
+            clean_start=True,
+        )
+        client.wait_for_connect(timeout=0.25)
+        assert client.is_connected()
+        assert broker.received.popleft() == MQTTConnectPacket(
+            client_id="test_client",
+            clean_start=True,
+        )
+
+        # Try to connect to WebSocket broker
+        with pytest.raises(InvalidStateError):
+            client.connect(
+                address=f"ws://localhost:{ws_broker.port}",
+                client_id="test_client",
+                clean_start=True,
+            )
+
+        # Disconnect and try again
+        client.disconnect()
+        client.wait_for_disconnect(timeout=0.25)
+        assert client.is_connected() is False
+
+        client.connect(
+            address=f"ws://localhost:{ws_broker.port}",
+            client_id="test_client",
+            clean_start=True,
+        )
+        client.wait_for_connect(timeout=0.25)
+        assert client.is_connected()
+        assert ws_broker.received.popleft() == MQTTConnectPacket(
+            client_id="test_client",
+            clean_start=True,
+        )

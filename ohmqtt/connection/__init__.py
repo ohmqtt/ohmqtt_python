@@ -65,8 +65,11 @@ class Connection:
     def connect(self, params: ConnectParams) -> None:
         """Connect to the MQTT broker."""
         with self.fsm.lock:
+            if not self.fsm.get_state().can_transition_to(ConnectingState):
+                state = self.fsm.get_state()
+                raise InvalidStateError(f"Cannot connect() from state {state.__name__}, disconnect() first")
             self.fsm.set_params(params)
-            self.fsm.request_state(ConnectingState)
+            self.fsm.change_state(ConnectingState)
             self.fsm.selector.interrupt()
 
     def disconnect(self) -> None:

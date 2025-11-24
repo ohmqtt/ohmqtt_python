@@ -120,8 +120,9 @@ class Client:
             will_properties=will_properties if will_properties is not None else MQTTWillProps(),
             connect_properties=connect_properties if connect_properties is not None else MQTTConnectProps(),
         )
-        self.session.set_params(params)
-        self.connection.connect(params)
+        with self.connection.fsm.lock:
+            self.connection.connect(params)
+            self.session.set_params(params)
 
     def disconnect(self) -> None:
         """Disconnect from the broker."""

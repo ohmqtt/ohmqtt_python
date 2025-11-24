@@ -52,12 +52,12 @@ class MockStateErr(MockState):
 MockStateA.transitions_to = (MockStateB, MockStateC, MockStateErr)
 
 MockStateB.transitions_to = (MockStateC, MockStateErr)
-MockStateB.can_request_from = (MockStateA,)
+MockStateB.request_from = (MockStateA,)
 
-MockStateC.can_request_from = (MockStateA, MockStateB)
+MockStateC.request_from = (MockStateA, MockStateB)
 
 MockStateErr.transitions_to = (MockStateC,)
-MockStateErr.can_request_from = (MockStateA, MockStateB)
+MockStateErr.request_from = (MockStateA, MockStateB)
 
 
 class EnvironmentCallbacks:

@@ -17,7 +17,8 @@ from ohmqtt.topic_alias import AliasPolicy
 @pytest.fixture
 def mock_connection(mocker: MockerFixture) -> Mock:
     """Mock the Connection class."""
-    mock_connection = mocker.Mock(spec=Connection)
+    mock_connection = mocker.MagicMock(spec=Connection)
+    mock_connection.fsm.lock.__enter__.side_effect = lambda: None
     mocker.patch("ohmqtt.client.Connection", return_value=mock_connection)
     return mock_connection  # type: ignore[no-any-return]
 

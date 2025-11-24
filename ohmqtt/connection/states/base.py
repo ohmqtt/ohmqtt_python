@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class FSMState:
     """A finite state in the FSM."""
-    can_request_from: ClassVar[Sequence[type[FSMState]]] = ()
+    request_from: ClassVar[Sequence[type[FSMState]]] = ()
     transitions_to: ClassVar[Sequence[type[FSMState]]] = ()
 
     def __init__(self) -> None:
@@ -30,3 +30,27 @@ class FSMState:
 
         :return: True if the state is finished."""
         return True
+
+    @classmethod
+    def can_request_from(cls, prev_state: type[FSMState]) -> bool:
+        """Check if the FSM can request this state from the given previous state.
+
+        :param prev_state: The previous state.
+        :return: True if the FSM can request this state from the given previous state, False otherwise."""
+        return prev_state in cls.request_from
+
+    @classmethod
+    def can_transition_to(cls, next_state: type[FSMState]) -> bool:
+        """Check if the FSM can transition to the given state.
+
+        :param next_state: The state to check.
+        :return: True if the FSM can transition to the given state, False otherwise."""
+        return next_state in cls.transitions_to
+
+
+    @classmethod
+    def is_final_state(cls) -> bool:
+        """Check if this state is a final state.
+
+        :return: True if this state is a final state, False otherwise."""
+        return not cls.transitions_to
