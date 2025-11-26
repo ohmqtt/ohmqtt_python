@@ -122,6 +122,10 @@ ignore = ["PLC0414", "PT011"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E731", "PERF", "PL"]
 
+[tool.complexipy]
+paths = ["ohmqtt", "examples", "tests"]
+failed = true
+
 [tool.pytest.ini_options]
 filterwarnings = [
     "error",
