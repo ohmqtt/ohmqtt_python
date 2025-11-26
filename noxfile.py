@@ -32,7 +32,7 @@ def tests(session: nox.Session) -> None:
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
-    session.run("complexipy", "-d", "low", "ohmqtt", "examples", "tests")
+    session.run("complexipy")
     session.run("pytest", env=pytest_env)
 
     if sys.platform.startswith("win"):
