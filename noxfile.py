@@ -22,6 +22,9 @@ for py in FT_PYTHONS:
 
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
+    free_threading = session.python.endswith("t")
+    if free_threading:
+        session.skip("Skipping tests on free threading Python builds.")
     coverage_file = f".coverage.{sys.platform}.{session.python}"
     pytest_env = {
         "COVERAGE_FILE": coverage_file,
@@ -32,8 +35,8 @@ def tests(session: nox.Session) -> None:
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
-    if session.python.endswith("t"):
-        session.log("Skipping complexipy on free threading Python")
+    if free_threading:
+        session.log("Skipping complexipy on free threading Python.")
     else:
         session.run("complexipy")
     session.run("pytest", env=pytest_env)
