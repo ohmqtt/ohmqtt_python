@@ -88,6 +88,42 @@ class ConnectedState(FSMState):
         return False
 
     @classmethod
+    def pull_tcp(cls, state_data: StateData) -> MQTTPacket | bool:
+        """Read an incoming packet from the TCP socket.
+
+        Returns an MQTTPacket if one was read,
+            False if no complete packet was available,
+            True if a complete packet was read but handled internally."""
+        packet = state_data.decoder.decode(state_data.sock)
+        if packet is None:
+            # Incomplete packet.
+            return False
+        return packet
+
+    @classmethod
+    def pull_ws(cls, state_data: StateData) -> MQTTPacket | bool:
+        """Read an incoming packet from the WebSocket.
+
+        Returns an MQTTPacket if one was read,
+            False if no complete packet was available,
+            True if a complete packet was read but handled internally."""
+        decode_result = state_data.ws_decoder.decode(state_data.sock)
+        if decode_result is None:
+            # No complete WebSocket frame available yet.
+            return False
+        opcode, payload = decode_result
+        if opcode == OpCode.PING:
+            logger.debug("<--- WEBSOCKET PING PONG --->")
+            pong_frame = frame_ws_data(OpCode.PONG, payload)
+            state_data.write_buffer.extend(pong_frame)
+            return True
+        if opcode == OpCode.CLOSE:
+            raise ClosedSocketError("WebSocket connection closed by peer")
+        if opcode != OpCode.BINARY:
+            raise WebsocketError(f"Unexpected WebSocket opcode {opcode.name} while connected")
+        return decode_packet(payload)
+
+    @classmethod
     def read_packet(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> bool:
         """Called by the underlying SocketWrapper when the socket is ready to read.
 
@@ -95,28 +131,17 @@ class ConnectedState(FSMState):
         Complete packets are passed up to the read callback.
 
         Returns False if an incomplete packet was read, True if a complete packet was read."""
-        packet: MQTTPacket | None
+        packet: MQTTPacket | bool | None
         if params.address.is_websocket():
-            decode_result = state_data.ws_decoder.decode(state_data.sock)
-            if decode_result is None:
-                # No complete WebSocket frame available yet.
-                return False
-            opcode, payload = decode_result
-            if opcode == OpCode.PING:
-                logger.debug("<--- WEBSOCKET PING PONG --->")
-                pong_frame = frame_ws_data(OpCode.PONG, payload)
-                state_data.write_buffer.extend(pong_frame)
-                return True
-            if opcode == OpCode.CLOSE:
-                raise ClosedSocketError("WebSocket connection closed by peer")
-            if opcode != OpCode.BINARY:
-                raise WebsocketError(f"Unexpected WebSocket opcode {opcode.name} while connected")
-            packet = decode_packet(payload)
+            packet = cls.pull_ws(state_data)
         else:
-            packet = state_data.decoder.decode(state_data.sock)
-            if packet is None:
-                # No complete packet available yet.
-                return False
+            packet = cls.pull_tcp(state_data)
+        if packet is False:
+            # Incomplete packet.
+            return False
+        if packet is True:
+            # Handled internally.
+            return True
 
         # Ping requests and responses are handled at this layer.
         if packet.packet_type == MQTTPacketType.PINGRESP:
