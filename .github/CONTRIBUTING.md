@@ -23,4 +23,4 @@ Test coverage must add up to 100% across operating systems and Python versions i
 
 ## Conduct Standards
 
-See the [Code of Conduct](CODE_OF_CONDUCT.md) for required conduct standards.
+See the [Code of Conduct](.github/CODE_OF_CONDUCT.md) for required conduct standards.

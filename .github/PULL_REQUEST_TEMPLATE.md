@@ -12,5 +12,5 @@
 
 ### Checklist
 
-* [ ] [Contribution requirements](CONTRIBUTING.md) have been met.
+* [ ] [Contribution requirements](.github/CONTRIBUTING.md) have been met.
 * [ ] Code review.
