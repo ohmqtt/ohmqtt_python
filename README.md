@@ -144,17 +144,22 @@ with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
 
 ## Development
 
-I wrote ΩQTT in 2025 as a personal challenge.
-I set out to create the fastest,
+I wrote ΩQTT in 2025 as a personal challenge with two goals.
+
+First, I wanted a complete understanding of the MQTT 5.0 protocol specification.
+
+Second, I set out to create the fastest,
 most complete,
 most analyzed,
 most tested,
 best architected,
 and most maintainable stand-alone FOSS MQTT 5.0 client implementation for pure Python.
 
+I am committed to the care and maintenance of ΩQTT, with the cooperation and feedback of community.
+
 ### Support
 
-Contact me at <matt@endpointdev.com> for support.
+Contact me at <matt@endpointdev.com> for support with ΩQTT or other MQTT projects.
 
 ### Running the Tests
 
@@ -181,4 +186,4 @@ To manually build the docs: `uv run make clean && uv run make html`
 
 ### Contributing
 
-Please submit issues and pull requests via [GitHub](https://github.com/ohmqtt/ohmqtt_python).
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
