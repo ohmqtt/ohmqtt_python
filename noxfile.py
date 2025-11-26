@@ -32,7 +32,10 @@ def tests(session: nox.Session) -> None:
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
-    session.run("complexipy")
+    if session.python.endswith("t"):
+        session.log("Skipping complexipy on free threading Python")
+    else:
+        session.run("complexipy")
     session.run("pytest", env=pytest_env)
 
     if sys.platform.startswith("win"):
