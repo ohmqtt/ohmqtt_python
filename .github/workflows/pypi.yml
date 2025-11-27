@@ -8,8 +8,6 @@ jobs:
   pypi-publish:
     name: Publish Release to PyPI
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     environment:
       name: pypi
       url: https://pypi.org/p/ohmqtt
