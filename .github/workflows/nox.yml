@@ -5,6 +5,8 @@ on: push
 jobs:
   nox_linux:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -19,6 +21,8 @@ jobs:
 
   nox_windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -33,6 +37,8 @@ jobs:
 
   nox_macos:
     runs-on: macos-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -47,6 +53,8 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [nox_linux, nox_macos, nox_windows]
 
     steps:
