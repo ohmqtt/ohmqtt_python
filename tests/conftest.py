@@ -121,6 +121,8 @@ class LoopbackTLSSocket(LoopbackSocket):
     def _wrap_socket(self) -> None:
         """Wrap the test side of the socket in an SSL context."""
         self.server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self.server_context.minimum_version = ssl.TLSVersion.TLSv1_3
+        self.server_context.maximum_version = ssl.TLSVersion.TLSv1_3
         self.cert_pem, key_pem = generate_selfsigned_cert("localhost")
         with tempfile.TemporaryDirectory() as tmpdir:
             certfile = Path(tmpdir) / "cert.pem"

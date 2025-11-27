@@ -4,7 +4,7 @@ from collections import deque
 import socket
 import ssl
 from threading import Condition
-from typing import Any
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
@@ -343,6 +343,23 @@ def test_states_tls_handshake_timeout(
     ret = TLSHandshakeState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+def test_states_tls_handshake_default_context_options(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mocker: MockerFixture
+) -> None:
+    params = ConnectParams(address=Address("mqtts://testhost"), tls_context=None)
+    fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
+    state_data.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    TLSHandshakeState.enter(fsm, state_data, env, params)
+    tls_context = cast(ssl.SSLSocket, state_data.sock).context
+    assert tls_context.minimum_version == ssl.TLSVersion.TLSv1_3
 
     callbacks.assert_not_called()
 

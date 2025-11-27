@@ -20,7 +20,12 @@ class TLSHandshakeState(FSMState):
     """Performing TLS handshake with the broker."""
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
-        tls_context = params.tls_context if params.tls_context else ssl.create_default_context()
+        if params.tls_context is not None:
+            tls_context = params.tls_context
+        else:
+            tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            tls_context.minimum_version = ssl.TLSVersion.TLSv1_3
+            tls_context.maximum_version = ssl.TLSVersion.TLSv1_3
         state_data.sock = tls_context.wrap_socket(
             state_data.sock,
             server_hostname=params.tls_hostname if params.tls_hostname else params.address.host,
