@@ -186,4 +186,4 @@ To manually build the docs: `uv run make clean && uv run make html`
 
 ### Contributing
 
-See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](https://github.com/ohmqtt/ohmqtt_python/blob/main/.github/CONTRIBUTING.md) for guidelines.

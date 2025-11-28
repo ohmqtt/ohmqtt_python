@@ -12,5 +12,5 @@
 
 ### Checklist
 
-* [ ] [Contribution requirements](.github/CONTRIBUTING.md) have been met.
+* [ ] [Contribution requirements](https://github.com/ohmqtt/ohmqtt_python/blob/main/.github/CONTRIBUTING.md) have been met.
 * [ ] Code review.
