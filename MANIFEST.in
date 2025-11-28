@@ -1,10 +1,16 @@
 graft ohmqtt
 graft tests
 graft examples
+graft docs
+prune docs/_build
+graft .github
 
 include pyproject.toml
 include noxfile.py
 include LICENSE
 include README.md
+include TODO.md
+include .gitignore
+include .readthedocs.yaml
 
 global-exclude *.pyc
