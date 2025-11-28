@@ -59,13 +59,23 @@ def get_client(broker: FakeBroker, scheme: str, db_path: str) -> Client:
     return client
 
 
+def wait_for_queue_item(queue: deque[MQTTPacket], timeout: float = 0.1) -> object:
+    t0 = time.monotonic()
+    while True:
+        if queue:
+            return queue.popleft()
+        if time.monotonic() > t0 + timeout:
+            raise TimeoutError("Timed out waiting for queue item")
+        time.sleep(0.001)
+
+
 @pytest.mark.parametrize("scheme", ["mqtt", "ws"])
 @pytest.mark.parametrize("db_path", ["", ":memory:"])
 def test_z2z_happy_path(db_path: str, scheme: str) -> None:
     broker = FakeWebsocketBroker() if scheme == "ws" else FakeBroker()
     with broker:
         client = get_client(broker, scheme, db_path)
-        delay: Final = 0.01  # seconds grace period
+        delay: Final = 0.05  # seconds grace period
 
         client_received: deque[MQTTPacket] = deque()
         def callback(client: Client, packet: MQTTPacket) -> None:
@@ -75,7 +85,7 @@ def test_z2z_happy_path(db_path: str, scheme: str) -> None:
         sub_handle = client.subscribe("test/topic", callback)
         assert sub_handle is not None
         sub_handle.wait_for_ack(timeout=0.5)
-        assert broker.received.popleft() == MQTTSubscribePacket(
+        assert wait_for_queue_item(broker.received) == MQTTSubscribePacket(
             topics=[("test/topic", 2)],
             packet_id=1,
         )
@@ -84,7 +94,7 @@ def test_z2z_happy_path(db_path: str, scheme: str) -> None:
         for _ in range(10):
             pub_handle = client.publish("test/topic", b"banana", qos=0)
             time.sleep(delay)
-            assert broker.received.popleft() == client_received.popleft() == MQTTPublishPacket(
+            assert wait_for_queue_item(broker.received) == wait_for_queue_item(client_received) == MQTTPublishPacket(
                 topic="test/topic",
                 payload=b"banana",
             )
@@ -94,21 +104,21 @@ def test_z2z_happy_path(db_path: str, scheme: str) -> None:
             pub_handle = client.publish("test/topic", b"coconut", qos=1)
             pub_handle.wait_for_ack(timeout=0.25)
             time.sleep(delay)
-            broker_rec = broker.received.popleft()
-            client_rec = client_received.popleft()
+            broker_rec = wait_for_queue_item(broker.received)
+            client_rec = wait_for_queue_item(client_received)
             assert isinstance(broker_rec, MQTTPublishPacket)
             assert isinstance(client_rec, MQTTPublishPacket)
             assert broker_rec.topic == client_rec.topic == "test/topic"
             assert broker_rec.payload == client_rec.payload == b"coconut"
             assert broker_rec.qos == client_rec.qos == MQTTQoS.Q1
-            assert broker.received.popleft() == MQTTPubAckPacket(packet_id=broker_rec.packet_id)
+            assert wait_for_queue_item(broker.received) == MQTTPubAckPacket(packet_id=broker_rec.packet_id)
 
         # UNSUBSCRIBE
         unsub_handle = client.unsubscribe("test/topic")
         assert unsub_handle is not None
         unsub_handle.wait_for_ack(timeout=0.5)
         time.sleep(delay)
-        assert broker.received.popleft() == MQTTUnsubscribePacket(
+        assert wait_for_queue_item(broker.received) == MQTTUnsubscribePacket(
             topics=["test/topic"],
             packet_id=1,
         )
@@ -118,18 +128,18 @@ def test_z2z_happy_path(db_path: str, scheme: str) -> None:
             pub_handle = client.publish("test/topic", b"pineapple", qos=2)
             pub_handle.wait_for_ack(timeout=0.25)
             time.sleep(delay)
-            broker_rec = broker.received.popleft()
+            broker_rec = wait_for_queue_item(broker.received)
             assert isinstance(broker_rec, MQTTPublishPacket)
             assert broker_rec.topic == "test/topic"
             assert broker_rec.payload == b"pineapple"
             assert broker_rec.qos == MQTTQoS.Q2
-            assert broker.received.popleft() == MQTTPubRelPacket(packet_id=broker_rec.packet_id)
+            assert wait_for_queue_item(broker.received) == MQTTPubRelPacket(packet_id=broker_rec.packet_id)
 
         # DISCONNECT
         client.disconnect()
         client.wait_for_disconnect(timeout=0.25)
         time.sleep(delay)
-        assert broker.received.popleft() == MQTTDisconnectPacket()
+        assert wait_for_queue_item(broker.received) == MQTTDisconnectPacket()
 
         client.shutdown()
         client.wait_for_shutdown(timeout=0.25)

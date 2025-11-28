@@ -8,6 +8,7 @@ from collections import deque
 import socket
 import socketserver
 import threading
+import time
 from typing import Callable, cast, Final
 import uuid
 
@@ -54,6 +55,9 @@ class FakeBrokerHandler(socketserver.BaseRequestHandler):
                 self._handle_packet(packet)
         except ClosedSocketError:
             pass
+
+    def handle_error(self, request: socket.socket, client_address: tuple[str, int]) -> None:
+        logger.exception("Exception in handler for %s", client_address)
 
     def _handle_packet(self, packet: MQTTPacket) -> None:
         outbound: list[MQTTPacket] = []
@@ -147,6 +151,8 @@ class FakeWebsocketBrokerHandler(FakeBrokerHandler):
         if not self.handshake_done:
             self.server.sock = self.request
             data = self.request.recv(0xffff)
+            if not data:
+                return  # Connection closed
             lines = data.split(b"\r\n")
             head = lines[0]
             assert head.startswith(b"GET "), "Invalid websocket handshake method"
@@ -216,6 +222,15 @@ class FakeBroker(threading.Thread):
 
     def __enter__(self) -> FakeBroker:
         self.start()
+        ready = False
+        t0 = time.monotonic()
+        while not ready and time.monotonic() - t0 < 5.0:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.connect(("localhost", self.port))
+                ready = True
+            except ConnectionRefusedError:
+                time.sleep(0.1)
         return self
 
     def __exit__(self, *args: object) -> None:

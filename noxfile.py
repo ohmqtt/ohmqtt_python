@@ -23,8 +23,6 @@ for py in FT_PYTHONS:
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
     free_threading = session.python.endswith("t")
-    if free_threading:
-        session.skip("Skipping tests on free threading Python builds.")
     coverage_file = f".coverage.{sys.platform}.{session.python}"
     pytest_env = {
         "COVERAGE_FILE": coverage_file,

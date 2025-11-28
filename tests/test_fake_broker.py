@@ -68,7 +68,6 @@ def test_fake_broker() -> None:
     decoder = IncrementalDecoder()
     with FakeBroker() as broker:
         assert broker.port > 0
-        assert broker.sock is None
         assert len(broker.received) == 0
 
         sock = socket.create_connection(("localhost", broker.port))
@@ -162,7 +161,6 @@ def test_fake_broker() -> None:
 def test_fake_broker_websocket() -> None:
     with FakeWebsocketBroker() as broker:
         assert broker.port > 0
-        assert broker.sock is None
         assert len(broker.received) == 0
 
         sock = socket.create_connection(("localhost", broker.port))
