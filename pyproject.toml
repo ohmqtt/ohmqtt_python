@@ -64,8 +64,8 @@ dev = [
     "typos>=1.39.2",
 ]
 profile = [
-    "austin-dist>=4.0.0",
-    "austin-tui>=1.4.1",
+    "austin-dist>=4.0.0; python_version < '3.14'",
+    "austin-tui>=1.4.1; python_version < '3.14'",
     "memray>=1.19.1; platform_system != 'Windows'",
     "pympler>=1.1",
     "yappi>=1.7.3",
