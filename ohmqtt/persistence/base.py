@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+import sys
 from typing import ClassVar, NamedTuple, Sequence
 
 from ..handles import PublishHandle
@@ -12,6 +13,11 @@ from ..packet import (
 )
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 
 class LostMessageError(Exception):
@@ -27,6 +33,12 @@ class RenderedPacket(NamedTuple):
 class Persistence(metaclass=ABCMeta):
     """Abstract base class for message persistence."""
     __slots__: ClassVar[Sequence[str]] = tuple()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_value: BaseException | None, traceback: object | None) -> None:
+        self.close()
 
     @abstractmethod
     def __len__(self) -> int:
@@ -90,3 +102,9 @@ class Persistence(metaclass=ABCMeta):
 
         This may clear the persistence store if the client_id is different from the persisted,
         or if clear is True."""
+
+    @abstractmethod
+    def close(self) -> None:
+        """Finalize and close the persistence store.
+
+        The store must not be used after this call."""

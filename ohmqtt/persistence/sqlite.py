@@ -54,11 +54,7 @@ class SQLitePersistence(Persistence):
         self._create_tables()
 
     def __del__(self) -> None:
-        # Ignore "already closed" errors while closing resources.
-        with suppress(sqlite3.ProgrammingError):
-            self._cursor.close()
-        with suppress(sqlite3.ProgrammingError):
-            self._conn.close()
+        self.close()
 
     def __len__(self) -> int:
         with self._cond:
@@ -333,3 +329,10 @@ class SQLitePersistence(Persistence):
                 self.clear()
             else:
                 self._reset_inflight()
+
+    def close(self) -> None:
+        # Ignore "already closed" errors while closing resources.
+        with suppress(sqlite3.ProgrammingError):
+            self._cursor.close()
+        with suppress(sqlite3.ProgrammingError):
+            self._conn.close()

@@ -177,3 +177,6 @@ class InMemoryPersistence(Persistence):
             self._client_id = client_id
         else:
             self._reset_inflight()
+
+    def close(self) -> None:
+        self.clear()
