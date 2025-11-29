@@ -146,16 +146,25 @@ class FSM:
 
         :return: True if a target state is reached, False if another final state was finished or timeout reached."""
         to = Timeout(timeout)
+
+        def _state_unreachable() -> bool:
+            """Check that we can not reach the target state from where we are.
+
+            Must be called with the self.cond lock held.
+
+            This method may block while waiting for a state change, state request, or timeout."""
+            return (
+                state_done and (
+                    self.state.is_final_state() or
+                    (not (self._state_changed or self._state_requested) and not self.cond.wait(timeout=to.get_timeout()))
+                )
+            )
+
         while True:
             state_done = self.loop_once(max_wait=to.get_timeout())
-            to_exceeded = to.exceeded()
             with self.cond:
                 if self.state in targets and not self._state_changed:
                     # We are in a target state and the state has been entered.
                     return True
-                if not to_exceeded and (not state_done or self._state_requested or self._state_changed):
-                    # Continue running the state machine.
-                    continue
-                if to_exceeded or self.state.is_final_state() or not self.cond.wait(to.get_timeout()):
-                    # Either reached and completed a final state or timed out.
+                if to.exceeded() or _state_unreachable():
                     return False
