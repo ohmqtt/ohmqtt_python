@@ -901,8 +901,7 @@ def test_states_connected_read_packet(
 
     # Handle incomplete packet.
     decoder.decode.return_value = None
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is False
+    ConnectedState.read_packet(fsm, state_data, env, params)
     decoder.decode.assert_called_once()
     decoder.reset_mock()
     assert fsm.state is ConnectedState
@@ -910,8 +909,7 @@ def test_states_connected_read_packet(
     # Handle complete PUBLISH packet.
     pub_packet = MQTTPublishPacket(topic="test/topic", payload=b"test_payload")
     decoder.decode.return_value = pub_packet
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is True
+    ConnectedState.read_packet(fsm, state_data, env, params)
     decoder.decode.assert_called_once()
     decoder.reset_mock()
     callbacks.packet.assert_called_once_with(pub_packet)
@@ -921,8 +919,7 @@ def test_states_connected_read_packet(
     # Handle complete PINGRESP packet.
     pong_packet = MQTTPingRespPacket()
     decoder.decode.return_value = pong_packet
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is True
+    ConnectedState.read_packet(fsm, state_data, env, params)
     decoder.decode.assert_called_once()
     decoder.reset_mock()
     mock_keepalive.mark_pong.assert_called_once()
@@ -932,8 +929,7 @@ def test_states_connected_read_packet(
     # Handle complete PINGREQ packet.
     ping_packet = MQTTPingReqPacket()
     decoder.decode.return_value = ping_packet
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is True
+    ConnectedState.read_packet(fsm, state_data, env, params)
     decoder.decode.assert_called_once()
     decoder.reset_mock()
     assert fsm.env.packet_buffer.popleft() == MQTTPingRespPacket()
@@ -944,8 +940,7 @@ def test_states_connected_read_packet(
     # Handle complete DISCONNECT packet.
     dc_packet = MQTTDisconnectPacket()
     decoder.decode.return_value = dc_packet
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is True
+    ConnectedState.read_packet(fsm, state_data, env, params)
     decoder.decode.assert_called_once()
     decoder.reset_mock()
     callbacks.assert_not_called()
@@ -972,8 +967,7 @@ def test_states_connected_read_packet_ws(
 
     # Handle incomplete packet.
     ws_decoder.decode.return_value = None
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is False
+    ConnectedState.read_packet(fsm, state_data, env, params)
     ws_decoder.decode.assert_called_once()
     ws_decoder.reset_mock()
     assert fsm.state is ConnectedState
@@ -981,8 +975,7 @@ def test_states_connected_read_packet_ws(
     # Handle complete PUBLISH packet.
     pub_packet = MQTTPublishPacket(topic="test/topic", payload=b"test_payload")
     ws_decoder.decode.return_value = OpCode.BINARY, pub_packet.encode()
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is True
+    ConnectedState.read_packet(fsm, state_data, env, params)
     ws_decoder.decode.assert_called_once()
     ws_decoder.reset_mock()
     callbacks.packet.assert_called_once_with(pub_packet)
@@ -991,8 +984,7 @@ def test_states_connected_read_packet_ws(
 
     # Handle complete WebSocket PING frame.
     ws_decoder.decode.return_value = OpCode.PING, b"\x88"
-    ret = ConnectedState.read_packet(fsm, state_data, env, params)
-    assert ret is True
+    ConnectedState.read_packet(fsm, state_data, env, params)
     ws_decoder.decode.assert_called_once()
     ws_decoder.reset_mock()
     assert state_data.write_buffer[0] == 0x80 | OpCode.PONG.value
@@ -1008,12 +1000,12 @@ def test_states_connected_read_packet_ws(
     # Handle WebSocket CLOSE frame.
     ws_decoder.decode.return_value = OpCode.CLOSE, b""
     with pytest.raises(ClosedSocketError):
-        ret = ConnectedState.read_packet(fsm, state_data, env, params)
+        ConnectedState.read_packet(fsm, state_data, env, params)
 
     # Handle bad opcode in WebSocket frame.
     ws_decoder.decode.return_value = OpCode.TEXT, b"asdf"
     with pytest.raises(WebsocketError):
-        ret = ConnectedState.read_packet(fsm, state_data, env, params)
+        ConnectedState.read_packet(fsm, state_data, env, params)
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
