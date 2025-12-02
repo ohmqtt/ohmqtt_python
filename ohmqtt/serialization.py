@@ -144,20 +144,24 @@ def decode_binary(data: memoryview) -> tuple[bytes, int]:
 
 def encode_varint(x: int) -> bytes:
     """Encode a variable length integer to a buffer."""
-    if not 0 <= x <= MAX_VARINT:
-        raise ValueError(f"Varint out of range (0 <= x <= {MAX_VARINT})")
-    if x < 0x7F:
-        # Fast path for single byte value.
-        return x.to_bytes(1, byteorder="big")
-    packed = bytearray()
-    while True:
-        b = x % 0x80
-        x //= 0x80
-        if x > 0:
-            b += 0x80
-        packed.append(b)
-        if x == 0:
-            return bytes(packed)
+    if x < 0:
+        raise ValueError(f"Value {x} must be greater than 0")
+    if x <= 127:
+        return bytes([x])
+    if x <= 16383:
+        return bytes([(x & 0x7F) | 0x80, x >> 7])
+    if x <= 2097151:
+        return bytes([(x & 0x7F) | 0x80, ((x >> 7) & 0x7F) | 0x80, x >> 14])
+    if x <= MAX_VARINT:
+        return bytes(
+            [
+                (x & 0x7F) | 0x80,
+                ((x >> 7) & 0x7F) | 0x80,
+                ((x >> 14) & 0x7F) | 0x80,
+                x >> 21,
+            ]
+        )
+    raise ValueError(f"Value {x} exceeds maximum {MAX_VARINT}")
 
 
 def decode_varint(data: memoryview) -> tuple[int, int]:
