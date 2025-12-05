@@ -144,23 +144,29 @@ def decode_binary(data: memoryview) -> tuple[bytes, int]:
 
 def encode_varint(x: int) -> bytes:
     """Encode a variable length integer to a buffer."""
+    # PEP20 told me that flat is better than nested, and I agree.
     if x < 0:
         raise ValueError(f"Value {x} must be greater than 0")
     if x <= 127:
-        return bytes([x])
+        return x.to_bytes(1, "big")
     if x <= 16383:
-        return bytes([(x & 0x7F) | 0x80, x >> 7])
+        return bytes([
+            (x & 0x7F) | 0x80,
+            x >> 7
+        ])
     if x <= 2097151:
-        return bytes([(x & 0x7F) | 0x80, ((x >> 7) & 0x7F) | 0x80, x >> 14])
+        return bytes([
+            (x & 0x7F) | 0x80,
+            ((x >> 7) & 0x7F) | 0x80,
+            x >> 14
+        ])
     if x <= MAX_VARINT:
-        return bytes(
-            [
-                (x & 0x7F) | 0x80,
-                ((x >> 7) & 0x7F) | 0x80,
-                ((x >> 14) & 0x7F) | 0x80,
-                x >> 21,
-            ]
-        )
+        return bytes([
+            (x & 0x7F) | 0x80,
+            ((x >> 7) & 0x7F) | 0x80,
+            ((x >> 14) & 0x7F) | 0x80,
+            x >> 21
+        ])
     raise ValueError(f"Value {x} exceeds maximum {MAX_VARINT}")
 
 
