@@ -22,6 +22,10 @@ You can also force QoS 0 messages to require a topic alias, to avoid silently bl
 Access all optional properties of all MQTT control packet types.
 If you ever wanted to check the user properties of your packets, welcome home.
 
+### CLI
+
+Use the command-line interface to publish and subscribe to messages from a console or script.
+
 ### Portability
 
 ΩQTT is tested on Linux, Windows and MacOS with CPython versions 3.10-3.13.
@@ -141,6 +145,12 @@ connect_props = MQTTConnectProps(SessionExpiryInterval=0xffffffff)
 with Client(db_path="/path/to/ohmqtt.db", db_fast=True) as client:
     client.connect(address, client_id="my_client_id", connect_properties=connect_props)
 ```
+
+## CLI
+
+Use the command-line interface like so:
+
+`python -m ohmqtt`
 
 ## Development
 

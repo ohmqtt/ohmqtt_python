@@ -39,6 +39,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = [
     "ohmqtt",
+    "ohmqtt.cli",
     "ohmqtt.connection",
     "ohmqtt.connection.states",
     "ohmqtt.packet",
@@ -136,6 +137,9 @@ addopts = "--cov=ohmqtt --cov-config=pyproject.toml --cov-report=term-missing --
 [tool.coverage]
 run.branch = true
 run.relative_files = true
+run.omit = [
+    "ohmqtt/__main__.py",
+]
 report.exclude_also = [
   "if TYPE_CHECKING:",
 ]
