@@ -27,6 +27,9 @@ def add_broker_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         "--clean_start", action="store_true", help="Start a clean session",
     )
     parser.add_argument(
+        "--connect_timeout", type=int, default=10, help="Connection timeout in seconds",
+    )
+    parser.add_argument(
         "--username", type=str, help="The username for broker authentication"
     )
     parser.add_argument(
@@ -58,6 +61,7 @@ def get_client(args: argparse.Namespace) -> Client:
     address = args.address
     client_id = getattr(args, "client_id", "")
     clean_start = getattr(args, "clean_start", False)
+    connect_timeout = getattr(args, "connect_timeout", 10)
     username = getattr(args, "username", None)
     password = getattr(args, "password", None)
     props = MQTTConnectProps()
@@ -83,7 +87,8 @@ def get_client(args: argparse.Namespace) -> Client:
             password=password.encode("utf-8") if password is not None else None,
             connect_properties=props,
         )
-        client.loop_until_connected()
+        if not client.loop_until_connected(timeout=connect_timeout):
+            raise TimeoutError("Connection to broker timed out")
         return client
     except Exception as exc:
         raise BrokerConnectionError(f"Failed to connect to MQTT broker at {address}") from exc

@@ -44,8 +44,9 @@ def test_cli_main_publish(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.parametrize("password", [None, "secret"])
-def test_cli_command_get_client(password: str | None) -> None:
+def test_cli_command_get_client(mocker: MockerFixture, password: str | None) -> None:
     args = argparse.Namespace()
+    args.connect_timeout = 1
     args.topic_alias_maximum = 0xffff  # Set any property to test the code path
     args.username = "foo"
     if password is not None:
@@ -56,6 +57,14 @@ def test_cli_command_get_client(password: str | None) -> None:
         client = get_client(args)
         assert client.is_connected()
         client.shutdown()
+
+    mocker.patch(
+        "ohmqtt.cli.common.Client.loop_until_connected", return_value=False
+    )
+    with FakeBroker() as broker:
+        args.address = f"localhost:{broker.port}"
+        with pytest.raises(BrokerConnectionError):
+            client = get_client(args)
 
     args.address = "invalid_address"
     with pytest.raises(BrokerConnectionError):
