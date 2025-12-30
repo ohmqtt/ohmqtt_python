@@ -1,5 +1,6 @@
 import argparse
 from functools import partial
+import logging
 import threading
 import time
 from typing import TypeAlias
@@ -30,6 +31,13 @@ def test_cli_main_version(capsys: CapSysT) -> None:
         main(["--version"])
     captured = capsys.readouterr()
     assert __version__ in captured.out
+
+
+@pytest.mark.parametrize("arg", ["-v", "--verbose"])
+def test_cli_main_verbose(mocker: MockerFixture, arg: str) -> None:
+    mock_logging_basic_config = mocker.patch("logging.basicConfig")
+    main([arg])
+    mock_logging_basic_config.assert_called_once_with(level=logging.DEBUG)
 
 
 def test_cli_main_publish(mocker: MockerFixture) -> None:
