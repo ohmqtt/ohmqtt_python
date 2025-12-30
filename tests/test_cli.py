@@ -1,6 +1,7 @@
 import argparse
 from functools import partial
 import logging
+import subprocess
 import threading
 import time
 from typing import TypeAlias
@@ -17,6 +18,16 @@ from .util.fake_broker import FakeBroker
 
 
 CapSysT: TypeAlias = pytest.CaptureFixture[str]
+
+
+def test_cli_main_entrypoint() -> None:
+    result = subprocess.run(
+        ["python", "-m", "ohmqtt", "--version"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert __version__ in result.stdout
 
 
 def test_cli_main_no_args(capsys: CapSysT) -> None:
