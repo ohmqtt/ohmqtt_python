@@ -54,11 +54,12 @@ def test_cli_main_publish(mocker: MockerFixture) -> None:
 @pytest.mark.parametrize("password", [None, "secret"])
 def test_cli_command_get_client(mocker: MockerFixture, password: str | None) -> None:
     args = argparse.Namespace()
+    args.clean_start = False
+    args.client_id = ""
     args.connect_timeout = 1
     args.topic_alias_maximum = 0xffff  # Set any property to test the code path
     args.username = "foo"
-    if password is not None:
-        args.password = password
+    args.password = password
 
     with FakeBroker() as broker:
         args.address = f"localhost:{broker.port}"
@@ -87,6 +88,7 @@ def test_cli_command_publish(capsys: CapSysT, mocker: MockerFixture, correlation
     args.topic = "test/topic"
     args.message = "Hello, MQTT!"
     args.qos = qos
+    args.retain = False
 
     if correlation_data is not None:
         args.correlation_data = correlation_data
@@ -118,6 +120,8 @@ def test_cli_command_subscribe(capsys: CapSysT, mocker: MockerFixture) -> None:
     class MockArgs(argparse.Namespace):
         address = "localhost"
         topic = "test/topic"
+        max_qos = 2
+        no_retained = False
 
     mock_client = mocker.MagicMock()
     mock_get_client = mocker.patch(

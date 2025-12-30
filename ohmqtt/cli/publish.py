@@ -43,8 +43,8 @@ class PublishCommand(Command):
     def execute(cls, args: argparse.Namespace) -> None:
         topic = args.topic
         message = args.message.encode("utf-8")
-        qos = getattr(args, "qos", 0)
-        retain = getattr(args, "retain", False)
+        qos = args.qos
+        retain = args.retain
         props = MQTTPublishProps()
         props_map = {
             "payload_format_indicator": "PayloadFormatIndicator",

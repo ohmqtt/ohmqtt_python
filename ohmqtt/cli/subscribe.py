@@ -26,8 +26,8 @@ class SubscribeCommand(Command):
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
         topic = args.topic
-        max_qos = getattr(args, "max_qos", 2)
-        retain_policy = RetainPolicy.NEVER if getattr(args, "no_retained", False) else RetainPolicy.ALWAYS
+        max_qos = args.max_qos
+        retain_policy = RetainPolicy.NEVER if args.no_retained else RetainPolicy.ALWAYS
 
         def callback(_: Client, msg: MQTTPublishPacket) -> None:
             content = f"<{len(msg.payload)} bytes of binary data>"
