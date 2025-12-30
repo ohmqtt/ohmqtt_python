@@ -15,7 +15,7 @@ class PublishCommand(Command):
         )
         add_broker_arguments(parser)
         parser.add_argument("topic", type=str, help="The topic to publish to")
-        parser.add_argument("message", type=str, help="The message to publish")
+        parser.add_argument("message", type=str, nargs="?", default="", help="The message content to publish")
         parser.add_argument(
             "--qos", type=int, choices=[0, 1, 2], default=0, help="The QoS level for the message"
         )
