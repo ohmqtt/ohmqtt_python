@@ -67,6 +67,8 @@ test_packet_connect_decode_errors:
     reason_code: 0x82
   - raw: "101000044d515454ef02001e000003666f6f"
     reason_code: 0x84
+  - raw: "101000044d5154540503001e000003666f6f"
+    reason_code: 0x81
 
 test_packet_connack_encode:
   - args:

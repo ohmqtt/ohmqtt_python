@@ -124,6 +124,9 @@ class MQTTConnectPacket(MQTTPacket):
         connect_flags, sz = decode_uint8(data[offset:])
         offset += sz
 
+        if connect_flags & 0x01:
+            raise MQTTError("Reserved bit in CONNECT flags must be 0", MQTTReasonCode.MalformedPacket)
+
         clean_start = connect_flags & 0x02 == 2
         will_flag = connect_flags & 0x04 == 4
         will_qos = connect_flags >> 3 & 0x03
