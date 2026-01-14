@@ -95,10 +95,25 @@ def test_topic_alias_inbound() -> None:
     topic_alias.handle(packet)
     assert packet.topic == "test/topic"
 
-    # Trying to overwrite the same alias with a different topic
-    with pytest.raises(MQTTError) as exc:
-        topic_alias.handle(make_packet("test/topic2", 1))
-    assert exc.value.reason_code == MQTTReasonCode.TopicAliasInvalid
+    # Remap: overwrite alias with a different topic (allowed per MQTT 5.0 spec 3.3.2.3.4)
+    topic_alias.handle(make_packet("test/topic2", 1))
+    assert topic_alias.aliases[1] == "test/topic2"
+
+    # Use the remapped alias
+    packet = make_packet(alias=1)
+    topic_alias.handle(packet)
+    assert packet.topic == "test/topic2"
+
+    # Remap again to verify multiple remaps work
+    topic_alias.handle(make_packet("test/topic3", 1))
+    assert topic_alias.aliases[1] == "test/topic3"
+    packet = make_packet(alias=1)
+    topic_alias.handle(packet)
+    assert packet.topic == "test/topic3"
+
+    # Sending same topic with alias should still update (idempotent remap)
+    topic_alias.handle(make_packet("test/topic3", 1))
+    assert topic_alias.aliases[1] == "test/topic3"
 
     # Trying to exceed the max alias
     with pytest.raises(MQTTError) as exc:

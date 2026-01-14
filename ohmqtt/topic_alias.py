@@ -79,12 +79,12 @@ class InboundTopicAlias:
             )
 
         if alias in self.aliases:
-            if topic and self.aliases[alias] != topic:
-                raise MQTTError(
-                    f"Topic alias {alias} already exists",
-                    reason_code=MQTTReasonCode.TopicAliasInvalid,
-                )
-            packet.topic = self.aliases[alias]
+            if topic:
+                # Remap: update the alias to the new topic per MQTT 5.0 spec 3.3.2.3.4
+                self.aliases[alias] = topic
+            else:
+                # Use the stored topic
+                packet.topic = self.aliases[alias]
         else:
             if not topic:
                 raise MQTTError(
