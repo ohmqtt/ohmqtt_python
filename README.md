@@ -28,7 +28,7 @@ Use the command-line interface to publish and subscribe to messages from a conso
 
 ### Portability
 
-ΩQTT is tested on Linux, Windows and MacOS with CPython versions 3.10-3.13.
+ΩQTT is tested on Linux, Windows and MacOS with CPython versions 3.10-3.14 and free-threading.
 It should work on any platform that CPython runs on.
 
 ### Reliability
