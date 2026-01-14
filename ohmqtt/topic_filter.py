@@ -31,6 +31,9 @@ def validate_topic_filter(topic_filter: str) -> None:
             raise ValueError("Multi-level wildcard '#' must be the last character in the topic filter")
         if len(topic_filter) > 1 and topic_filter[-2] != "/":
             raise ValueError("Multi-level wildcard '#' must be preceded by a '/' unless it is the only character in the topic filter")
+    if "+" in topic_filter:
+        if any("+" in level and level != "+" for level in topic_filter.split("/")):
+            raise ValueError("Single-level wildcard '+' must occupy an entire topic level")
 
 
 def validate_share_name(share_name: str) -> None:

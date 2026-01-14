@@ -90,6 +90,27 @@ def test_topic_filter_single_level_wildcard_match_hidden() -> None:
     f = "+/monitor/Clients"
     assert not match_topic_filter(f, "$SYS/monitor/Clients")
 
+def test_topic_filter_single_level_wildcard_invalid_filter() -> None:
+    with pytest.raises(ValueError):
+        validate_topic_filter("+foo")
+    with pytest.raises(ValueError):
+        validate_topic_filter("foo+")
+    with pytest.raises(ValueError):
+        validate_topic_filter("foo+bar")
+    with pytest.raises(ValueError):
+        validate_topic_filter("sport/+foo/ranking")
+    with pytest.raises(ValueError):
+        validate_topic_filter("sport/foo+/ranking")
+    with pytest.raises(ValueError):
+        validate_topic_filter("sport/foo+bar/ranking")
+
+def test_topic_filter_single_level_wildcard_valid_filter() -> None:
+    validate_topic_filter("+")
+    validate_topic_filter("+/foo")
+    validate_topic_filter("foo/+")
+    validate_topic_filter("foo/+/bar")
+    validate_topic_filter("+/+/+")
+
 def test_topic_filter_validate_share_name() -> None:
     for share_name in ["", "a/b", "a" * 65536, "\u0000", "#", "+"]:
         try:
