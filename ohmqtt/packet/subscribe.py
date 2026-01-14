@@ -72,6 +72,11 @@ class MQTTSubscribePacket(MQTTPacket):
             offset += topic_length
             subscribe_opts, subscribe_opts_length = decode_uint8(data[offset:])
             offset += subscribe_opts_length
+            if subscribe_opts & 0xC0:
+                raise MQTTError(
+                    f"Reserved bits set in subscription options: {subscribe_opts:#04x}",
+                    MQTTReasonCode.MalformedPacket,
+                )
             topics.append((topic, subscribe_opts))
         if not topics:
             raise MQTTError("No topics in SUBSCRIBE packet", MQTTReasonCode.ProtocolError)

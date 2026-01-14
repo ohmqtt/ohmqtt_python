@@ -326,6 +326,12 @@ test_packet_subscribe_encode:
       packet_id: 1
       topics: [
         ["foo", 0],
+      ]
+    raw: "82090001000003666f6f00"
+  - args:
+      packet_id: 1
+      topics: [
+        ["foo", 0],
         ["bar", 1],
         ["baz", 2],
         ["qux", 2],
@@ -360,6 +366,15 @@ test_packet_subscribe_decode_errors:
     reason_code: 0x81
   - raw: "8203000100"
     reason_code: 0x82
+  # Reserved bit 6 set in subscription options
+  - raw: "82090001000003666f6f40"
+    reason_code: 0x81
+  # Reserved bit 7 set in subscription options
+  - raw: "82090001000003666f6f80"
+    reason_code: 0x81
+  # Both reserved bits (6 and 7) set in subscription options
+  - raw: "82090001000003666f6fc0"
+    reason_code: 0x81
 
 test_packet_suback_encode:
   - args:
