@@ -70,6 +70,15 @@ def test_topic_alias_inbound() -> None:
         topic_alias.handle(make_packet())
     assert exc.value.reason_code == MQTTReasonCode.ProtocolError
 
+    # Topic alias 0 is always invalid
+    with pytest.raises(MQTTError) as exc:
+        topic_alias.handle(make_packet(alias=0))
+    assert exc.value.reason_code == MQTTReasonCode.TopicAliasInvalid
+
+    with pytest.raises(MQTTError) as exc:
+        topic_alias.handle(make_packet("x", 0))
+    assert exc.value.reason_code == MQTTReasonCode.TopicAliasInvalid
+
     # Test with max alias = 0
     with pytest.raises(MQTTError) as exc:
         topic_alias.handle(make_packet(alias=1))

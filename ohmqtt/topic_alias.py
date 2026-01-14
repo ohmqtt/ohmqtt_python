@@ -72,7 +72,7 @@ class InboundTopicAlias:
                     reason_code=MQTTReasonCode.ProtocolError,
                 )
             return
-        if alias > self.max_alias:
+        if alias == 0 or alias > self.max_alias:
             raise MQTTError(
                 f"Topic alias {alias} out of range",
                 reason_code=MQTTReasonCode.TopicAliasInvalid,
