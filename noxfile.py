@@ -22,7 +22,6 @@ for py in FT_PYTHONS:
 
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
-    free_threading = session.python.endswith("t")
     coverage_file = f".coverage.{sys.platform}.{session.python}"
     pytest_env = {
         "COVERAGE_FILE": coverage_file,
@@ -33,10 +32,7 @@ def tests(session: nox.Session) -> None:
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
-    if free_threading:
-        session.log("Skipping complexipy on free threading Python.")
-    else:
-        session.run("complexipy")
+    session.run("complexipy")
     session.run("pytest", env=pytest_env)
 
     if sys.platform.startswith("win"):
