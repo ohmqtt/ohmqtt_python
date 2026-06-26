@@ -1,7 +1,6 @@
 .*.swp
 
 .vscode/
-uv.lock
 .complexipy_cache/
 .coverage*
 .python-version

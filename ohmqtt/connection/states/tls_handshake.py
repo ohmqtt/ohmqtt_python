@@ -28,7 +28,7 @@ class TLSHandshakeState(FSMState):
             tls_context.maximum_version = ssl.TLSVersion.TLSv1_3
         state_data.sock = tls_context.wrap_socket(
             state_data.sock,
-            server_hostname=params.tls_hostname if params.tls_hostname else params.address.host,
+            server_hostname=params.tls_hostname or params.address.host,
             do_handshake_on_connect=False,
         )
         with fsm.selector:

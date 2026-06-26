@@ -94,7 +94,7 @@ def run_encode_cases(
 
         assert packet == packet
         assert packet == decoded
-        assert packet != b"not a packet"  # type: ignore[comparison-overlap]
+        assert packet != b"not a packet"
         assert str(packet) == str(decoded)
         assert repr(packet) == repr(decoded)
         assert not hasattr(packet, "__dict__")
@@ -309,8 +309,8 @@ def test_packet_comparison() -> None:
     packet3 = MQTTConnectPacket("foo", 2)
     assert packet1 == packet2
     assert packet1 != packet3
-    assert packet1 != "foo" # type: ignore[comparison-overlap]
-    assert packet1 != 1  # type: ignore[comparison-overlap]
+    assert packet1 != "foo"
+    assert packet1 != 1
     assert packet1 is not None
     assert packet1 != object()
 

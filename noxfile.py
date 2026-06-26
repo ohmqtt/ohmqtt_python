@@ -28,8 +28,8 @@ def tests(session: nox.Session) -> None:
         "COVERAGE_FILE": coverage_file,
     }
 
-    session.install(".")
-    session.install("--group", "dev")
+    session.run("uv", "sync", "--active", "--frozen")
+    session.run("uv", "sync", "--active", "--frozen", "--group", "dev")
     session.run("ruff", "check")
     session.run("typos")
     session.run("mypy")
@@ -48,7 +48,7 @@ def tests(session: nox.Session) -> None:
 @nox.session(default=False)
 def cover(session: nox.Session) -> None:
     """Coverage analysis."""
-    session.install("coverage[toml]>=7.3")
+    session.run("uv", "sync", "--active", "--frozen", "--group", "dev")
     session.run("coverage", "combine")
     session.run("coverage", "report", "--fail-under=100", "--show-missing")
     session.run("coverage", "erase")
