@@ -9,10 +9,10 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - run: pipx install nox uv
     - run: nox
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ github.job }}-${{ strategy.job-index }}
         path: .coverage.*
@@ -25,10 +25,10 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - run: pipx install nox uv
     - run: nox -p 3.14  # Only test 3.14 because Windows CI is so slow.
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ github.job }}-${{ strategy.job-index }}
         path: .coverage.*
@@ -41,10 +41,10 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - run: pipx install nox uv
     - run: nox -p 3.14  # Only test 3.14 because MacOS CI is so slow.
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: coverage-${{ github.job }}-${{ strategy.job-index }}
         path: .coverage.*
@@ -58,8 +58,8 @@ jobs:
     needs: [nox_linux, nox_macos, nox_windows]
 
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@v7
+    - uses: actions/download-artifact@v8
       with:
         pattern: coverage-*
         merge-multiple: true
