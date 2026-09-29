@@ -57,35 +57,35 @@ class ConnectedState(FSMState):
             else:
                 state_data.write_buffer.extend(packet.encode())
 
-        if writable:
-            try:
+        try:
+            if writable:
                 sent = state_data.sock.send(state_data.write_buffer)
                 del state_data.write_buffer[:sent]
                 state_data.keepalive.mark_send()
-            except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
-                pass
-            except (BrokenPipeError, ConnectionResetError) as exc:
-                logger.error("MQTT connection was closed: %s", exc)
-                fsm.change_state(ClosedState)
-                return True
+        except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
+            pass
+        except (BrokenPipeError, ConnectionResetError) as exc:
+            logger.error("MQTT connection was closed: %s", exc)
+            fsm.change_state(ClosedState)
+            return True
 
         # Read one incoming packet at a time.
-        if readable:
-            try:
+        try:
+            if readable:
                 cls.read_packet(fsm, state_data, env, params)
-            except ClosedSocketError:
-                logger.debug("Connection closed")
-                fsm.change_state(ClosedState)
-                return True
-            except WebsocketError as exc:
-                logger.error("WebSocket protocol error while connected: %s", exc)
-                fsm.change_state(ClosedState)
-                return True
-            except MQTTError as exc:
-                logger.error("There was a problem with data from broker, closing connection: %s", exc)
-                state_data.disconnect_rc = exc.reason_code
-                fsm.change_state(ClosedState)
-                return True
+        except ClosedSocketError:
+            logger.debug("Connection closed")
+            fsm.change_state(ClosedState)
+            return True
+        except WebsocketError as exc:
+            logger.error("WebSocket protocol error while connected: %s", exc)
+            fsm.change_state(ClosedState)
+            return True
+        except MQTTError as exc:
+            logger.error("There was a problem with data from broker, closing connection: %s", exc)
+            state_data.disconnect_rc = exc.reason_code
+            fsm.change_state(ClosedState)
+            return True
 
         return False
 
