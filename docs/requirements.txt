@@ -14,11 +14,11 @@ beautifulsoup4==4.15.0
     # via sphinx-toolbox
 cachecontrol==0.14.4
     # via sphinx-toolbox
-certifi==2026.6.17
+certifi==2026.7.22
     # via
     #   requests
     #   sphinx-prompt
-charset-normalizer==3.4.7
+charset-normalizer==3.5.1
     # via requests
 dict2css==0.6.0
     # via sphinx-toolbox
@@ -38,18 +38,18 @@ domdf-python-tools==3.10.0
     #   sphinx-toolbox
 enum-tools==0.13.0
     # via -r docs/requirements.in
-filelock==3.29.4
+filelock==4.0.1
     # via
     #   cachecontrol
     #   sphinx-toolbox
 html5lib==1.1
     # via sphinx-toolbox
-idna==3.18
+idna==3.20
     # via
     #   apeye-core
     #   requests
     #   sphinx-prompt
-imagesize==2.0.0
+imagesize==2.0.1
     # via sphinx
 jinja2==3.1.6
     # via
@@ -69,17 +69,17 @@ mdit-py-plugins==0.3.5
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-msgpack==1.2.1
+msgpack==1.2.2
     # via cachecontrol
 myst-parser==1.0.0
     # via -r docs/requirements.in
 natsort==8.4.0
     # via domdf-python-tools
-packaging==26.2
+packaging==26.3
     # via sphinx
-platformdirs==4.10.0
+platformdirs==4.11.12
     # via apeye
-pygments==2.20.0
+pygments==2.21.0
     # via
     #   enum-tools
     #   sphinx
@@ -101,7 +101,7 @@ six==1.17.0
     # via html5lib
 snowballstemmer==3.1.1
     # via sphinx
-soupsieve==2.8.4
+soupsieve==2.9.2
     # via beautifulsoup4
 sphinx==5.3.0
     # via
@@ -127,7 +127,7 @@ sphinx-rtd-theme==2.0.0
     # via -r docs/requirements.in
 sphinx-tabs==3.4.7
     # via sphinx-toolbox
-sphinx-toolbox==4.2.0
+sphinx-toolbox==4.3.1
     # via enum-tools
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
@@ -149,17 +149,17 @@ tabulate==0.10.0
     # via sphinx-toolbox
 tinycss2==1.5.1
     # via dict2css
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   beautifulsoup4
     #   domdf-python-tools
     #   enum-tools
     #   sphinx-toolbox
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   requests
     #   sphinx-prompt
-webencodings==0.5.1
+webencodings==0.6.1
     # via
     #   html5lib
     #   tinycss2
