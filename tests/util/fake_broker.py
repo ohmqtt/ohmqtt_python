@@ -57,7 +57,7 @@ class FakeBrokerHandler(socketserver.BaseRequestHandler):
             pass
 
     def handle_error(self, request: socket.socket, client_address: tuple[str, int]) -> None:
-        logger.exception("Exception in handler for %s", client_address)
+        logger.exception("Exception in handler for %s", client_address)  # noqa: LOG004 - socketserver calls this from its except block
 
     def _handle_packet(self, packet: MQTTPacket) -> None:
         outbound: list[MQTTPacket] = []
