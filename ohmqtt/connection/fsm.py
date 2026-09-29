@@ -98,9 +98,9 @@ class FSM:
         with self.cond:
             if self.state != self.error_state:
                 if not self.state.can_transition_to(self.error_state):
-                    logger.exception("Unhandled exception in FSM loop, cannot transition to %s, exploding", self.error_state.__name__)
+                    logger.error("Unhandled exception in FSM loop, cannot transition to %s, exploding", self.error_state.__name__, exc_info=exc)
                     raise InvalidStateError(f"Cannot transition to error state {self.error_state.__name__} from {self.state.__name__}") from exc
-                logger.exception("Unhandled exception in FSM loop, going to %s", self.error_state.__name__)
+                logger.error("Unhandled exception in FSM loop, going to %s", self.error_state.__name__, exc_info=exc)
                 self.previous_state = self.state
                 self.state = self.error_state
                 self._state_changed = True
