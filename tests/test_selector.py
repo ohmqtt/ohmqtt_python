@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 
 import pytest
 
@@ -34,6 +35,20 @@ def test_selector_interrupt(loopback_socket: socket.socket) -> None:
 
     thread.join(1.0)
     assert not thread.is_alive()
+
+
+def test_selector_interrupt_before_select(loopback_socket: socket.socket) -> None:
+    selector = InterruptibleSelector()
+
+    with selector:
+        selector.change_sock(loopback_socket)
+        selector.interrupt()
+        selector.interrupt()
+        t0 = time.monotonic()
+        assert selector.select(read=True, timeout=5.0) == (False, False)
+        assert time.monotonic() - t0 < 1.0
+        assert selector.select(read=True, timeout=0.05) == (False, False)
+        assert time.monotonic() - t0 >= 0.05
 
 
 def test_selector_change_sock() -> None:

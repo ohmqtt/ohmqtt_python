@@ -20,7 +20,6 @@ class InterruptibleSelector(Protected):
     This can be used to interrupt a blocking select() call from another thread."""
     __slots__ = (
         "_closed",
-        "_in_select",
         "_interrupt_r",
         "_interrupt_w",
         "_interrupted",
@@ -33,7 +32,6 @@ class InterruptibleSelector(Protected):
         self._selector = selectors.DefaultSelector()
         self._sock: SocketLike | None = None
         self._closed = False
-        self._in_select = False
         self._interrupted = False
         self._interrupt_r, self._interrupt_w = socket.socketpair()
         self._interrupt_r.setblocking(False)
@@ -55,11 +53,10 @@ class InterruptibleSelector(Protected):
 
     @protect
     def interrupt(self) -> None:
-        """Interrupt the select call, if we are in select."""
+        """Interrupt the current select call, or the next one if we are not in select."""
         if self._closed:
             raise RuntimeError("Selector is closed")
-        if self._in_select and not self._interrupted:
-            # We are in select, send an interrupt.
+        if not self._interrupted:
             self._interrupted = True
             self._interrupt_w.send(b"\x00")
 
@@ -94,8 +91,6 @@ class InterruptibleSelector(Protected):
             raise ValueError("Must select either read or write or both")
         self._selector.modify(self._sock, wanted_events)
         readable, writable = False, False
-        self._in_select = True
-        self._interrupted = False
         self.release()
         try:
             events = self._selector.select(timeout)
@@ -107,6 +102,5 @@ class InterruptibleSelector(Protected):
             self.acquire()
             if self._interrupted:
                 self._drain()
-            self._in_select = False
-            self._interrupted = False
+                self._interrupted = False
         return readable, writable
