@@ -112,6 +112,7 @@ def test_fsm_wait_for_state(do_request: bool, env: StateEnvironment) -> None:
         start.wait()
         if do_request:
             fsm.request_state(MockStateB)
+            time.sleep(0.05)
         else:
             fsm.change_state(MockStateB)
         fsm.loop_once()
@@ -121,7 +122,9 @@ def test_fsm_wait_for_state(do_request: bool, env: StateEnvironment) -> None:
 
     try:
         start.set()
-        assert fsm.wait_for_state([MockStateB, MockStateC], 0.5) is True
+        t0 = time.monotonic()
+        assert fsm.wait_for_state([MockStateB, MockStateC], 5.0) is True
+        assert time.monotonic() - t0 < 1.0
     finally:
         thread.join(0.1)
         assert not thread.is_alive()

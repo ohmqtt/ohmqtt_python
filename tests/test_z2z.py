@@ -313,3 +313,13 @@ def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker)
             client_id="test_client",
             clean_start=True,
         )
+
+
+def test_z2z_shutdown_after_connect(broker: FakeBroker) -> None:
+    for n in range(20):
+        client = Client()
+        client.start_loop()
+        client.connect(f"mqtt://localhost:{broker.port}", client_id=f"test_client_{n}")
+        client.wait_for_connect(timeout=1.0)
+        client.shutdown()
+        client.wait_for_shutdown(timeout=1.0)

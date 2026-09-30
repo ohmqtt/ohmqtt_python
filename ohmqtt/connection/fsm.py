@@ -127,6 +127,7 @@ class FSM:
                         self.state = self.requested_state
                         self._state_requested = False
                         self._state_changed = True
+                        self.cond.notify_all()
                 # Consume state changes, either from a state or from a request.
                 if self._state_changed:
                     self._state_changed = False
