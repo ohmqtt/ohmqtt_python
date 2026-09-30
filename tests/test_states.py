@@ -1053,13 +1053,15 @@ def test_states_reconnect_wait_happy_path(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("request_change", [False, True])
 def test_states_reconnect_wait_race(
+    request_change: bool,
     callbacks: EnvironmentCallbacks,
     state_data: StateData,
     env: StateEnvironment,
     mocker: MockerFixture
 ) -> None:
-    """Check for a race condition between state changes and waiting for state changes."""
+    """Check for a race condition between state changes or requests and waiting for state changes."""
     params = ConnectParams(address=Address("mqtt://testhost"), reconnect_delay=5)
     fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
     mock_cond = mocker.MagicMock(spec=Condition)
@@ -1068,9 +1070,13 @@ def test_states_reconnect_wait_race(
     fsm.cond = mock_cond
 
     ReconnectWaitState.enter(fsm, state_data, env, params)
-    fsm.change_state(ConnectingState)
-    ret = ReconnectWaitState.handle(fsm, state_data, env, params, True)
+    if request_change:
+        fsm.request_state(ClosingState)
+    else:
+        fsm.change_state(ConnectingState)
+    ret = ReconnectWaitState.handle(fsm, state_data, env, params, None)
     assert ret is True
+    mock_cond.wait.assert_not_called()
 
     callbacks.assert_not_called()
 

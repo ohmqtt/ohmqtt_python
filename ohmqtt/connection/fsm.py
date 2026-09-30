@@ -57,6 +57,11 @@ class FSM:
         with self.lock:
             return self.state
 
+    def state_requested(self) -> bool:
+        """Check if a state change has been requested but not yet handled."""
+        with self.lock:
+            return self._state_requested
+
     def wait_for_state(self, states: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
         """Wait for a specific state to be reached.
 

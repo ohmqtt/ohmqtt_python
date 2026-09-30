@@ -28,8 +28,8 @@ class ReconnectWaitState(FSMState):
             fsm.change_state(ConnectingState)
             return True
         with fsm.cond:
-            if fsm.state is not ReconnectWaitState:
-                # The state has changed, don't wait.
+            if fsm.state is not ReconnectWaitState or fsm.state_requested():
+                # The state has changed or a change was requested, don't wait.
                 return True
             if max_wait is None or max_wait > 0.0:
                 timeout = state_data.timeout.get_timeout(max_wait)
