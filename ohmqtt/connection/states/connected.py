@@ -43,10 +43,7 @@ class ConnectedState(FSMState):
             env.packet_buffer.append(MQTTPingReqPacket())
             state_data.keepalive.mark_ping()
 
-        with fsm.selector:
-            timeout = state_data.keepalive.get_next_timeout(max_wait)
-            write_check = bool(state_data.write_buffer or env.packet_buffer)
-            readable, writable = fsm.selector.select(read=True, write=write_check, timeout=timeout)
+        readable, writable = cls.wait_for_io(fsm, state_data, env, max_wait)
 
         # Batch encode outgoing packets until we have at least 64kB of data or the queue is drained.
         while env.packet_buffer and len(state_data.write_buffer) < 0xffff:
@@ -88,6 +85,19 @@ class ConnectedState(FSMState):
             return True
 
         return False
+
+    @classmethod
+    def wait_for_io(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, max_wait: float | None) -> tuple[bool, bool]:
+        """Wait until the socket is readable, or writable if there is data to send.
+
+        :return: A tuple of (readable, writable)."""
+        # Decrypted data buffered in the SSL socket doesn't make the socket readable.
+        tls_pending = isinstance(state_data.sock, ssl.SSLSocket) and state_data.sock.pending() > 0
+        with fsm.selector:
+            timeout = 0 if tls_pending else state_data.keepalive.get_next_timeout(max_wait)
+            write_check = bool(state_data.write_buffer or env.packet_buffer)
+            readable, writable = fsm.selector.select(read=True, write=write_check, timeout=timeout)
+        return readable or tls_pending, writable
 
     @classmethod
     def pull_tcp(cls, state_data: StateData) -> MQTTPacket | None:

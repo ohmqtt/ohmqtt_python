@@ -83,6 +83,7 @@ def env(callbacks: EnvironmentCallbacks) -> StateEnvironment:
 @pytest.fixture
 def mock_socket(mocker: MockerFixture) -> Mock:
     mock_socket = mocker.Mock(spec=ssl.SSLSocket)
+    mock_socket.pending.return_value = 0
     mocker.patch("ohmqtt.connection.states.connecting._get_socket", return_value=mock_socket)
     return mock_socket  # type: ignore[no-any-return]
 
@@ -730,6 +731,30 @@ def test_states_connected_happy_path(
     assert mock_read.call_count == 1
 
     callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_connected_tls_pending(
+    max_wait: float | None,
+    state_data: StateData,
+    env: Mock,
+    mock_keepalive: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mock_read: Mock,
+) -> None:
+    params = ConnectParams(address=Address("mqtts://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
+    mock_keepalive.get_next_timeout.return_value = 1 if max_wait is None else max_wait
+    fsm.env.packet_buffer = deque()
+    ConnectedState.enter(fsm, state_data, env, params)
+
+    mock_socket.pending.return_value = 10
+    mock_select.select.return_value = (False, False)
+    ret = ConnectedState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    mock_select.select.assert_called_once_with(read=True, write=False, timeout=0)
+    assert mock_read.call_count == 1
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])

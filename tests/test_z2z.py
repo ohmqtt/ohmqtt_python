@@ -3,18 +3,25 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import Path
+import socket
+import ssl
+import threading
 import time
 from typing import Final, Iterator
 
 import pytest
 
 from .util.fake_broker import FakeBroker, FakeWebsocketBroker
+from .util.selfsigned import generate_selfsigned_cert
 from ohmqtt.client import Client
 from ohmqtt.connection import InvalidStateError
+from ohmqtt.connection.decoder import IncrementalDecoder
 from ohmqtt.logger import get_logger
 from ohmqtt.mqtt_spec import MQTTQoS
 from ohmqtt.packet import (
     MQTTPacket,
+    MQTTConnAckPacket,
     MQTTConnectPacket,
     MQTTSubscribePacket,
     MQTTUnsubscribePacket,
@@ -323,3 +330,45 @@ def test_z2z_shutdown_after_connect(broker: FakeBroker) -> None:
         client.wait_for_connect(timeout=1.0)
         client.shutdown()
         client.wait_for_shutdown(timeout=1.0)
+
+
+def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
+    cert_pem, key_pem = generate_selfsigned_cert("localhost")
+    (tmp_path / "cert.pem").write_bytes(cert_pem)
+    (tmp_path / "key.pem").write_bytes(key_pem)
+    server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.load_cert_chain(tmp_path / "cert.pem", tmp_path / "key.pem")
+    client_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    client_context.load_verify_locations(tmp_path / "cert.pem")
+    publishes = [MQTTPublishPacket(topic="test/topic", payload=bytes([n])) for n in range(3)]
+
+    done = threading.Event()
+    with socket.create_server(("localhost", 0)) as listener:
+        def serve() -> None:
+            sock, _ = listener.accept()
+            with server_context.wrap_socket(sock, server_side=True) as tls_sock:
+                IncrementalDecoder().decode(tls_sock)
+                # CONNACK and all PUBLISH packets in a single TLS record.
+                tls_sock.sendall(MQTTConnAckPacket().encode() + b"".join(p.encode() for p in publishes))
+                done.wait(2.0)  # Hold the connection open without sending or reading anything else.
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        client = Client()
+        received: deque[MQTTPacket] = deque()
+        client.subscribe("test/topic", lambda _, packet: received.append(packet))
+        client.start_loop()
+        try:
+            client.connect(
+                f"mqtts://localhost:{listener.getsockname()[1]}",
+                client_id="test_client",
+                tls_context=client_context,
+            )
+            client.wait_for_connect(timeout=1.0)
+            for packet in publishes:
+                assert wait_for_queue_item(received, timeout=1.0) == packet
+        finally:
+            done.set()
+            client.shutdown()
+            client.wait_for_shutdown(timeout=1.0)
+        thread.join(1.0)
