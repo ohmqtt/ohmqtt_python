@@ -453,3 +453,33 @@ def test_session_unknown_pubrec(db_path: str, mock_handlers: Mock, mock_subscrip
         MQTTPubRelPacket(packet_id=42, reason_code=MQTTReasonCode.PacketIdentifierNotFound),
     )
     assert session.inflight == 0
+
+
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+@pytest.mark.parametrize("qos", [MQTTQoS.Q1, MQTTQoS.Q2])
+@pytest.mark.parametrize("properties", [
+    pytest.param(MQTTPublishProps(UserProperty=[("key", "v" * 65536)]), id="user_property"),
+    pytest.param(MQTTPublishProps(CorrelationData=b"x" * 65536), id="correlation_data"),
+    pytest.param(MQTTPublishProps(SubscriptionIdentifier={2 ** 28}), id="subscription_identifier"),
+])
+def test_session_publish_unencodable(
+    db_path: str,
+    qos: MQTTQoS,
+    properties: MQTTPublishProps,
+    mock_handlers: Mock,
+    mock_subscriptions: Mock,
+    mock_connection: Mock,
+) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.can_send.return_value = True
+    mock_connection.send.reset_mock()
+
+    with pytest.raises(ValueError, match="can't be encoded"):
+        session.publish("test/topic", b"test payload", qos=qos, properties=properties)
+    mock_connection.send.assert_not_called()
+    assert session.persistence.get(10) == []
+
+    session.publish("test/topic", b"test payload", qos=qos)
+    mock_connection.send.assert_called_once()

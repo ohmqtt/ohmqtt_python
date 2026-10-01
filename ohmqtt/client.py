@@ -160,7 +160,7 @@ class Client:
         :param retain: If True, the message will be retained by the broker.
         :param properties: Properties for the PUBLISH packet.
         :param alias_policy: The policy for using automatic topic aliases.
-        :raises ValueError: The topic is not a valid topic name.
+        :raises ValueError: The topic is not a valid topic name, or a QoS 1 or 2 message can't be encoded.
         """
         validate_topic(topic)
         if isinstance(payload, str):

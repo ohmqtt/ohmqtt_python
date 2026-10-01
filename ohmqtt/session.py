@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from typing import Final, TypeAlias
 
 from .connection import Connection, ConnectParams, InvalidStateError, MessageHandlers
@@ -91,6 +92,18 @@ class Session:
         """Publish a message to a topic."""
         properties = properties if properties is not None else MQTTPublishProps()
         if qos > MQTTQoS.Q0:
+            # Never persist a message which can't be sent.
+            try:
+                MQTTPublishPacket(
+                    topic=topic,
+                    payload=payload,
+                    qos=qos,
+                    retain=retain,
+                    packet_id=1,
+                    properties=properties,
+                ).encode()
+            except (struct.error, ValueError) as exc:
+                raise ValueError(f"Message can't be encoded: {exc}") from exc
             with self._cond:
                 handle = self.persistence.add(
                     topic=topic,
