@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+import errno
 import socket
 import ssl
 from threading import Condition
@@ -84,6 +85,7 @@ def env(callbacks: EnvironmentCallbacks) -> StateEnvironment:
 def mock_socket(mocker: MockerFixture) -> Mock:
     mock_socket = mocker.Mock(spec=ssl.SSLSocket)
     mock_socket.pending.return_value = 0
+    mock_socket.getsockopt.return_value = 0
     mocker.patch("ohmqtt.connection.states.connecting._get_socket", return_value=mock_socket)
     return mock_socket  # type: ignore[no-any-return]
 
@@ -166,6 +168,7 @@ def test_states_connecting_happy_path(
 
     # Enter state.
     ConnectingState.enter(fsm, state_data, env, params)
+    mock_socket.setblocking.assert_called_once_with(False)
     if params.address.scheme != "unix":
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     mock_socket.reset_mock()
@@ -192,13 +195,21 @@ def test_states_connecting_happy_path(
     mock_socket.reset_mock()
     assert fsm.state is ConnectingState
 
-    # Second handle, finish non-blocking connect.
+    # Second handle, still connecting.  connect() is only called once.
+    ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    mock_socket.connect.assert_not_called()
+    mock_select.reset_mock()
+    assert fsm.state is ConnectingState
+
+    # Third handle, finish non-blocking connect.
     mock_select.select.return_value = (False, True)
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
-    mock_socket.setblocking.assert_called_once_with(False)
+    mock_socket.connect.assert_not_called()
+    mock_socket.getsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_ERROR)
     mock_socket.reset_mock()
     if params.address.use_tls:
         assert fsm.state is TLSHandshakeState
@@ -237,9 +248,41 @@ def test_states_connecting_timeout(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("exc", [
+    ConnectionRefusedError("TEST"),
+    socket.gaierror(socket.EAI_NONAME, "Name or service not known"),
+    OSError("TEST"),
+])
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connecting_error(
+    address: str,
+    max_wait: float | None,
+    exc: Exception,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
+    if address.startswith("unix:") and not HAS_AF_UNIX:
+        pytest.skip("Unix socket not supported on this platform")
+    params = ConnectParams(address=Address(address))
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
+
+    mock_socket.connect.side_effect = exc
+    ConnectingState.enter(fsm, state_data, env, params)
+    ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    mock_select.select.assert_not_called()
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_connecting_failed_in_progress(
     address: str,
     max_wait: float | None,
     callbacks: EnvironmentCallbacks,
@@ -253,8 +296,10 @@ def test_states_connecting_error(
     params = ConnectParams(address=Address(address))
     fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
 
-    mock_socket.connect.side_effect = ConnectionError("TEST")
+    mock_socket.connect.side_effect = BlockingIOError
     ConnectingState.enter(fsm, state_data, env, params)
+    mock_select.select.return_value = (False, True)
+    mock_socket.getsockopt.return_value = errno.ECONNREFUSED
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState

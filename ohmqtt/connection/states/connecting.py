@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import socket
 from typing import Final, TYPE_CHECKING
 
@@ -35,6 +36,8 @@ class ConnectingState(FSMState):
         state_data.connack = None
         state_data.disconnect_rc = None
         state_data.sock = _get_socket(params.address.family)
+        state_data.sock.setblocking(False)
+        state_data.connect_called = False
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
@@ -53,23 +56,21 @@ class ConnectingState(FSMState):
             fsm.change_state(ClosedState)
             return True
 
-        try:
-            address = params.address
-            if HAS_AF_UNIX and address.family == AF_UNIX:
-                state_data.sock.connect(address.host)
-            else:
-                state_data.sock.connect((address.host, address.port))
-        except ConnectionError as exc:
-            logger.error("Failed to connect to broker: %s", exc)
-            fsm.change_state(ClosedState)
-            return True
-        except (BlockingIOError, OSError):
-            pass  # Either in progress or already connected, select will reveal which.
+        if not state_data.connect_called:
+            state_data.connect_called = True
+            if not cls.start_connect(state_data, params):
+                fsm.change_state(ClosedState)
+                return True
 
         with fsm.selector:
             timeout = state_data.timeout.get_timeout(max_wait)
             _, writable = fsm.selector.select(write=True, timeout=timeout)
         if writable:
+            error = state_data.sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+            if error:
+                logger.error("Failed to connect to broker: %s", errno.errorcode.get(error, error))
+                fsm.change_state(ClosedState)
+                return True
             logger.debug("Socket connected to broker")
             if params.address.use_tls:
                 fsm.change_state(TLSHandshakeState)
@@ -77,6 +78,23 @@ class ConnectingState(FSMState):
                 fsm.change_state(WebsocketHandshakeRequestState)
             else:
                 fsm.change_state(MQTTHandshakeConnectState)
-            state_data.sock.setblocking(False)
             return True
         return False
+
+    @classmethod
+    def start_connect(cls, state_data: StateData, params: ConnectParams) -> bool:
+        """Start a non-blocking connect.  Name resolution happens here.
+
+        :return: False if the connection failed immediately."""
+        try:
+            address = params.address
+            if HAS_AF_UNIX and address.family == AF_UNIX:
+                state_data.sock.connect(address.host)
+            else:
+                state_data.sock.connect((address.host, address.port))
+        except BlockingIOError:
+            pass  # Connection in progress.
+        except OSError as exc:
+            logger.error("Failed to connect to broker: %s", exc)
+            return False
+        return True
