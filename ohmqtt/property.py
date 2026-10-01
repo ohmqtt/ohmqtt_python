@@ -140,6 +140,16 @@ _PropertySerializersById: Final[Mapping[int, _SerializerPair]] = {
 }
 
 
+def _get_property_name(key: int) -> str:
+    """Get the name of a property from its identifier.
+
+    :raises MQTTError: The identifier is not valid."""
+    try:
+        return MQTTPropertyId(key).name
+    except ValueError as exc:
+        raise MQTTError(f"Invalid property identifier {key}", MQTTReasonCode.MalformedPacket) from exc
+
+
 class MQTTProperties(MQTTPropertiesBase):
     def encode(self) -> bytes:
         """Encode MQTT properties to a buffer."""
@@ -176,7 +186,9 @@ class MQTTProperties(MQTTPropertiesBase):
         if length == 0:
             # Fast path for empty properties.
             return cls(), 1
-        data = data[length_sz:]
+        if length > len(data) - length_sz:
+            raise MQTTError("Properties length exceeds packet length", MQTTReasonCode.MalformedPacket)
+        data = data[length_sz:length_sz + length]
         remaining = length
         properties: dict[str, AnyFieldT] = {}
         while remaining:
@@ -186,7 +198,7 @@ class MQTTProperties(MQTTPropertiesBase):
             key = data[0]
             data  = data[1:]
             remaining -= 1
-            prop_name = MQTTPropertyId(key).name
+            prop_name = _get_property_name(key)
             deserializer = _PropertySerializersById[key].deserializer
             value, sz = deserializer(data)
             data = data[sz:]
