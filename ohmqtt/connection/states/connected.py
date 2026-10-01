@@ -30,6 +30,7 @@ class ConnectedState(FSMState):
         assert state_data.connack is not None, "Got to ConnectedState without a CONNACK"
         env.packet_callback(state_data.connack)
         state_data.open_called = True
+        state_data.was_connected = True
 
     @classmethod
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:

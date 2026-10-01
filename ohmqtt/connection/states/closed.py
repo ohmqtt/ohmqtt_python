@@ -38,8 +38,8 @@ class ClosedState(FSMState):
                     logger.debug("---> %s", disconnect_packet)
                 except OSError:
                     logger.debug("Failed to send DISCONNECT packet")
-            if params.reconnect_delay > 0 and fsm.requested_state == ConnectingState:
-                fsm.change_state(ReconnectWaitState)
+        if params.reconnect_delay > 0 and state_data.was_connected and fsm.requested_state == ConnectingState:
+            fsm.change_state(ReconnectWaitState)
         try:
             state_data.sock.shutdown(socket.SHUT_RDWR)
         except OSError as exc:

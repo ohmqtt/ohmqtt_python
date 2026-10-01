@@ -45,6 +45,8 @@ class ConnectingState(FSMState):
         state_data.ws_handshake_buffer.clear()
         state_data.ws_nonce = ""
         state_data.open_called = False
+        if fsm.previous_state is ClosedState:
+            state_data.was_connected = False
         with fsm.selector:
             fsm.selector.change_sock(state_data.sock)
 

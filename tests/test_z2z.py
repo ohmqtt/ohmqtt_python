@@ -441,3 +441,25 @@ def test_z2z_connack_failure(connack: bytes) -> None:
             client.shutdown()
             client.wait_for_shutdown(timeout=1.0)
         thread.join(1.0)
+
+
+def test_z2z_reconnect(broker: FakeBroker) -> None:
+    client = Client()
+    client.start_loop()
+    try:
+        client.connect(f"mqtt://localhost:{broker.port}", client_id="test_client", reconnect_delay=1)
+        client.wait_for_connect(timeout=1.0)
+        assert isinstance(wait_for_queue_item(broker.received), MQTTConnectPacket)
+
+        assert broker.sock is not None
+        broker.sock.shutdown(socket.SHUT_RDWR)
+        client.wait_for_disconnect(timeout=1.0)
+        client.wait_for_connect(timeout=2.0)
+        assert isinstance(wait_for_queue_item(broker.received), MQTTConnectPacket)
+
+        client.disconnect()
+        client.wait_for_disconnect(timeout=1.0)
+        time.sleep(1.5)
+        assert client.connection.fsm.get_state() is ClosedState
+    finally:
+        client.shutdown()

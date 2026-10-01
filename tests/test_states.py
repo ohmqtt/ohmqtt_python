@@ -29,6 +29,7 @@ from ohmqtt.connection.states import (
     WebsocketHandshakeRequestState,
     WebsocketHandshakeResponseState,
 )
+from ohmqtt.connection.states.base import FSMState
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 from ohmqtt.connection.ws_decoder import WebsocketDecoder
@@ -219,6 +220,22 @@ def test_states_connecting_happy_path(
         assert fsm.state is MQTTHandshakeConnectState
 
     callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize(("previous_state", "was_connected"), [(ClosedState, False), (ReconnectWaitState, True)])
+def test_states_connecting_was_connected(
+    previous_state: type[FSMState],
+    was_connected: bool,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
+    fsm.previous_state = previous_state
+    state_data.was_connected = True
+    ConnectingState.enter(fsm, state_data, env, params)
+    assert state_data.was_connected is was_connected
 
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "mqtts://testhost", "unix:///testpath"])
@@ -838,6 +855,7 @@ def test_states_connected_happy_path(
     callbacks.packet.assert_called_once_with(state_data.connack)
     callbacks.reset()
     assert state_data.open_called is True
+    assert state_data.was_connected is True
     assert fsm.state is ConnectedState
 
     # First handle, nothing to read.
@@ -1420,11 +1438,15 @@ def test_states_closing_send_error(
 
 @pytest.mark.parametrize("address", ["mqtt://testhost", "ws://testhost"])
 @pytest.mark.parametrize("open_called", [True, False])
+@pytest.mark.parametrize("was_connected", [True, False])
+@pytest.mark.parametrize("requested_state", [ConnectingState, ClosingState])
 @pytest.mark.parametrize("rc", [None, MQTTReasonCode.NormalDisconnection])
 @pytest.mark.parametrize("reconn_delay", [0, 1])
 def test_states_closed_happy_path(
     address: str,
     open_called: bool,
+    was_connected: bool,
+    requested_state: type[FSMState],
     rc: MQTTReasonCode | None,
     reconn_delay: int,
     callbacks: EnvironmentCallbacks,
@@ -1436,9 +1458,10 @@ def test_states_closed_happy_path(
     params = ConnectParams(address=Address(address), reconnect_delay=reconn_delay)
     fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
 
-    fsm.requested_state = ConnectingState
+    fsm.requested_state = requested_state
     state_data.disconnect_rc = rc
     state_data.open_called = open_called
+    state_data.was_connected = was_connected
     ClosedState.enter(fsm, state_data, env, params)
     if open_called:
         if rc is not None:
@@ -1458,7 +1481,7 @@ def test_states_closed_happy_path(
     mock_socket.close.assert_called_once()
     decoder.reset.assert_called_once()
     # We will assert that the write buffer is empty in another test.
-    if reconn_delay > 0 and open_called:
+    if reconn_delay > 0 and was_connected and requested_state is ConnectingState:
         assert fsm.state is ReconnectWaitState
     else:
         assert fsm.state is ClosedState

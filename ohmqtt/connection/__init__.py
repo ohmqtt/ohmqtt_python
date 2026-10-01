@@ -69,6 +69,7 @@ class Connection:
                 state = self.fsm.get_state()
                 raise InvalidStateError(f"Cannot connect() from state {state.__name__}, disconnect() first")
             self.fsm.set_params(params)
+            self.fsm.requested_state = ConnectingState
             self.fsm.change_state(ConnectingState)
             self.fsm.selector.interrupt()
 

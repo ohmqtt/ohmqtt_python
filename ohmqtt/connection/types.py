@@ -92,6 +92,7 @@ class StateData:
     decoder: IncrementalDecoder = field(init=False, default_factory=IncrementalDecoder)
     connack: MQTTConnAckPacket | None = field(init=False, default=None)
     open_called: bool = field(init=False, default=False)
+    was_connected: bool = field(init=False, default=False)
     connect_called: bool = field(init=False, default=False)
     ws_decoder: WebsocketDecoder = field(init=False, default_factory=WebsocketDecoder)
     ws_nonce: str = field(init=False, default="")
