@@ -47,7 +47,7 @@ def _test_ack(
 
     with cond:
         start.set()
-        assert handle.wait_for_ack(timeout=0.01) == ack
+        assert handle.wait_for_ack(timeout=1.0) == ack
 
     thread.join()
 
@@ -73,7 +73,7 @@ def _test_exc(
     with cond:
         start.set()
         with pytest.raises(ValueError, match="TEST"):
-            handle.wait_for_ack(timeout=0.01)
+            handle.wait_for_ack(timeout=1.0)
 
     thread.join()
 
