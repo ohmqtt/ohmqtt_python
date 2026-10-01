@@ -272,3 +272,21 @@ def test_client_slots(mocker: MockerFixture, mock_connection: Mock, mock_handler
         assert not hasattr(client, "__dict__")
         assert hasattr(client, "__weakref__")
         assert all(hasattr(client, attr) for attr in client.__slots__)
+
+
+@pytest.mark.parametrize("topic", ["", "test/+", "test/#", "test/\u0000", "t" * 65536])
+def test_client_publish_invalid_topic(topic: str, mock_connection: Mock, mock_handlers: MagicMock,
+                                      mock_session: Mock, mock_subscriptions: Mock) -> None:
+    client = Client()
+    with pytest.raises(ValueError, match="Topic name"):
+        client.publish(topic, b"test_payload")
+    mock_session.publish.assert_not_called()
+
+
+@pytest.mark.parametrize("will_topic", ["test/+", "test/#", "test/\u0000", "t" * 65536])
+def test_client_connect_invalid_will_topic(will_topic: str, mock_connection: Mock, mock_handlers: MagicMock,
+                                           mock_session: Mock, mock_subscriptions: Mock) -> None:
+    client = Client()
+    with pytest.raises(ValueError, match="Topic name"):
+        client.connect("localhost", will_topic=will_topic)
+    mock_connection.connect.assert_not_called()

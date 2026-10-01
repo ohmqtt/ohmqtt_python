@@ -20,6 +20,7 @@ from .property import MQTTAuthProps, MQTTConnectProps, MQTTPublishProps, MQTTWil
 from .session import Session
 from .subscriptions import Subscriptions, SubscribeCallback, RetainPolicy
 from .topic_alias import AliasPolicy
+from .topic_filter import validate_topic
 
 logger: Final = get_logger("client")
 
@@ -105,7 +106,10 @@ class Client:
         :param will_retain: If True, the Will message will be retained.
         :param will_properties: Properties for the Will message.
         :param connect_properties: Properties for the CONNECT packet.
+        :raises ValueError: The Will topic is not a valid topic name.
         """
+        if will_topic:
+            validate_topic(will_topic)
         _address = Address(address)
         params = ConnectParams(
             address=_address,
@@ -156,7 +160,9 @@ class Client:
         :param retain: If True, the message will be retained by the broker.
         :param properties: Properties for the PUBLISH packet.
         :param alias_policy: The policy for using automatic topic aliases.
+        :raises ValueError: The topic is not a valid topic name.
         """
+        validate_topic(topic)
         if isinstance(payload, str):
             payload = payload.encode("utf-8")
         elif not isinstance(payload, bytes):

@@ -463,3 +463,14 @@ def test_z2z_reconnect(broker: FakeBroker) -> None:
         assert client.connection.fsm.get_state() is ClosedState
     finally:
         client.shutdown()
+
+
+def test_z2z_publish_invalid_topic(broker: FakeBroker) -> None:
+    client = get_client(broker, "mqtt", "")
+    for qos in (MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2):
+        with pytest.raises(ValueError, match="Topic name"):
+            client.publish("t" * 65536, b"test payload", qos=qos)
+    assert client.is_connected()
+    handle = client.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
+    assert handle.wait_for_ack(timeout=1.0) == MQTTPubAckPacket(packet_id=1)
+    client.shutdown()
