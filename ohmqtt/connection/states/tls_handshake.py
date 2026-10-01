@@ -59,4 +59,8 @@ class TLSHandshakeState(FSMState):
             logger.debug("TLS handshake wants write")
             with fsm.selector:
                 fsm.selector.select(write=True, timeout=timeout)
+        except OSError as exc:
+            logger.error("TLS handshake failed: %s", exc)
+            fsm.change_state(ClosedState)
+            return True
         return False

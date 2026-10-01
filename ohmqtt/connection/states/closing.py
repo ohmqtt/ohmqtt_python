@@ -69,8 +69,8 @@ class ClosingState(FSMState):
                 state_data.keepalive.mark_send()
             except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
                 pass
-            except BrokenPipeError:
-                logger.error("Socket lost while closing")
+            except OSError as exc:
+                logger.error("Socket lost while closing: %s", exc)
                 fsm.change_state(ClosedState)
                 return True
         return False

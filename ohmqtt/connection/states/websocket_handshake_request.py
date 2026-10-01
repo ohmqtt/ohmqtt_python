@@ -61,4 +61,8 @@ Sec-WebSocket-Protocol: mqtt\r
                 with fsm.selector:
                     timeout = state_data.timeout.get_timeout(max_wait)
                     fsm.selector.select(write=True, timeout=timeout)
+        except OSError as exc:
+            logger.error("Websocket handshake request send failed, closing connection: %s", exc)
+            fsm.change_state(ClosedState)
+            return True
         return False

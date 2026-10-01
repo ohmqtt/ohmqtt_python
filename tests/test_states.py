@@ -325,6 +325,36 @@ def test_states_tls_handshake_happy_path(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("exc", [
+    ssl.SSLCertVerificationError("certificate verify failed"),
+    ssl.SSLError("wrong version number"),
+    ConnectionResetError("TEST"),
+])
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_tls_handshake_error(
+    max_wait: float | None,
+    exc: Exception,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock,
+    mocker: MockerFixture
+) -> None:
+    params = ConnectParams(address=Address("mqtts://testhost"), tls_context=mocker.Mock())
+    fsm = FSM(env=env, init_state=TLSHandshakeState, error_state=ShutdownState)
+
+    params.tls_context.wrap_socket.return_value = mock_socket  # type: ignore[union-attr]
+    TLSHandshakeState.enter(fsm, state_data, env, params)
+    mock_socket.do_handshake.side_effect = exc
+    ret = TLSHandshakeState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    mock_select.select.assert_not_called()
+
+    callbacks.assert_not_called()
+
+
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_tls_handshake_timeout(
     max_wait: float | None,
@@ -533,6 +563,28 @@ def test_states_mqtt_connect_error(
 
     MQTTHandshakeConnectState.enter(fsm, state_data, env, params)
     mock_socket.send.return_value = 0
+    ret = MQTTHandshakeConnectState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("exc", [BrokenPipeError, ConnectionResetError, ssl.SSLEOFError])
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_mqtt_connect_send_error(
+    max_wait: float | None,
+    exc: type[Exception],
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnectState, error_state=ShutdownState)
+
+    MQTTHandshakeConnectState.enter(fsm, state_data, env, params)
+    mock_socket.send.side_effect = exc("TEST")
     ret = MQTTHandshakeConnectState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
@@ -797,7 +849,7 @@ def test_states_connected_keepalive(
 
 
 @pytest.mark.parametrize("block_exc", [ssl.SSLWantReadError, ssl.SSLWantWriteError, BlockingIOError])
-@pytest.mark.parametrize("fatal_exc", [BrokenPipeError, ConnectionResetError])
+@pytest.mark.parametrize("fatal_exc", [BrokenPipeError, ConnectionResetError, TimeoutError, ssl.SSLEOFError, OSError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connected_send_errors(
     max_wait: float | None,
@@ -1240,10 +1292,12 @@ def test_states_closing_shutdown_error(
 
 
 @pytest.mark.parametrize("exc", [ssl.SSLWantReadError, ssl.SSLWantWriteError, BlockingIOError])
+@pytest.mark.parametrize("fatal_exc", [BrokenPipeError, ConnectionResetError, ssl.SSLEOFError])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_closing_send_error(
     max_wait: float | None,
     exc: type[Exception],
+    fatal_exc: type[Exception],
     callbacks: EnvironmentCallbacks,
     state_data: StateData,
     env: StateEnvironment,
@@ -1263,7 +1317,7 @@ def test_states_closing_send_error(
     assert ret is False
     assert fsm.state is ClosingState
 
-    mock_socket.send.side_effect = BrokenPipeError("TEST")
+    mock_socket.send.side_effect = fatal_exc("TEST")
     ret = ClosingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
@@ -1513,6 +1567,29 @@ def test_states_websocket_handshake_request_no_send(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("exc", [BrokenPipeError, ConnectionResetError, ssl.SSLEOFError])
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_request_send_error(
+    max_wait: float | None,
+    exc: type[Exception],
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeRequestState, error_state=ShutdownState)
+
+    fsm.previous_state = ConnectingState
+    WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
+    mock_socket.send.side_effect = exc("TEST")
+    ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+
+    callbacks.assert_not_called()
+
+
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_websocket_handshake_response_happy_path(
     max_wait: float | None,
@@ -1643,6 +1720,38 @@ def test_states_websocket_handshake_response_invalid(
     assert fsm.state is WebsocketHandshakeResponseState
     if max_wait:
         mock_select.select.assert_called_once_with(read=True, timeout=1)
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("recv", [
+    pytest.param(ConnectionResetError("TEST"), id="reset"),
+    pytest.param(ssl.SSLEOFError("TEST"), id="ssl_eof"),
+    pytest.param(b"", id="closed"),
+])
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_websocket_handshake_response_closed(
+    max_wait: float | None,
+    recv: Exception | bytes,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    mock_socket: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"), connect_timeout=5)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+
+    fsm.previous_state = WebsocketHandshakeRequestState
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    if isinstance(recv, Exception):
+        mock_socket.recv.side_effect = recv
+    else:
+        mock_socket.recv.return_value = recv
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    mock_select.select.assert_not_called()
 
     callbacks.assert_not_called()
 

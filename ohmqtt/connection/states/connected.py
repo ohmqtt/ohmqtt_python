@@ -61,7 +61,7 @@ class ConnectedState(FSMState):
                 state_data.keepalive.mark_send()
         except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
             pass
-        except (BrokenPipeError, ConnectionResetError) as exc:
+        except OSError as exc:
             logger.error("MQTT connection was closed: %s", exc)
             fsm.change_state(ClosedState)
             return True

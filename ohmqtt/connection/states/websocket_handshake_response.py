@@ -44,9 +44,19 @@ class WebsocketHandshakeResponseState(FSMState):
             return True
 
         try:
-            state_data.ws_handshake_buffer.extend(state_data.sock.recv(0xffff))
+            data = state_data.sock.recv(0xffff)
         except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
             logger.debug("Websocket handshake response recv would block, waiting for readable")
+        except OSError as exc:
+            logger.error("Websocket handshake response recv failed, closing connection: %s", exc)
+            fsm.change_state(ClosedState)
+            return True
+        else:
+            if not data:
+                logger.error("Websocket connection closed by broker during handshake")
+                fsm.change_state(ClosedState)
+                return True
+            state_data.ws_handshake_buffer.extend(data)
 
         validation_result = cls.validate_response(state_data.ws_nonce, state_data.ws_handshake_buffer)
         if validation_result is True:
