@@ -8,6 +8,7 @@ from .connected import ConnectedState
 from ..decoder import ClosedSocketError
 from ..types import ConnectParams, StateData, StateEnvironment
 from ..wslib import OpCode, WebsocketError
+from ...error import MQTTError
 from ...logger import get_logger
 from ...mqtt_spec import MQTTPacketType
 from ...packet import decode_packet, MQTTConnAckPacket, MQTTPacket
@@ -37,6 +38,10 @@ class MQTTHandshakeConnAckState(FSMState):
             return True
         except ClosedSocketError:
             logger.exception("Socket was closed")
+            fsm.change_state(ClosedState)
+            return True
+        except MQTTError as exc:
+            logger.error("There was a problem with the CONNACK from broker, closing connection: %s", exc)
             fsm.change_state(ClosedState)
             return True
 

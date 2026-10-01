@@ -403,3 +403,40 @@ def test_z2z_unknown_acks(broker: FakeBroker) -> None:
     handle = client.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
     assert handle.wait_for_ack(timeout=1.0) == MQTTPubAckPacket(packet_id=1)
     client.shutdown()
+
+
+@pytest.mark.parametrize("connack", [
+    pytest.param(b"\x20\x01\x00", id="malformed"),
+])
+def test_z2z_connack_failure(connack: bytes) -> None:
+    states: list[str] = []
+    with socket.create_server(("localhost", 0)) as listener:
+        def serve() -> None:
+            sock, _ = listener.accept()
+            with sock:
+                IncrementalDecoder().decode(sock)
+                sock.sendall(connack)
+                sock.recv(1)
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        client = Client()
+        client.start_loop()
+        try:
+            client.connect(f"mqtt://localhost:{listener.getsockname()[1]}", client_id="test_client")
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                state = client.connection.fsm.get_state().__name__
+                if not states or states[-1] != state:
+                    states.append(state)
+                if state in ("ClosedState", "ShutdownState") and len(states) > 1:
+                    break
+                time.sleep(0.0005)
+            assert states[-1] == "ClosedState"
+            assert "ConnectedState" not in states
+            assert client._thread is not None  # noqa: SLF001
+            assert client._thread.is_alive()  # noqa: SLF001
+        finally:
+            client.shutdown()
+            client.wait_for_shutdown(timeout=1.0)
+        thread.join(1.0)
