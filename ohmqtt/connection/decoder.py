@@ -42,7 +42,12 @@ class IncrementalDecoder:
         """Reset the decoder state."""
         self.head = -1
         self.length = InitVarintDecodeState
-        self.data.clear()
+        try:
+            self.data.clear()
+        except BufferError:
+            # After a failed decode, the exception's traceback can still hold views of the buffer,
+            # which stop it from being resized.  Leave it to them and start a new one.
+            self.data = bytearray()
 
     def _recv_one_byte(self, sock: socket.socket | ssl.SSLSocket) -> int:
         """Receive one byte from the socket.

@@ -127,3 +127,21 @@ def test_decoder_empty_reads(mock_socket: Mock) -> None:
     mock_socket.recv.side_effect = [data[:1], data[1:2], data[2:3], data[3:]]
     assert decoder.decode(mock_socket) == in_packet
     decoder.reset()
+
+
+@pytest.mark.parametrize("bad_packet", [
+    pytest.param(b"\x40\x04\x00\x01\x00\x05", id="puback_bad_props_length"),
+    pytest.param(b"\x90\x03\x00\x01\x05", id="suback_bad_props_length"),
+    pytest.param(b"\xb0\x01\x00", id="unsuback_truncated"),
+    pytest.param(b"\xe0\x02\x00\x05", id="disconnect_bad_props_length"),
+    pytest.param(b"\x20\x01\x00", id="connack_truncated"),
+    pytest.param(b"\x40\x0b\x00\x01\x00\x07\x26\x00\x01k\x00\x05a", id="puback_truncated_user_property"),
+])
+def test_decoder_malformed_packet(bad_packet: bytes, loopback_socket: socket.socket) -> None:
+    decoder = IncrementalDecoder()
+    good_packet = MQTTPublishPacket(topic="topic", payload=b"payload")
+    loopback_socket.test_sendall(bad_packet + good_packet.encode())  # type: ignore[attr-defined]
+    with pytest.raises(MQTTError) as excinfo:
+        decoder.decode(loopback_socket)
+    assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
+    assert decoder.decode(loopback_socket) == good_packet

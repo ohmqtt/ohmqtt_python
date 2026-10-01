@@ -17,8 +17,9 @@ from .util.selfsigned import generate_selfsigned_cert
 from ohmqtt.client import Client
 from ohmqtt.connection import InvalidStateError
 from ohmqtt.connection.decoder import IncrementalDecoder
+from ohmqtt.connection.states import ClosedState
 from ohmqtt.logger import get_logger
-from ohmqtt.mqtt_spec import MQTTQoS
+from ohmqtt.mqtt_spec import MQTTQoS, MQTTReasonCode
 from ohmqtt.packet import (
     MQTTPacket,
     MQTTConnAckPacket,
@@ -372,3 +373,15 @@ def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
             client.shutdown()
             client.wait_for_shutdown(timeout=1.0)
         thread.join(1.0)
+
+
+def test_z2z_malformed_packet(broker: FakeBroker) -> None:
+    client = get_client(broker, "mqtt", "")
+    assert broker.sock is not None
+    broker.sock.sendall(b"\x40\x04\x00\x01\x00\x05")
+    assert wait_for_queue_item(broker.received, timeout=1.0) == MQTTDisconnectPacket(
+        reason_code=MQTTReasonCode.MalformedPacket,
+    )
+    client.wait_for_disconnect(timeout=1.0)
+    assert client.connection.fsm.get_state() is ClosedState
+    client.shutdown()
