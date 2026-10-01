@@ -145,3 +145,21 @@ def test_decoder_malformed_packet(bad_packet: bytes, loopback_socket: socket.soc
         decoder.decode(loopback_socket)
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
     assert decoder.decode(loopback_socket) == good_packet
+
+
+def test_decoder_readonly_view(mocker: MockerFixture, loopback_socket: socket.socket) -> None:
+    decoder = IncrementalDecoder()
+    packet = MQTTPublishPacket(topic="topic", payload=b"payload")
+    checked: list[bool] = []
+
+    def decode_packet_from_parts(head: int, data: memoryview) -> MQTTPublishPacket:
+        assert isinstance(data, memoryview)
+        with pytest.raises(TypeError):
+            data[0] = 0
+        checked.append(True)
+        return packet
+
+    mocker.patch("ohmqtt.connection.decoder.decode_packet_from_parts", side_effect=decode_packet_from_parts)
+    loopback_socket.test_sendall(packet.encode())  # type: ignore[attr-defined]
+    assert decoder.decode(loopback_socket) == packet
+    assert checked == [True]

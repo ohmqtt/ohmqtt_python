@@ -122,8 +122,7 @@ class IncrementalDecoder:
 
         # We have a complete packet, decode it and clear the read buffer.
         packet_head = self.head
-        packet_data = memoryview(self.data)
-        packet_data.toreadonly()
+        packet_data = memoryview(self.data).toreadonly()
         try:
             return decode_packet_from_parts(packet_head, packet_data)
         finally:
