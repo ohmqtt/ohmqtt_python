@@ -745,6 +745,30 @@ def test_states_mqtt_connack_unexpected(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("reason_code", [MQTTReasonCode.UnspecifiedError, MQTTReasonCode.NotAuthorized])
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_mqtt_connack_refused(
+    max_wait: float | None,
+    reason_code: MQTTReasonCode,
+    callbacks: EnvironmentCallbacks,
+    decoder: Mock,
+    state_data: StateData,
+    env: StateEnvironment
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
+
+    MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
+    state_data.connack = None
+    decoder.decode.return_value = MQTTConnAckPacket(reason_code=reason_code)
+    ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    assert state_data.connack is None
+
+    callbacks.assert_not_called()
+
+
 @pytest.mark.parametrize("address", ["mqtt://testhost", "ws://testhost"])
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_mqtt_connack_malformed(

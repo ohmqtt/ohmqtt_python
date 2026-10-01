@@ -54,6 +54,10 @@ class MQTTHandshakeConnAckState(FSMState):
 
         if packet is not None and packet.packet_type == MQTTPacketType.CONNACK:
             packet = cast(MQTTConnAckPacket, packet)
+            if packet.reason_code.is_error():
+                logger.error("Broker refused the connection: %s", packet.reason_code)
+                fsm.change_state(ClosedState)
+                return True
             state_data.connack = packet
             if packet.properties.ServerKeepAlive is not None:
                 state_data.keepalive.keepalive_interval = packet.properties.ServerKeepAlive

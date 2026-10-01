@@ -406,6 +406,7 @@ def test_z2z_unknown_acks(broker: FakeBroker) -> None:
 
 
 @pytest.mark.parametrize("connack", [
+    pytest.param(MQTTConnAckPacket(reason_code=MQTTReasonCode.NotAuthorized).encode(), id="refused"),
     pytest.param(b"\x20\x01\x00", id="malformed"),
 ])
 def test_z2z_connack_failure(connack: bytes) -> None:
