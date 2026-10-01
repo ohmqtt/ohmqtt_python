@@ -20,6 +20,18 @@ for py in FT_PYTHONS:
         ALL_PYTHONS.append(f"{py}t")
 
 
+TYPOS_PATHS = [
+    "docs",
+    "examples",
+    "ohmqtt",
+    "tests",
+    "noxfile.py",
+    "pyproject.toml",
+    "README.md",
+    "TODO.md",
+]
+
+
 @nox.session(python=ALL_PYTHONS)
 def tests(session: nox.Session) -> None:
     coverage_file = f".coverage.{sys.platform}.{session.python}"
@@ -30,7 +42,7 @@ def tests(session: nox.Session) -> None:
     session.run("uv", "sync", "--active", "--frozen")
     session.run("uv", "sync", "--active", "--frozen", "--group", "dev")
     session.run("ruff", "check")
-    session.run("typos")
+    session.run("typos", *TYPOS_PATHS)
     session.run("mypy")
     session.run("complexipy")
     session.run("pytest", env=pytest_env)
