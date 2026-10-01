@@ -9,7 +9,7 @@ from ...logger import get_logger
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.shutdown")
+logger: Final = get_logger("connection.states.shutdown")
 
 
 class ShutdownState(FSMState):

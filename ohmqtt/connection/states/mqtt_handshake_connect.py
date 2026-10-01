@@ -14,7 +14,7 @@ from ...packet import MQTTConnectPacket
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.mqtt_handshake_connect")
+logger: Final = get_logger("connection.states.mqtt_handshake_connect")
 
 
 class MQTTHandshakeConnectState(FSMState):

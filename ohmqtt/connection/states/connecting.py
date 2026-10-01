@@ -15,7 +15,7 @@ from ...platform import AF_UNIX, HAS_AF_UNIX
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.connecting")
+logger: Final = get_logger("connection.states.connecting")
 
 
 def _get_socket(family: socket.AddressFamily) -> socket.socket:

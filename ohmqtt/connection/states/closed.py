@@ -12,7 +12,7 @@ from ...packet import MQTTDisconnectPacket
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.closed")
+logger: Final = get_logger("connection.states.closed")
 
 
 class ClosedState(FSMState):

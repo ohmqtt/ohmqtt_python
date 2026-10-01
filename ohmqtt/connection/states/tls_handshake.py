@@ -13,7 +13,7 @@ from ...logger import get_logger
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.tls_handshake")
+logger: Final = get_logger("connection.states.tls_handshake")
 
 
 class TLSHandshakeState(FSMState):

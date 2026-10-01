@@ -17,7 +17,7 @@ from ...packet import decode_packet, MQTTPacket, MQTTPingReqPacket, MQTTPingResp
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.connected")
+logger: Final = get_logger("connection.states.connected")
 
 
 class ConnectedState(FSMState):

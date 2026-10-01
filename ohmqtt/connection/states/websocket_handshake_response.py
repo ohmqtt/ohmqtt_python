@@ -16,7 +16,7 @@ from ...logger import get_logger
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.mqtt_handshake_connack")
+logger: Final = get_logger("connection.states.websocket_handshake_response")
 
 
 class MockSocket:

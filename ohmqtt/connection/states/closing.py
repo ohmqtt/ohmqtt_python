@@ -13,7 +13,7 @@ from ...mqtt_spec import MQTTReasonCode
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.closing")
+logger: Final = get_logger("connection.states.closing")
 
 
 class ClosingState(FSMState):

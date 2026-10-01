@@ -10,7 +10,7 @@ from typing import Final
 from ..logger import get_logger
 
 
-logger: Final = get_logger("ohmqtt.connection.wslib")
+logger: Final = get_logger("connection.wslib")
 GUID: Final = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 

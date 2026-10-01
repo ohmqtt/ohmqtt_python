@@ -13,7 +13,7 @@ from ...logger import get_logger
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.websocket_handshake_request")
+logger: Final = get_logger("connection.states.websocket_handshake_request")
 
 
 class WebsocketHandshakeRequestState(FSMState):

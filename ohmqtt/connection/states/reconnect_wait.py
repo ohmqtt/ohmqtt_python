@@ -10,7 +10,7 @@ from ...logger import get_logger
 if TYPE_CHECKING:
     from ..fsm import FSM
 
-logger: Final = get_logger("ohmqtt.connection.states.reconnect_wait")
+logger: Final = get_logger("connection.states.reconnect_wait")
 
 
 class ReconnectWaitState(FSMState):
