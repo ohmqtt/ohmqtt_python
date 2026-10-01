@@ -199,7 +199,8 @@ class Session:
         if packet.reason_code.is_error():
             logger.error("Received PUBACK with error code: %s", packet.reason_code)
         with self._cond:
-            self.persistence.ack(packet)
+            if not self._ack(packet):
+                return
             self.inflight -= 1
             self._flush()
 
@@ -208,7 +209,14 @@ class Session:
         with self._cond:
             if packet.reason_code.is_error():
                 logger.error("Received PUBREC with error code: %s", packet.reason_code)
-            self.persistence.ack(packet)
+            if not self._ack(packet):
+                if not packet.reason_code.is_error():
+                    rel_packet = MQTTPubRelPacket(
+                        packet_id=packet.packet_id,
+                        reason_code=MQTTReasonCode.PacketIdentifierNotFound,
+                    )
+                    self._send_packet(rel_packet)
+                return
             self.inflight -= 1
             self._flush()
 
@@ -225,9 +233,23 @@ class Session:
         if packet.reason_code.is_error():
             logger.error("Received PUBCOMP with error code: %s", packet.reason_code)
         with self._cond:
-            self.persistence.ack(packet)
+            if not self._ack(packet):
+                return
             self.inflight -= 1
             self._flush()
+
+    def _ack(self, packet: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubCompPacket) -> bool:
+        """Acknowledge an in-flight message in the persistence store.
+
+        An unknown Packet Identifier is not an error during session recovery, so it is only logged.
+
+        :return: False if the Packet Identifier did not match an in-flight message."""
+        try:
+            self.persistence.ack(packet)
+        except ValueError:
+            logger.warning("Received %s for unknown packet ID %d, ignoring", packet.packet_type.name, packet.packet_id)
+            return False
+        return True
 
     def _flush(self) -> None:
         """Send queued packets up to the server's receive maximum."""

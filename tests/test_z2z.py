@@ -28,6 +28,8 @@ from ohmqtt.packet import (
     MQTTUnsubscribePacket,
     MQTTPublishPacket,
     MQTTPubAckPacket,
+    MQTTPubRecPacket,
+    MQTTPubCompPacket,
     MQTTPubRelPacket,
     MQTTDisconnectPacket,
 )
@@ -384,4 +386,20 @@ def test_z2z_malformed_packet(broker: FakeBroker) -> None:
     )
     client.wait_for_disconnect(timeout=1.0)
     assert client.connection.fsm.get_state() is ClosedState
+    client.shutdown()
+
+
+def test_z2z_unknown_acks(broker: FakeBroker) -> None:
+    client = get_client(broker, "mqtt", "")
+    broker.send(MQTTPubAckPacket(packet_id=42))
+    broker.send(MQTTPubCompPacket(packet_id=43))
+    broker.send(MQTTPubRecPacket(packet_id=44))
+    assert wait_for_queue_item(broker.received, timeout=1.0) == MQTTPubRelPacket(
+        packet_id=44,
+        reason_code=MQTTReasonCode.PacketIdentifierNotFound,
+    )
+    assert client.is_connected()
+
+    handle = client.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
+    assert handle.wait_for_ack(timeout=1.0) == MQTTPubAckPacket(packet_id=1)
     client.shutdown()

@@ -403,3 +403,53 @@ def test_session_slots(mock_handlers: Mock, mock_subscriptions: Mock, mock_conne
     assert not hasattr(session, "__dict__")
     assert all(hasattr(session, attr) for attr in session.__slots__), \
         [attr for attr in session.__slots__ if not hasattr(session, attr)]
+
+
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+@pytest.mark.parametrize("stray_ack", [
+    pytest.param(MQTTPubAckPacket(packet_id=42), id="puback"),
+    pytest.param(MQTTPubCompPacket(packet_id=42), id="pubcomp"),
+    pytest.param(MQTTPubRecPacket(packet_id=42, reason_code=MQTTReasonCode.UnspecifiedError), id="pubrec_error"),
+])
+def test_session_unknown_ack_ignored(
+    db_path: str,
+    stray_ack: MQTTPubAckPacket | MQTTPubRecPacket | MQTTPubCompPacket,
+    mock_handlers: Mock,
+    mock_subscriptions: Mock,
+    mock_connection: Mock,
+) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.can_send.return_value = True
+    handle = session.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
+    mock_connection.send.reset_mock()
+    assert session.inflight == 1
+
+    handlers = {
+        MQTTPubAckPacket: session.handle_puback,
+        MQTTPubRecPacket: session.handle_pubrec,
+        MQTTPubCompPacket: session.handle_pubcomp,
+    }
+    handlers[type(stray_ack)](stray_ack)  # type: ignore[operator]
+    mock_connection.send.assert_not_called()
+    assert session.inflight == 1
+
+    ack = MQTTPubAckPacket(packet_id=1)
+    session.handle_puback(ack)
+    assert handle.wait_for_ack(0.001) is ack
+    assert session.inflight == 0
+
+
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+def test_session_unknown_pubrec(db_path: str, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(ReceiveMaximum=255)))
+    mock_connection.send.reset_mock()
+
+    session.handle_pubrec(MQTTPubRecPacket(packet_id=42))
+    mock_connection.send.assert_called_once_with(
+        MQTTPubRelPacket(packet_id=42, reason_code=MQTTReasonCode.PacketIdentifierNotFound),
+    )
+    assert session.inflight == 0
