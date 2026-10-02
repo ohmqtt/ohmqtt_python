@@ -89,6 +89,23 @@ def test_session_publish_qos0_aliased(mock_handlers: Mock, mock_subscriptions: M
         mock_connection.send.reset_mock()
 
 
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+@pytest.mark.parametrize("qos", [MQTTQoS.Q0, MQTTQoS.Q1])
+def test_session_publish_aliased_reused_properties(db_path: str, qos: MQTTQoS, mock_handlers: Mock,
+                                                   mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client", clean_start=True))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(TopicAliasMaximum=255)))
+    mock_connection.can_send.return_value = True
+    properties = MQTTPublishProps(ContentType="text/plain")
+
+    session.publish("test/a", b"test payload", qos=qos, properties=properties, alias_policy=AliasPolicy.TRY)
+    assert mock_connection.send.call_args.args[0].properties.TopicAlias == 1
+    session.publish("test/b", b"test payload", qos=qos, properties=properties)
+    assert mock_connection.send.call_args.args[0].properties.TopicAlias is None
+    assert properties == MQTTPublishProps(ContentType="text/plain")
+
+
 def test_session_publish_qos0_unconnected(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
     mock_connection.can_send.return_value = False

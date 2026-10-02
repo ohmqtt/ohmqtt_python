@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import struct
 from typing import Final, TypeAlias
 
@@ -90,7 +91,7 @@ class Session:
         alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
         """Publish a message to a topic."""
-        properties = properties if properties is not None else MQTTPublishProps()
+        properties = copy.copy(properties) if properties is not None else MQTTPublishProps()
         if qos > MQTTQoS.Q0:
             # Never persist a message which can't be sent.
             try:
