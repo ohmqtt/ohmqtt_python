@@ -342,9 +342,11 @@ def test_session_handle_publish_qos1(mock_handlers: Mock, mock_subscriptions: Mo
     mock_connection.send.assert_called_once_with(MQTTPubAckPacket(packet_id=3))
 
 
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
 @pytest.mark.parametrize("ack_rc", [MQTTReasonCode.Success, MQTTReasonCode.MessageRateTooHigh])
-def test_session_handle_publish_qos2(ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
-     session = Session(mock_handlers, mock_subscriptions, mock_connection)
+def test_session_handle_publish_qos2(db_path: str, ack_rc: MQTTReasonCode, mock_handlers: Mock, mock_subscriptions: Mock,
+                                     mock_connection: Mock) -> None:
+     session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
      mock_connection.can_send.return_value = True
 
      packet = MQTTPublishPacket(

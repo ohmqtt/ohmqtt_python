@@ -194,7 +194,8 @@ class Session:
 
     def handle_publish(self, packet: MQTTPublishPacket) -> None:
         """Handle a PUBLISH packet from the server."""
-        if packet.qos == MQTTQoS.Q2 and not self.persistence.check_rec(packet):
+        duplicate = packet.qos == MQTTQoS.Q2 and not self.persistence.check_rec(packet)
+        if duplicate:
             logger.debug("Received duplicate QoS 2 packet with ID %d", packet.packet_id)
         else:
             self.subscriptions.handle_publish(packet)
@@ -203,7 +204,8 @@ class Session:
             ack_packet = MQTTPubAckPacket(packet_id=packet.packet_id)
             self._send_packet(ack_packet)
         elif packet.qos == MQTTQoS.Q2:
-            self.persistence.set_rec(packet)
+            if not duplicate:
+                self.persistence.set_rec(packet)
             rec_packet = MQTTPubRecPacket(packet_id=packet.packet_id)
             self._send_packet(rec_packet)
 
