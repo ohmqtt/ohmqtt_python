@@ -10,7 +10,7 @@ from ..types import ConnectParams, StateData, StateEnvironment
 from ..wslib import OpCode, WebsocketError
 from ...error import MQTTError
 from ...logger import get_logger
-from ...mqtt_spec import MQTTPacketType
+from ...mqtt_spec import MQTTPacketType, MQTTReasonCode
 from ...packet import decode_packet, MQTTConnAckPacket, MQTTPacket
 
 if TYPE_CHECKING:
@@ -25,6 +25,7 @@ class MQTTHandshakeConnAckState(FSMState):
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         if state_data.timeout.exceeded():
             logger.debug("MQTT CONNACK keepalive timeout")
+            env.connect_error = TimeoutError("Timed out waiting for CONNACK")
             fsm.change_state(ClosedState)
             return True
 
@@ -34,14 +35,17 @@ class MQTTHandshakeConnAckState(FSMState):
             want_read = packet is None
         except WebsocketError as exc:
             logger.error("WebSocket error while waiting for CONNACK: %s", exc)
+            env.connect_error = exc
             fsm.change_state(ClosedState)
             return True
-        except ClosedSocketError:
+        except ClosedSocketError as exc:
             logger.exception("Socket was closed")
+            env.connect_error = exc
             fsm.change_state(ClosedState)
             return True
         except MQTTError as exc:
             logger.error("There was a problem with the CONNACK from broker, closing connection: %s", exc)
+            env.connect_error = exc
             fsm.change_state(ClosedState)
             return True
 
@@ -56,6 +60,7 @@ class MQTTHandshakeConnAckState(FSMState):
             packet = cast(MQTTConnAckPacket, packet)
             if packet.reason_code.is_error():
                 logger.error("Broker refused the connection: %s", packet.reason_code)
+                env.connect_error = MQTTError("Connection refused by broker", packet.reason_code)
                 fsm.change_state(ClosedState)
                 return True
             state_data.connack = packet
@@ -65,6 +70,7 @@ class MQTTHandshakeConnAckState(FSMState):
             return True
         pt = packet.packet_type.name if packet is not None else "None"
         logger.error("Unexpected '%s' packet while waiting for CONNACK", pt)
+        env.connect_error = MQTTError(f"Unexpected {pt} packet while waiting for CONNACK", MQTTReasonCode.ProtocolError)
         fsm.change_state(ClosedState)
         return True
 

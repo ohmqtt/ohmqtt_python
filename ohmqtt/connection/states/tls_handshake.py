@@ -38,6 +38,7 @@ class TLSHandshakeState(FSMState):
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         if state_data.timeout.exceeded():
             logger.debug("TLS handshake timeout")
+            env.connect_error = TimeoutError("TLS handshake timed out")
             fsm.change_state(ClosedState)
             return True
 
@@ -61,6 +62,7 @@ class TLSHandshakeState(FSMState):
                 fsm.selector.select(write=True, timeout=timeout)
         except OSError as exc:
             logger.error("TLS handshake failed: %s", exc)
+            env.connect_error = exc
             fsm.change_state(ClosedState)
             return True
         return False

@@ -107,3 +107,4 @@ class StateEnvironment:
     Data in this class is shared with the outside world."""
     packet_callback: ConnectionReadCallback
     packet_buffer: deque[MQTTPacket] = field(init=False, default_factory=deque)
+    connect_error: Exception | None = field(init=False, default=None)

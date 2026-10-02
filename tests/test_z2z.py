@@ -18,6 +18,7 @@ from ohmqtt.client import Client
 from ohmqtt.connection import InvalidStateError
 from ohmqtt.connection.decoder import IncrementalDecoder
 from ohmqtt.connection.states import ClosedState
+from ohmqtt.error import MQTTError
 from ohmqtt.logger import get_logger
 from ohmqtt.mqtt_spec import MQTTQoS, MQTTReasonCode
 from ohmqtt.packet import (
@@ -474,3 +475,39 @@ def test_z2z_publish_invalid_topic(broker: FakeBroker) -> None:
     handle = client.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
     assert handle.wait_for_ack(timeout=1.0) == MQTTPubAckPacket(packet_id=1)
     client.shutdown()
+
+
+def test_z2z_loop_until_connected_refused_connack() -> None:
+    with socket.create_server(("localhost", 0)) as listener:
+        def serve() -> None:
+            sock, _ = listener.accept()
+            with sock:
+                IncrementalDecoder().decode(sock)
+                sock.sendall(MQTTConnAckPacket(reason_code=MQTTReasonCode.NotAuthorized).encode())
+                sock.recv(1)
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        client = Client()
+        client.connect(f"mqtt://localhost:{listener.getsockname()[1]}", client_id="test_client")
+        t0 = time.monotonic()
+        with pytest.raises(MQTTError) as excinfo:
+            client.loop_until_connected(timeout=5.0)
+        assert excinfo.value.reason_code == MQTTReasonCode.NotAuthorized
+        assert time.monotonic() - t0 < 1.0
+        client.shutdown()
+        client.loop_forever()
+        thread.join(1.0)
+
+
+def test_z2z_loop_until_connected_refused_port() -> None:
+    with socket.create_server(("localhost", 0)) as listener:
+        port = listener.getsockname()[1]
+    client = Client()
+    client.connect(f"mqtt://localhost:{port}", client_id="test_client")
+    t0 = time.monotonic()
+    with pytest.raises(ConnectionRefusedError):
+        client.loop_until_connected(timeout=5.0)
+    assert time.monotonic() - t0 < 1.0
+    client.shutdown()
+    client.loop_forever()

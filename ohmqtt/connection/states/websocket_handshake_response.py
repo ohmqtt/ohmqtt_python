@@ -10,7 +10,7 @@ from .base import FSMState
 from .closed import ClosedState
 from .mqtt_handshake_connect import MQTTHandshakeConnectState
 from ..types import ConnectParams, StateData, StateEnvironment
-from ..wslib import generate_handshake_key
+from ..wslib import generate_handshake_key, WebsocketError
 from ...logger import get_logger
 
 if TYPE_CHECKING:
@@ -40,6 +40,7 @@ class WebsocketHandshakeResponseState(FSMState):
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         if state_data.timeout.exceeded():
             logger.debug("Websocket handshake response keepalive timeout")
+            env.connect_error = TimeoutError("Websocket handshake timed out")
             fsm.change_state(ClosedState)
             return True
 
@@ -49,11 +50,13 @@ class WebsocketHandshakeResponseState(FSMState):
             logger.debug("Websocket handshake response recv would block, waiting for readable")
         except OSError as exc:
             logger.error("Websocket handshake response recv failed, closing connection: %s", exc)
+            env.connect_error = exc
             fsm.change_state(ClosedState)
             return True
         else:
             if not data:
                 logger.error("Websocket connection closed by broker during handshake")
+                env.connect_error = ConnectionError("Websocket connection closed by broker during handshake")
                 fsm.change_state(ClosedState)
                 return True
             state_data.ws_handshake_buffer.extend(data)
@@ -65,6 +68,7 @@ class WebsocketHandshakeResponseState(FSMState):
             return True
         if validation_result is False:
             state_data.ws_handshake_buffer.clear()
+            env.connect_error = WebsocketError("Websocket handshake failed")
             fsm.change_state(ClosedState)
             return True
 

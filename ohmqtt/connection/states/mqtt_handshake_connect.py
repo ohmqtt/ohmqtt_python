@@ -48,6 +48,7 @@ class MQTTHandshakeConnectState(FSMState):
     def handle(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams, max_wait: float | None) -> bool:
         if state_data.timeout.exceeded():
             logger.debug("MQTT CONNECT keepalive timeout")
+            env.connect_error = TimeoutError("Timed out sending CONNECT")
             fsm.change_state(ClosedState)
             return True
 
@@ -55,6 +56,7 @@ class MQTTHandshakeConnectState(FSMState):
             num_sent = state_data.sock.send(state_data.write_buffer)
             if num_sent == 0:
                 logger.error("MQTT CONNECT send returned 0 bytes, closing connection")
+                env.connect_error = ConnectionError("MQTT CONNECT send returned 0 bytes")
                 fsm.change_state(ClosedState)
                 return True
             if num_sent < len(state_data.write_buffer):
@@ -73,6 +75,7 @@ class MQTTHandshakeConnectState(FSMState):
                     fsm.selector.select(write=True, timeout=timeout)
         except OSError as exc:
             logger.error("MQTT CONNECT send failed, closing connection: %s", exc)
+            env.connect_error = exc
             fsm.change_state(ClosedState)
             return True
         return False

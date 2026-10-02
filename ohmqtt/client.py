@@ -325,7 +325,9 @@ class Client:
 
         If a timeout is provided, the loop will give up after that amount of time.
 
-        Returns True if the client is connected, False if the timeout was reached."""
+        Returns True if the client is connected, False if the timeout was reached.
+
+        :raises Exception: The connection attempt failed, with the cause of the failure."""
         return self.connection.loop_until_connected(timeout)
 
     def is_connected(self) -> bool:

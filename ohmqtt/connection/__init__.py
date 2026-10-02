@@ -120,5 +120,11 @@ class Connection:
     def loop_until_connected(self, timeout: float | None = None) -> bool:
         """Run the state machine until the connection is established.
 
-        :return: True if the connection is established, False otherwise."""
-        return self.fsm.loop_until_state((ConnectedState,), timeout)
+        :return: True if the connection is established, False otherwise.
+        :raises Exception: The connection attempt failed, with the cause of the failure."""
+        self.fsm.loop_until_state((ConnectedState, ClosedState), timeout)
+        error, self.fsm.env.connect_error = self.fsm.env.connect_error, None
+        state = self.fsm.get_state()
+        if error is not None and state is ClosedState:
+            raise error
+        return state is ConnectedState

@@ -168,7 +168,9 @@ def test_states_connecting_happy_path(
     mock_timeout.get_timeout.return_value = 1 if max_wait is None else max_wait
 
     # Enter state.
+    env.connect_error = ConnectionRefusedError("TEST")
     ConnectingState.enter(fsm, state_data, env, params)
+    assert env.connect_error is None
     mock_socket.setblocking.assert_called_once_with(False)
     if params.address.scheme != "unix":
         mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -261,6 +263,7 @@ def test_states_connecting_timeout(
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, TimeoutError)
 
     callbacks.assert_not_called()
 
@@ -292,6 +295,7 @@ def test_states_connecting_error(
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert env.connect_error is exc
     mock_select.select.assert_not_called()
 
     callbacks.assert_not_called()
@@ -320,6 +324,7 @@ def test_states_connecting_failed_in_progress(
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, ConnectionRefusedError)
 
     callbacks.assert_not_called()
 
@@ -412,6 +417,7 @@ def test_states_tls_handshake_error(
     ret = TLSHandshakeState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert env.connect_error is exc
     mock_select.select.assert_not_called()
 
     callbacks.assert_not_called()
@@ -436,6 +442,7 @@ def test_states_tls_handshake_timeout(
     ret = TLSHandshakeState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, TimeoutError)
 
     callbacks.assert_not_called()
 
@@ -566,6 +573,7 @@ def test_states_mqtt_connect_timeout(
     ret = MQTTHandshakeConnectState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, TimeoutError)
 
     callbacks.assert_not_called()
 
@@ -628,6 +636,7 @@ def test_states_mqtt_connect_error(
     ret = MQTTHandshakeConnectState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, ConnectionError)
 
     callbacks.assert_not_called()
 
@@ -650,6 +659,7 @@ def test_states_mqtt_connect_send_error(
     ret = MQTTHandshakeConnectState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, exc)
 
     callbacks.assert_not_called()
 
@@ -717,6 +727,7 @@ def test_states_mqtt_connack_timeout(
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, TimeoutError)
 
     callbacks.assert_not_called()
 
@@ -738,6 +749,7 @@ def test_states_mqtt_connack_closed_socket(
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, ClosedSocketError)
 
     callbacks.assert_not_called()
 
@@ -758,6 +770,8 @@ def test_states_mqtt_connack_unexpected(
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, MQTTError)
+    assert env.connect_error.reason_code == MQTTReasonCode.ProtocolError
 
     callbacks.assert_not_called()
 
@@ -781,6 +795,8 @@ def test_states_mqtt_connack_refused(
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, MQTTError)
+    assert env.connect_error.reason_code == reason_code
     assert state_data.connack is None
 
     callbacks.assert_not_called()
@@ -806,6 +822,7 @@ def test_states_mqtt_connack_malformed(
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, MQTTError)
 
     callbacks.assert_not_called()
 
@@ -826,6 +843,7 @@ def test_states_mqtt_connack_ws_protocol_error(
     ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
 
     callbacks.assert_not_called()
 
@@ -1657,6 +1675,7 @@ def test_states_websocket_handshake_request_timeout(
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, TimeoutError)
 
     callbacks.assert_not_called()
 
@@ -1679,6 +1698,7 @@ def test_states_websocket_handshake_request_no_send(
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, ConnectionError)
 
     callbacks.assert_not_called()
 
@@ -1702,6 +1722,7 @@ def test_states_websocket_handshake_request_send_error(
     ret = WebsocketHandshakeRequestState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, exc)
 
     callbacks.assert_not_called()
 
@@ -1765,6 +1786,7 @@ def test_states_websocket_handshake_response_invalid(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.reset_mock()
@@ -1779,6 +1801,7 @@ def test_states_websocket_handshake_response_invalid(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.reset_mock()
@@ -1794,6 +1817,7 @@ def test_states_websocket_handshake_response_invalid(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.reset_mock()
@@ -1809,6 +1833,7 @@ def test_states_websocket_handshake_response_invalid(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.reset_mock()
@@ -1825,6 +1850,7 @@ def test_states_websocket_handshake_response_invalid(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
     fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.reset_mock()
@@ -1867,6 +1893,10 @@ def test_states_websocket_handshake_response_closed(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    if isinstance(recv, Exception):
+        assert env.connect_error is recv
+    else:
+        assert isinstance(env.connect_error, ConnectionError)
     mock_select.select.assert_not_called()
 
     callbacks.assert_not_called()
@@ -1889,6 +1919,7 @@ def test_states_websocket_handshake_response_timeout(
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
     assert ret is True
     assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, TimeoutError)
 
     callbacks.assert_not_called()
 

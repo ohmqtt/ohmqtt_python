@@ -175,10 +175,25 @@ def test_connection_loop_forever(mock_fsm: Mock, mock_handlers: Mock) -> None:
     mock_fsm.loop_until_state.assert_called_once_with((ShutdownState,))
 
 
-def test_connection_loop_until_connected(mock_fsm: Mock, mock_handlers: Mock) -> None:
+def test_connection_loop_until_connected(mock_fsm: Mock, mock_handlers: Mock, mocker: MockerFixture) -> None:
     connection = Connection(mock_handlers)
-    mock_fsm.loop_until_state.return_value = True
+    mock_fsm.env = mocker.Mock(connect_error=None)
+
+    mock_fsm.get_state.return_value = ConnectedState
     assert connection.loop_until_connected(0.1) is True
-    mock_fsm.loop_until_state.assert_called_once_with((ConnectedState,), 0.1)
-    mock_fsm.loop_until_state.return_value = False
+    mock_fsm.loop_until_state.assert_called_once_with((ConnectedState, ClosedState), 0.1)
+
+    error = ConnectionRefusedError("TEST")
+    mock_fsm.env.connect_error = error
+    mock_fsm.get_state.return_value = ClosedState
+    with pytest.raises(ConnectionRefusedError) as excinfo:
+        connection.loop_until_connected(0.1)
+    assert excinfo.value is error
+    assert mock_fsm.env.connect_error is None
+
     assert connection.loop_until_connected(0.1) is False
+
+    mock_fsm.env.connect_error = error
+    mock_fsm.get_state.return_value = ConnectingState
+    assert connection.loop_until_connected(0.1) is False
+    assert mock_fsm.env.connect_error is None

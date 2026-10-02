@@ -38,6 +38,7 @@ class ConnectingState(FSMState):
         state_data.sock = _get_socket(params.address.family)
         state_data.sock.setblocking(False)
         state_data.connect_called = False
+        env.connect_error = None
         if params.address.family in (socket.AF_INET, socket.AF_INET6):
             state_data.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, params.tcp_nodelay)
         state_data.decoder.reset()
@@ -55,12 +56,14 @@ class ConnectingState(FSMState):
 
         if state_data.timeout.exceeded():
             logger.debug("Connect timeout")
+            env.connect_error = TimeoutError("Timed out connecting to the broker")
             fsm.change_state(ClosedState)
             return True
 
         if not state_data.connect_called:
             state_data.connect_called = True
-            if not cls.start_connect(state_data, params):
+            if (exc := cls.start_connect(state_data, params)) is not None:
+                env.connect_error = exc
                 fsm.change_state(ClosedState)
                 return True
 
@@ -71,6 +74,7 @@ class ConnectingState(FSMState):
             error = state_data.sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
             if error:
                 logger.error("Failed to connect to broker: %s", errno.errorcode.get(error, error))
+                env.connect_error = OSError(error, errno.errorcode.get(error, str(error)))
                 fsm.change_state(ClosedState)
                 return True
             logger.debug("Socket connected to broker")
@@ -84,10 +88,10 @@ class ConnectingState(FSMState):
         return False
 
     @classmethod
-    def start_connect(cls, state_data: StateData, params: ConnectParams) -> bool:
+    def start_connect(cls, state_data: StateData, params: ConnectParams) -> OSError | None:
         """Start a non-blocking connect.  Name resolution happens here.
 
-        :return: False if the connection failed immediately."""
+        :return: The error if the connection failed immediately, otherwise None."""
         try:
             address = params.address
             if HAS_AF_UNIX and address.family == AF_UNIX:
@@ -98,5 +102,5 @@ class ConnectingState(FSMState):
             pass  # Connection in progress.
         except OSError as exc:
             logger.error("Failed to connect to broker: %s", exc)
-            return False
-        return True
+            return exc
+        return None
