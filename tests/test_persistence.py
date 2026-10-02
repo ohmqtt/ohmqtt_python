@@ -315,6 +315,17 @@ def test_persistence_unknown_ack(persistence_cls: type[Persistence], ack_cls: ty
             persistence.ack(ack_packet)
 
 
+@pytest.mark.parametrize("persistence_cls", [SQLiteInMemory, InMemoryPersistence])
+def test_persistence_unknown_rel(persistence_cls: type[Persistence]) -> None:
+    with persistence_cls() as persistence:
+        persistence.open("test_client")
+        pub_packet = MQTTPublishPacket(packet_id=1, qos=MQTTQoS.Q2)
+        persistence.set_rec(pub_packet)
+
+        persistence.rel(MQTTPubRelPacket(packet_id=42))
+        assert persistence.check_rec(pub_packet) is False
+
+
 @pytest.mark.parametrize("persistence_class", [SQLiteInMemory, InMemoryPersistence])
 def test_persistence_error_ack(persistence_class: type[Persistence]) -> None:
     """An error in PUBREC must complete a QoS2 message."""

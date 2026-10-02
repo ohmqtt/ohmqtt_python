@@ -123,7 +123,7 @@ class InMemoryPersistence(Persistence):
         self._received.add(packet.packet_id)
 
     def rel(self, packet: MQTTPubRelPacket) -> None:
-        self._received.remove(packet.packet_id)
+        self._received.discard(packet.packet_id)
 
     def render(self, msg_id: int) -> RenderedPacket:
         packet: MQTTPublishPacket | MQTTPubRelPacket
