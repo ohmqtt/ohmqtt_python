@@ -169,6 +169,7 @@ class InMemoryPersistence(Persistence):
             self._messages.clear()
             self._pending.clear()
             self._packet_id_to_msg_id.clear()
+            self._received.clear()
             self._next_msg_id = 1
 
     def open(self, client_id: str, clear: bool = False) -> None:
