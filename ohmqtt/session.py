@@ -155,14 +155,17 @@ class Session:
         with self._cond:
             topic = packet.topic
             lookup = self.topic_alias.lookup(topic, alias_policy)
-            assert lookup.alias > 0
-            packet.properties.TopicAlias = lookup.alias
-            if lookup.existed:
-                packet.topic = ""
+            if lookup.alias:
+                packet.properties.TopicAlias = lookup.alias
+                if lookup.existed:
+                    packet.topic = ""
+            else:
+                # A stored message may still carry the alias from an earlier send.
+                vars(packet.properties).pop("TopicAlias", None)
             try:
                 self._send_packet(packet)
             except InvalidStateError:
-                if not lookup.existed:
+                if lookup.alias and not lookup.existed:
                     self.topic_alias.pop()
                 raise
 
