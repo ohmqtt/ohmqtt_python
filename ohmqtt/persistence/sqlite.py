@@ -221,7 +221,7 @@ class SQLitePersistence(Persistence):
         with self._cond:
             self._cursor.execute(
                 """
-                INSERT INTO received (packet_id) VALUES (?)
+                INSERT OR IGNORE INTO received (packet_id) VALUES (?)
                 """,
                 (packet.packet_id,),
             )

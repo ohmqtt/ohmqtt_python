@@ -252,6 +252,8 @@ def test_persistence_incoming_qos2(persistence_class: type[Persistence]) -> None
         assert persistence.check_rec(pub_packet) is True
         persistence.set_rec(pub_packet)
         assert persistence.check_rec(pub_packet) is False
+        persistence.set_rec(pub_packet)
+        assert persistence.check_rec(pub_packet) is False
 
         rel_packet = MQTTPubRelPacket(packet_id=1)
         persistence.rel(rel_packet)
