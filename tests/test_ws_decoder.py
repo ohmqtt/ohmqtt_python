@@ -24,6 +24,22 @@ def test_ws_decoder_defaults() -> None:
     assert decoder.opcode == decoder2.opcode
     assert decoder.length == decoder2.length
     assert decoder.data == decoder2.data
+    assert decoder.pending == decoder2.pending
+
+
+def test_ws_decoder_feed(mock_socket: Mock) -> None:
+    decoder = WebsocketDecoder()
+    frames = bytes([0x80 | OpCode.BINARY, 3]) + b"abc" + bytes([0x80 | OpCode.PING, 2]) + b"hi"
+    decoder.feed(frames[:7])
+    mock_socket.recv.side_effect = [frames[7:], BlockingIOError]
+    assert decoder.decode(mock_socket) == (OpCode.BINARY, b"abc")
+    mock_socket.recv.assert_not_called()
+    assert decoder.decode(mock_socket) == (OpCode.PING, b"hi")
+    assert decoder.decode(mock_socket) is None
+
+    decoder.feed(b"\x82")
+    decoder.reset()
+    assert decoder.pending == b""
 
 
 @pytest.mark.parametrize("payload_length", [0, 125, 126, 127, 255, 65535, 65536])

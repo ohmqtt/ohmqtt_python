@@ -1855,6 +1855,16 @@ def test_states_websocket_handshake_response_invalid(
     WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
     mock_socket.reset_mock()
 
+    # Malformed status line.
+    mock_socket.recv.return_value = b"SSH-2.0-OpenSSH\r\n\r\n"
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, WebsocketError)
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.reset_mock()
+
     # Incomplete response.
     mock_socket.recv.return_value = "HTTP/1.1".encode()
     ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, max_wait)
@@ -1862,6 +1872,46 @@ def test_states_websocket_handshake_response_invalid(
     assert fsm.state is WebsocketHandshakeResponseState
     if max_wait:
         mock_select.select.assert_called_once_with(read=True, timeout=1)
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("split", [1, 12, 100, -1])
+def test_states_websocket_handshake_response_split(
+    split: int,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+    loopback_socket: socket.socket,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    loopback_socket.setblocking(False)
+    state_data.sock = loopback_socket
+    state_data.ws_decoder = WebsocketDecoder()
+    state_data.ws_nonce = generate_nonce()
+    response = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Accept: {generate_handshake_key(state_data.ws_nonce)}\r\n"
+        "Sec-WebSocket-Protocol: mqtt\r\n"
+        "\r\n"
+    ).encode()
+    trailing = frame_ws_data(OpCode.PING, b"ping", do_mask=False)
+
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    loopback_socket.test_sendall(response[:split])  # type: ignore[attr-defined]
+    assert WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, None) is False
+    assert fsm.state is WebsocketHandshakeResponseState
+
+    loopback_socket.test_sendall(response[split:] + trailing[:3])  # type: ignore[attr-defined]
+    assert WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, None) is True
+    assert fsm.state is MQTTHandshakeConnectState
+
+    loopback_socket.test_sendall(trailing[3:])  # type: ignore[attr-defined]
+    assert state_data.ws_decoder.decode(loopback_socket) == (OpCode.PING, b"ping")
 
     callbacks.assert_not_called()
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from http.client import HTTPResponse
+from http.client import HTTPException, HTTPResponse
 from io import BytesIO
 import socket
 import ssl
@@ -61,46 +61,47 @@ class WebsocketHandshakeResponseState(FSMState):
                 return True
             state_data.ws_handshake_buffer.extend(data)
 
-        validation_result = cls.validate_response(state_data.ws_nonce, state_data.ws_handshake_buffer)
-        if validation_result is True:
-            state_data.ws_handshake_buffer.clear()
-            fsm.change_state(MQTTHandshakeConnectState)
-            return True
-        if validation_result is False:
-            state_data.ws_handshake_buffer.clear()
+        header_end = state_data.ws_handshake_buffer.find(b"\r\n\r\n")
+        if header_end == -1:
+            # Incomplete response, wait for more data.
+            with fsm.selector:
+                timeout = state_data.timeout.get_timeout(max_wait)
+                fsm.selector.select(read=True, timeout=timeout)
+            return False
+        header_end += 4
+        response = state_data.ws_handshake_buffer[:header_end]
+        extra = state_data.ws_handshake_buffer[header_end:]
+        state_data.ws_handshake_buffer.clear()
+        if not cls.validate_response(state_data.ws_nonce, response):
             env.connect_error = WebsocketError("Websocket handshake failed")
             fsm.change_state(ClosedState)
             return True
-
-        # Incomplete response, wait for more data.
-        with fsm.selector:
-            timeout = state_data.timeout.get_timeout(max_wait)
-            fsm.selector.select(read=True, timeout=timeout)
-        return False
+        # The broker may send frames right behind the response.
+        state_data.ws_decoder.feed(extra)
+        fsm.change_state(MQTTHandshakeConnectState)
+        return True
 
     @classmethod
-    def validate_response(cls, nonce: str, buffer: bytearray) -> bool | None:
-        """Validate the websocket handshake response.
-
-        Return True if valid, False if invalid, None if incomplete."""
+    def validate_response(cls, nonce: str, buffer: bytearray) -> bool:
+        """Validate a complete websocket handshake response."""
         try:
             bio = BytesIO(buffer)
             sio = cast(socket.socket, MockSocket(bio))
             response = HTTPResponse(sio)
             response.begin()
-            if response.status != 101:
-                logger.error("Websocket handshake failed with status %d", response.status)
-                return False
-            accept_key = response.getheader("Sec-WebSocket-Accept")
-            expected_key = generate_handshake_key(nonce)
-            if accept_key is None or accept_key != expected_key:
-                logger.error("Websocket handshake failed: invalid Sec-WebSocket-Accept")
-                return False
-            protocol = response.getheader("Sec-WebSocket-Protocol")
-            if protocol != "mqtt":
-                logger.error("Websocket handshake failed: invalid Sec-WebSocket-Protocol")
-                return False
-            return True
-        except Exception:
-            logger.debug("Incomplete websocket handshake response, waiting for more data")
-            return None
+        except HTTPException as exc:
+            logger.error("Websocket handshake failed: malformed response: %r", exc)
+            return False
+        if response.status != 101:
+            logger.error("Websocket handshake failed with status %d", response.status)
+            return False
+        accept_key = response.getheader("Sec-WebSocket-Accept")
+        expected_key = generate_handshake_key(nonce)
+        if accept_key is None or accept_key != expected_key:
+            logger.error("Websocket handshake failed: invalid Sec-WebSocket-Accept")
+            return False
+        protocol = response.getheader("Sec-WebSocket-Protocol")
+        if protocol != "mqtt":
+            logger.error("Websocket handshake failed: invalid Sec-WebSocket-Protocol")
+            return False
+        return True

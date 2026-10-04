@@ -27,12 +27,28 @@ class WebsocketDecoder:
     opcode: OpCode | None = field(default=None, init=False)  #: The opcode of the frame.
     length: LengthDecodeResult = field(default=InitLengthDecodeState, init=False)  #: Variable integer decoding state of the payload length.
     data: bytearray = field(init=False, default_factory=bytearray)  #: The payload of the frame.
+    pending: bytearray = field(init=False, default_factory=bytearray)  #: Data read from the socket ahead of the decoder.
 
     def reset(self) -> None:
         """Reset the decoder state."""
+        self._reset_frame()
+        self.pending.clear()
+
+    def _reset_frame(self) -> None:
         self.opcode = None
         self.length = InitLengthDecodeState
         self.data.clear()
+
+    def feed(self, data: bytes | bytearray) -> None:
+        """Queue data already read from the socket, to be decoded before reading the socket again."""
+        self.pending.extend(data)
+
+    def _recv(self, sock: socket.socket | ssl.SSLSocket, bufsize: int) -> bytes:
+        if self.pending:
+            data = bytes(self.pending[:bufsize])
+            del self.pending[:bufsize]
+            return data
+        return sock.recv(bufsize)
 
     def _recv_one_byte(self, sock: socket.socket | ssl.SSLSocket) -> int:
         """Receive one byte from the socket.
@@ -40,7 +56,7 @@ class WebsocketDecoder:
         :raises WantReadError: The socket is not ready for reading.
         :raises ClosedSocketError: The socket is closed."""
         try:
-            data = sock.recv(1)
+            data = self._recv(sock, 1)
         except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
             raise WantReadError("Socket not ready for reading")
         if not data:
@@ -108,7 +124,7 @@ class WebsocketDecoder:
         :raises ClosedSocketError: The socket is closed."""
         assert self.length.remaining == 0, "Can't extract data without complete length"
         while len(self.data) < self.length.value:
-            data = sock.recv(self.length.value - len(self.data))
+            data = self._recv(sock, self.length.value - len(self.data))
             if not data:
                 raise ClosedSocketError("Socket closed")
             self.data.extend(data)
@@ -132,5 +148,5 @@ class WebsocketDecoder:
         assert self.opcode is not None
         opcode = self.opcode
         data = bytes(self.data)
-        self.reset()
+        self._reset_frame()
         return opcode, data
