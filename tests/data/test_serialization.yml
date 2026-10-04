@@ -187,5 +187,9 @@ test_decode_varint:
 
 test_decode_varint_limits:
   - input: ""
+  - input: "8000"
+  - input: "ff00"
+  - input: "808000"
+  - input: "80808000"
   - input: "ffffffff"
   - input: "80808080"

@@ -85,6 +85,20 @@ def test_decoder_bad_length(bad_data: bytes, mock_socket: Mock) -> None:
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
 
 
+@pytest.mark.parametrize("raw", [
+    pytest.param(b"\xd0\x80\x00", id="zero_in_two_bytes"),
+    pytest.param(b"\xd0\x80\x80\x00", id="zero_in_three_bytes"),
+    pytest.param(b"\x30\xff\x00", id="127_in_two_bytes"),
+])
+def test_decoder_non_minimal_length(raw: bytes, loopback_socket: socket.socket) -> None:
+    decoder = IncrementalDecoder()
+    loopback_socket.setblocking(False)
+    loopback_socket.test_sendall(raw)  # type: ignore[attr-defined]
+    with pytest.raises(MQTTError, match="not minimally encoded") as excinfo:
+        decoder.decode(loopback_socket)
+    assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
+
+
 def test_decoder_empty_reads(mock_socket: Mock) -> None:
     """Feed the decoder empty reads."""
     decoder = IncrementalDecoder()

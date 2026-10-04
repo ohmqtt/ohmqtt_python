@@ -192,6 +192,8 @@ def decode_varint(data: memoryview) -> tuple[int, int]:
             sz += 1
             result += byte % 0x80 * mult
             if byte < 0x80:
+                if byte == 0 and sz > 1:
+                    raise ValueError("Varint is not minimally encoded")
                 return result, sz
             if sz >= 4:
                 raise ValueError("Varint overflow")

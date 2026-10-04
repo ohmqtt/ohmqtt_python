@@ -83,6 +83,8 @@ class IncrementalDecoder:
                 byte = self._recv_one_byte(sock)
                 result += byte % 0x80 * mult
                 if byte < 0x80:
+                    if byte == 0 and mult > 1:
+                        raise MQTTError("Varint is not minimally encoded", MQTTReasonCode.MalformedPacket)
                     # We have the complete varint.
                     self.length = VarintDecodeResult(result, mult, True)
                     return
