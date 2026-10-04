@@ -12,6 +12,7 @@ else:
 from .error import MQTTError
 from .mqtt_spec import MQTTPropertyId, MQTTReasonCode
 from .serialization import (
+    MAX_VARINT,
     encode_bool,
     decode_bool,
     encode_uint8,
@@ -138,6 +139,14 @@ _PropertySerializers: Final[Mapping[str, _SerializerPair]] = {
 _PropertySerializersById: Final[Mapping[int, _SerializerPair]] = {
     getattr(MQTTPropertyId, key): value for key, value in _PropertySerializers.items()
 }
+# Integer properties whose valid values are narrower than their data type.
+_PropertyRanges: Final[Mapping[str, range]] = {
+    MQTTPropertyId.PayloadFormatIndicator.name: range(2),
+    MQTTPropertyId.SubscriptionIdentifier.name: range(1, MAX_VARINT + 1),
+    MQTTPropertyId.ReceiveMaximum.name: range(1, 0x10000),
+    MQTTPropertyId.MaximumQoS.name: range(2),
+    MQTTPropertyId.MaximumPacketSize.name: range(1, 0x100000000),
+}
 
 
 def _get_property_name(key: int) -> str:
@@ -148,6 +157,29 @@ def _get_property_name(key: int) -> str:
         return MQTTPropertyId(key).name
     except ValueError as exc:
         raise MQTTError(f"Invalid property identifier {key}", MQTTReasonCode.MalformedPacket) from exc
+
+
+def _add_property(properties: dict[str, AnyFieldT], prop_name: str, value: AnyFieldT | tuple[str, str]) -> None:
+    """Add a decoded property value to the properties being decoded.
+
+    :raises MQTTError: The value is out of range, or the property is repeated."""
+    if prop_name in _PropertyRanges and value not in _PropertyRanges[prop_name]:
+        raise MQTTError(f"Invalid value {value!r} for property {prop_name}", MQTTReasonCode.ProtocolError)
+    if prop_name == "SubscriptionIdentifier":
+        # This property may appear multiple times, in any order.
+        if prop_name not in properties:
+            properties[prop_name] = set()
+        cast(SetIntFieldT, properties[prop_name]).add(cast(int, value))
+    elif prop_name == "UserProperty":
+        # This property may appear multiple times, in any order.
+        if prop_name not in properties:
+            properties[prop_name] = []
+        cast(list[tuple[str, str]], properties[prop_name]).append(cast(tuple[str, str], value))
+    elif prop_name in properties:
+        # Other properties must appear exactly once.
+        raise MQTTError(f"Duplicate property {prop_name}", MQTTReasonCode.ProtocolError)
+    else:
+        properties[prop_name] = value  # type: ignore[assignment]
 
 
 class MQTTProperties(MQTTPropertiesBase):
@@ -211,21 +243,7 @@ class MQTTProperties(MQTTPropertiesBase):
             value, sz = deserializer(data)
             data = data[sz:]
             remaining -= sz
-            if prop_name == "SubscriptionIdentifier":
-                # This property may appear multiple times, in any order.
-                if prop_name not in properties:
-                    properties[prop_name] = set()
-                cast(SetIntFieldT, properties[prop_name]).add(cast(int, value))
-            elif prop_name == "UserProperty":
-                # This property may appear multiple times, in any order.
-                if prop_name not in properties:
-                    properties[prop_name] = []
-                cast(list[tuple[str, str]], properties[prop_name]).append(cast(tuple[str, str], value))
-            elif prop_name in properties:
-                # Other properties must appear exactly once.
-                raise MQTTError(f"Duplicate property {prop_name}", MQTTReasonCode.ProtocolError)
-            else:
-                properties[prop_name] = value  # type: ignore[assignment]
+            _add_property(properties, prop_name, value)
         return cls(**properties), length + length_sz
 
 

@@ -1,16 +1,20 @@
+from typing import Callable
+
 import pytest
 
 from ohmqtt.error import MQTTError
 from ohmqtt.mqtt_spec import MQTTPropertyId, MQTTReasonCode
 from ohmqtt.property import (
     MQTTConnAckProps,
+    MQTTConnectProps,
     MQTTDisconnectProps,
     MQTTProperties,
     MQTTPubAckProps,
     MQTTPublishProps,
+    MQTTSubscribeProps,
     MQTTWillProps,
 )
-from ohmqtt.serialization import encode_string, encode_varint, encode_uint16, encode_uint32
+from ohmqtt.serialization import encode_string, encode_uint8, encode_varint, encode_uint16, encode_uint32
 
 
 def test_property_duplicate_key() -> None:
@@ -54,6 +58,35 @@ def test_property_not_valid_for_packet(props_type: type[MQTTProperties], prop: b
     with pytest.raises(MQTTError, match=r"not valid in") as excinfo:
         props_type.decode(memoryview(data))
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
+
+
+@pytest.mark.parametrize(("props_type", "prop_id", "encoder", "valid", "invalid"), [
+    pytest.param(MQTTPublishProps, MQTTPropertyId.PayloadFormatIndicator, encode_uint8, [0, 1], [2, 255], id="PayloadFormatIndicator"),
+    pytest.param(MQTTPublishProps, MQTTPropertyId.SubscriptionIdentifier, encode_varint, [1, 268_435_455], [0], id="SubscriptionIdentifier"),
+    pytest.param(MQTTSubscribeProps, MQTTPropertyId.SubscriptionIdentifier, encode_varint, [1], [0], id="SubscribeSubscriptionIdentifier"),
+    pytest.param(MQTTConnAckProps, MQTTPropertyId.ReceiveMaximum, encode_uint16, [1, 65535], [0], id="ReceiveMaximum"),
+    pytest.param(MQTTConnectProps, MQTTPropertyId.ReceiveMaximum, encode_uint16, [1], [0], id="ConnectReceiveMaximum"),
+    pytest.param(MQTTConnAckProps, MQTTPropertyId.MaximumQoS, encode_uint8, [0, 1], [2, 255], id="MaximumQoS"),
+    pytest.param(MQTTConnAckProps, MQTTPropertyId.MaximumPacketSize, encode_uint32, [1, 0xffffffff], [0], id="MaximumPacketSize"),
+])
+def test_property_value_ranges(
+    props_type: type[MQTTProperties],
+    prop_id: MQTTPropertyId,
+    encoder: Callable[[int], bytes],
+    valid: list[int],
+    invalid: list[int],
+) -> None:
+    for value in valid + invalid:
+        prop = encode_varint(prop_id) + encoder(value)
+        data = memoryview(encode_varint(len(prop)) + prop)
+        if value in valid:
+            decoded, _ = props_type.decode(data)
+            expected = {value} if prop_id == MQTTPropertyId.SubscriptionIdentifier else value
+            assert getattr(decoded, prop_id.name) == expected
+        else:
+            with pytest.raises(MQTTError, match=rf"Invalid value {value} for property {prop_id.name}") as excinfo:
+                props_type.decode(data)
+            assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
 def test_property_value_past_properties() -> None:
