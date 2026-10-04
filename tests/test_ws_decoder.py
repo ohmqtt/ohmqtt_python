@@ -118,6 +118,23 @@ def test_ws_decoder_control_frame_length(opcode: OpCode, mock_socket: Mock) -> N
             decoder.decode(mock_socket)
 
 
+@pytest.mark.parametrize(("length", "valid"), [
+    (268_435_460, True),
+    (268_435_461, False),
+    (2**63 - 1, False),
+])
+def test_ws_decoder_max_payload_length(length: int, valid: bool, mock_socket: Mock) -> None:
+    decoder = WebsocketDecoder()
+    header = bytes([0x80 | OpCode.BINARY, 127]) + length.to_bytes(8, "big")
+    mock_socket.recv.side_effect = [*(bytes([b]) for b in header), BlockingIOError]
+    if valid:
+        assert decoder.decode(mock_socket) is None
+        assert decoder.length == (length, 0)
+    else:
+        with pytest.raises(WebsocketError, match="longer than the largest MQTT packet"):
+            decoder.decode(mock_socket)
+
+
 def test_ws_decoder_protocol_errors(mock_socket: Mock) -> None:
     """Test that protocol errors raise WebsocketError."""
     decoder = WebsocketDecoder()

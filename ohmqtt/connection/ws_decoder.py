@@ -6,6 +6,7 @@ from typing import NamedTuple, Final
 from .decoder import ClosedSocketError, WantReadError
 from .wslib import OpCode, WebsocketError
 from ..logger import get_logger
+from ..serialization import MAX_VARINT
 
 logger: Final = get_logger("connection.ws_decoder")
 
@@ -20,6 +21,7 @@ class LengthDecodeResult(NamedTuple):
 
 InitLengthDecodeState: Final = LengthDecodeResult(0, 9)
 CONTROL_OPCODES: Final = frozenset((OpCode.CLOSE, OpCode.PING, OpCode.PONG))
+MAX_PAYLOAD_LENGTH: Final = 1 + 4 + MAX_VARINT  # The largest possible MQTT packet.
 
 
 @dataclass(slots=True)
@@ -112,6 +114,8 @@ class WebsocketDecoder:
                 byte = self._recv_one_byte(sock)
                 result = (result << 8) + byte
                 remaining -= 1
+            if result > MAX_PAYLOAD_LENGTH:
+                raise WebsocketError("WebSocket frame payload is longer than the largest MQTT packet")
 
             # We have the complete length.
             self.length = LengthDecodeResult(result, 0)
