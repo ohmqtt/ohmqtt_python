@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Final
 
-from .base import MQTTPacket
+from .base import check_end_of_packet, MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import CONNACK_REASON_CODES, DISCONNECT_REASON_CODES, MQTTReasonCode, MQTTPacketType
 from ..property import (
@@ -167,6 +167,7 @@ class MQTTConnectPacket(MQTTPacket):
             offset += sz
         else:
             password = None
+        check_end_of_packet(data, offset)
 
         return MQTTConnectPacket(
             client_id,
@@ -213,7 +214,8 @@ class MQTTConnAckPacket(MQTTPacket):
 
         session_present, _ = decode_bool(data[0:])
         reason_code = decode_reason_code(decode_uint8(data[1:])[0], CONNACK_REASON_CODES)
-        props, _ = MQTTConnAckProps.decode(data[2:])
+        props, sz = MQTTConnAckProps.decode(data[2:])
+        check_end_of_packet(data, 2 + sz)
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
 
@@ -257,5 +259,6 @@ class MQTTDisconnectPacket(MQTTPacket):
         if len(data) == 1:
             # If the packet only contains the reason code, it has no properties.
             return MQTTDisconnectPacket(reason_code)
-        props, _ = MQTTDisconnectProps.decode(data[1:])
+        props, sz = MQTTDisconnectProps.decode(data[1:])
+        check_end_of_packet(data, 1 + sz)
         return MQTTDisconnectPacket(reason_code, properties=props)

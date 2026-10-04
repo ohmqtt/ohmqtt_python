@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar, Final, Mapping, TypeAlias
 
-from .base import MQTTPacket
+from .base import check_end_of_packet, MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import (
     MQTTPacketType,
@@ -163,7 +163,8 @@ def _decode_pubacklike(cls: type[PubAckLikeT], flags: int, data: memoryview) -> 
             reason_code,
             cls.props_type(),  # type: ignore
         )
-    props, _ = cls.props_type.decode(data[offset:])
+    props, sz = cls.props_type.decode(data[offset:])
+    check_end_of_packet(data, offset + sz)
     return cls(
         packet_id,
         reason_code,

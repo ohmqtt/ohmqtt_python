@@ -3,7 +3,8 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from typing import ClassVar, Sequence, TYPE_CHECKING
 
-from ..mqtt_spec import MQTTPacketType
+from ..error import MQTTError
+from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
 
 if TYPE_CHECKING:
     from ..property import MQTTProperties
@@ -27,3 +28,11 @@ class MQTTPacket(metaclass=ABCMeta):
     @abstractmethod
     def decode(cls, flags: int, data: memoryview) -> MQTTPacket:
         """Decode a packet from bytes."""
+
+
+def check_end_of_packet(data: memoryview, offset: int) -> None:
+    """Check that the last field of a packet ended at the end of the packet.
+
+    :raises MQTTError: There are bytes left over."""
+    if offset != len(data):
+        raise MQTTError(f"{len(data) - offset} unexpected bytes at end of packet", MQTTReasonCode.MalformedPacket)

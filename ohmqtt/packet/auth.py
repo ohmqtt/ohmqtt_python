@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Final
 
-from .base import MQTTPacket
+from .base import check_end_of_packet, MQTTPacket
 from ..error import MQTTError
 from ..mqtt_spec import AUTH_REASON_CODES, MQTTPacketType, MQTTReasonCode
 from ..property import (
@@ -53,6 +53,7 @@ class MQTTAuthPacket(MQTTPacket):
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTAuthPacket()
-        reason_code, sz = decode_uint8(data)
-        props, _ = MQTTAuthProps.decode(data[sz:])
+        reason_code, offset = decode_uint8(data)
+        props, sz = MQTTAuthProps.decode(data[offset:])
+        check_end_of_packet(data, offset + sz)
         return MQTTAuthPacket(decode_reason_code(reason_code, AUTH_REASON_CODES), properties=props)

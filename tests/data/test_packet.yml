@@ -69,6 +69,8 @@ test_packet_connect_decode_errors:
     reason_code: 0x84
   - raw: "101000044d5154540503001e000003666f6f"
     reason_code: 0x81
+  - raw: "101200044d5154540500003c0000044141414100"  # Trailing byte
+    reason_code: 0x81
 
 test_packet_connack_encode:
   - args:
@@ -123,6 +125,8 @@ test_packet_connack_decode_errors:
   - raw: "2203008100"
     reason_code: 0x81
   - raw: "2003008b00"  # Server shutting down
+    reason_code: 0x81
+  - raw: "2004000000ff"  # Trailing byte
     reason_code: 0x81
 
 test_packet_publish_encode:
@@ -220,6 +224,8 @@ test_packet_puback_decode_errors:
     reason_code: 0x81
   - raw: "4003000181"  # Malformed Packet
     reason_code: 0x81
+  - raw: "400500010000ff"  # Trailing byte
+    reason_code: 0x81
 
 test_packet_pubrec_encode:
   - args:
@@ -261,6 +267,8 @@ test_packet_pubrec_decode_errors:
   - raw: "52020001"
     reason_code: 0x81
   - raw: "5003000181"  # Malformed Packet
+    reason_code: 0x81
+  - raw: "500500010000ff"  # Trailing byte
     reason_code: 0x81
 
 test_packet_pubrel_encode:
@@ -304,6 +312,8 @@ test_packet_pubrel_decode_errors:
     reason_code: 0x81
   - raw: "6203000180"  # Unspecified error
     reason_code: 0x81
+  - raw: "620500010000ff"  # Trailing byte
+    reason_code: 0x81
 
 test_packet_pubcomp_encode:
   - args:
@@ -343,6 +353,8 @@ test_packet_pubcomp_decode_errors:
   - raw: "72020001"
     reason_code: 0x81
   - raw: "7003000180"  # Unspecified error
+    reason_code: 0x81
+  - raw: "700500010000ff"  # Trailing byte
     reason_code: 0x81
 
 test_packet_subscribe_encode:
@@ -523,6 +535,8 @@ test_packet_disconnect_decode_errors:
     reason_code: 0x81
   - raw: "e00184"  # Unsupported Protocol Version
     reason_code: 0x81
+  - raw: "e0030000ff"  # Trailing byte
+    reason_code: 0x81
 
 test_packet_auth_encode:
   - args:
@@ -563,4 +577,6 @@ test_packet_auth_decode_errors:
   - raw: "f00100"
     reason_code: 0x81
   - raw: "f0028000"  # Unspecified error
+    reason_code: 0x81
+  - raw: "f0030000ff"  # Trailing byte
     reason_code: 0x81
