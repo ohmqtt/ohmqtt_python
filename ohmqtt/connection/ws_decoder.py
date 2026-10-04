@@ -19,6 +19,7 @@ class LengthDecodeResult(NamedTuple):
 
 
 InitLengthDecodeState: Final = LengthDecodeResult(0, 9)
+CONTROL_OPCODES: Final = frozenset((OpCode.CLOSE, OpCode.PING, OpCode.PONG))
 
 
 @dataclass(slots=True)
@@ -100,6 +101,8 @@ class WebsocketDecoder:
                 if byte <= 125:
                     result = byte
                     remaining = 0
+                elif self.opcode in CONTROL_OPCODES:
+                    raise WebsocketError("WebSocket control frame payload is longer than 125 bytes")
                 elif byte == 126:
                     remaining = 2
                 else:

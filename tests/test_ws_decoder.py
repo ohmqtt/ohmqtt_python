@@ -105,6 +105,19 @@ def test_ws_decoder_drip_partial_closures(exc: Exception, closer: bytes | Except
         decoder.decode(mock_socket)
 
 
+@pytest.mark.parametrize("opcode", [OpCode.CLOSE, OpCode.PING, OpCode.PONG], ids=lambda opcode: opcode.name)
+def test_ws_decoder_control_frame_length(opcode: OpCode, mock_socket: Mock) -> None:
+    decoder = WebsocketDecoder()
+    mock_socket.recv.side_effect = [bytes([0x80 | opcode]), bytes([125]), b"x" * 125]
+    assert decoder.decode(mock_socket) == (opcode, b"x" * 125)
+
+    for length_header in (bytes([126, 0, 126]), bytes([127]) + (126).to_bytes(8, "big")):
+        decoder = WebsocketDecoder()
+        mock_socket.recv.side_effect = [bytes([0x80 | opcode]), *(bytes([b]) for b in length_header), b"x" * 126]
+        with pytest.raises(WebsocketError, match="longer than 125 bytes"):
+            decoder.decode(mock_socket)
+
+
 def test_ws_decoder_protocol_errors(mock_socket: Mock) -> None:
     """Test that protocol errors raise WebsocketError."""
     decoder = WebsocketDecoder()
