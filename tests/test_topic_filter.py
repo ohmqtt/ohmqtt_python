@@ -103,6 +103,24 @@ def test_topic_filter_single_level_wildcard_match_hidden() -> None:
     f = "+/monitor/Clients"
     assert not match_topic_filter(f, "$SYS/monitor/Clients")
 
+@pytest.mark.parametrize(("f", "topic", "expected"), [
+    ("sport/+/#", "sport/tennis", True),
+    ("sport/+/#", "sport/tennis/player1", True),
+    ("sport/+/#", "sport/tennis/player1/ranking", True),
+    ("sport/+/#", "sport/", True),
+    ("sport/+/#", "sport", False),
+    ("sport/+/#", "news/tennis", False),
+    ("+/tennis/#", "sport/tennis", True),
+    ("+/tennis/#", "sport/tennis/player1", True),
+    ("+/tennis/#", "sport/golf/player1", False),
+    ("+/+/#", "sport/tennis", True),
+    ("+/#", "sport", True),
+    ("+/#", "$SYS/monitor", False),
+    ("$SYS/+/#", "$SYS/monitor/Clients", True),
+])
+def test_topic_filter_mixed_wildcard_match(f: str, topic: str, expected: bool) -> None:
+    assert match_topic_filter(f, topic) is expected
+
 def test_topic_filter_single_level_wildcard_invalid_filter() -> None:
     with pytest.raises(ValueError):
         validate_topic_filter("+foo")

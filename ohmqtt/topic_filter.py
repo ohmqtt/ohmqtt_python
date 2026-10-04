@@ -63,7 +63,12 @@ def _check_single_level_wildcard(topic_filter: str, topic: str) -> bool:
         return False
     filter_levels = topic_filter.split("/")
     topic_levels = topic.split("/")
-    if len(filter_levels) != len(topic_levels):
+    if filter_levels[-1] == "#":
+        # A trailing multi-level wildcard matches the parent level and everything below it.
+        filter_levels.pop()
+        if len(topic_levels) < len(filter_levels):
+            return False
+    elif len(filter_levels) != len(topic_levels):
         return False
     for filter_level, topic_level in zip(filter_levels, topic_levels):
         if filter_level != "+" and filter_level != topic_level:
