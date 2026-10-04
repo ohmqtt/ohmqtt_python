@@ -89,6 +89,8 @@ class MQTTPublishPacket(MQTTPacket):
         dup = (flags & 0x08) == 8
 
         topic, topic_length = decode_string(data)
+        if "+" in topic or "#" in topic:
+            raise MQTTError("Topic name contains wildcards", MQTTReasonCode.TopicNameInvalid)
         offset = topic_length
         if qos > 0:
             packet_id = decode_uint16(data[offset:])[0]

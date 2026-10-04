@@ -379,18 +379,17 @@ def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
         thread.join(1.0)
 
 
-@pytest.mark.parametrize("data", [
-    pytest.param(b"\x40\x04\x00\x01\x00\x05", id="puback_bad_props_length"),
-    pytest.param(b"\x40\x03\x00\x01\x05", id="puback_undefined_reason_code"),
-    pytest.param(b"\xe0\x01\x05", id="disconnect_undefined_reason_code"),
+@pytest.mark.parametrize(("data", "reason_code"), [
+    pytest.param(b"\x40\x04\x00\x01\x00\x05", MQTTReasonCode.MalformedPacket, id="puback_bad_props_length"),
+    pytest.param(b"\x40\x03\x00\x01\x05", MQTTReasonCode.MalformedPacket, id="puback_undefined_reason_code"),
+    pytest.param(b"\xe0\x01\x05", MQTTReasonCode.MalformedPacket, id="disconnect_undefined_reason_code"),
+    pytest.param(MQTTPublishPacket(topic="test/+").encode(), MQTTReasonCode.TopicNameInvalid, id="publish_wildcard_topic"),
 ])
-def test_z2z_malformed_packet(data: bytes, broker: FakeBroker) -> None:
+def test_z2z_malformed_packet(data: bytes, reason_code: MQTTReasonCode, broker: FakeBroker) -> None:
     client = get_client(broker, "mqtt", "")
     assert broker.sock is not None
     broker.sock.sendall(data)
-    assert wait_for_queue_item(broker.received, timeout=1.0) == MQTTDisconnectPacket(
-        reason_code=MQTTReasonCode.MalformedPacket,
-    )
+    assert wait_for_queue_item(broker.received, timeout=1.0) == MQTTDisconnectPacket(reason_code=reason_code)
     client.wait_for_disconnect(timeout=1.0)
     assert client.connection.fsm.get_state() is ClosedState
     client.shutdown()
