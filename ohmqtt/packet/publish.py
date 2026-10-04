@@ -31,7 +31,7 @@ from ..serialization import (
     decode_string,
     decode_reason_code,
     decode_uint8,
-    decode_uint16,
+    decode_packet_id,
 )
 
 
@@ -107,7 +107,7 @@ class MQTTPublishPacket(MQTTPacket):
             raise MQTTError("Topic name contains wildcards", MQTTReasonCode.TopicNameInvalid)
         offset = topic_length
         if qos > 0:
-            packet_id = decode_uint16(data[offset:])[0]
+            packet_id = decode_packet_id(data[offset:])[0]
             offset += 2
         else:
             packet_id = 0
@@ -145,7 +145,7 @@ def _decode_pubacklike(cls: type[PubAckLikeT], flags: int, data: memoryview) -> 
     # We will be kludging some types to make this work.
 
     offset = 0
-    packet_id, packet_id_length = decode_uint16(data[offset:])
+    packet_id, packet_id_length = decode_packet_id(data[offset:])
     offset += packet_id_length
     if offset == len(data):
         # Reason code and properties are optional.

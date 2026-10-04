@@ -75,6 +75,18 @@ def decode_uint16(data: memoryview) -> tuple[int, int]:
         raise MQTTError("Failed to decode 16-bit integer from buffer", MQTTReasonCode.MalformedPacket) from e
 
 
+def decode_packet_id(data: memoryview) -> tuple[int, int]:
+    """Decode a Packet Identifier from a buffer.
+
+    Returns a tuple of the decoded Packet Identifier and the number of bytes consumed.
+
+    :raises MQTTError: The Packet Identifier is 0."""
+    packet_id, sz = decode_uint16(data)
+    if packet_id == 0:
+        raise MQTTError("Packet Identifier must not be 0", MQTTReasonCode.ProtocolError)
+    return packet_id, sz
+
+
 def encode_uint32(x: int) -> bytes:
     """Encode a 32-bit integer to a buffer."""
     return UInt32Packer.pack(x)

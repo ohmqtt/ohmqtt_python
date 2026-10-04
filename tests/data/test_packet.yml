@@ -182,6 +182,8 @@ test_packet_publish_decode_errors:
     reason_code: 0x90
   - raw: "3f0c000473686f6f001000686f77"
     reason_code: 0x81
+  - raw: "3206000161000000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_puback_encode:
   - args:
@@ -226,6 +228,8 @@ test_packet_puback_decode_errors:
     reason_code: 0x81
   - raw: "400500010000ff"  # Trailing byte
     reason_code: 0x81
+  - raw: "40020000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_pubrec_encode:
   - args:
@@ -270,6 +274,8 @@ test_packet_pubrec_decode_errors:
     reason_code: 0x81
   - raw: "500500010000ff"  # Trailing byte
     reason_code: 0x81
+  - raw: "50020000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_pubrel_encode:
   - args:
@@ -314,6 +320,8 @@ test_packet_pubrel_decode_errors:
     reason_code: 0x81
   - raw: "620500010000ff"  # Trailing byte
     reason_code: 0x81
+  - raw: "62020000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_pubcomp_encode:
   - args:
@@ -356,6 +364,8 @@ test_packet_pubcomp_decode_errors:
     reason_code: 0x81
   - raw: "700500010000ff"  # Trailing byte
     reason_code: 0x81
+  - raw: "70020000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_subscribe_encode:
   - args:
@@ -411,6 +421,8 @@ test_packet_subscribe_decode_errors:
   # Both reserved bits (6 and 7) set in subscription options
   - raw: "82090001000003666f6fc0"
     reason_code: 0x81
+  - raw: "820700000000016100"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_suback_encode:
   - args:
@@ -436,6 +448,8 @@ test_packet_suback_decode_errors:
     reason_code: 0x81
   - raw: "900400010011"  # No subscription existed
     reason_code: 0x81
+  - raw: "900400000000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_unsubscribe_encode:
   - args: 
@@ -460,6 +474,8 @@ test_packet_unsubscribe_decode_errors:
   - raw: "a2020001"
     reason_code: 0x81
   - raw: "a203000100"
+    reason_code: 0x82
+  - raw: "a206000000000161"  # Packet ID 0
     reason_code: 0x82
 
 
@@ -497,6 +513,8 @@ test_packet_unsuback_decode_errors:
     reason_code: 0x81
   - raw: "b00400010001"  # Granted QoS 1
     reason_code: 0x81
+  - raw: "b00400000000"  # Packet ID 0
+    reason_code: 0x82
 
 test_packet_disconnect_encode:
   - args:
