@@ -1,3 +1,4 @@
+import io
 import socket
 import ssl
 from unittest.mock import Mock
@@ -83,6 +84,16 @@ def test_decoder_bad_length(bad_data: bytes, mock_socket: Mock) -> None:
     with pytest.raises(MQTTError, match=r"Varint overflow") as excinfo:
         decoder.decode(mock_socket)
     assert excinfo.value.reason_code == MQTTReasonCode.MalformedPacket
+
+
+@pytest.mark.parametrize("payload_size", [2_097_152, 3_000_000])
+def test_decoder_four_byte_length(payload_size: int, mock_socket: Mock) -> None:
+    decoder = IncrementalDecoder()
+    in_packet = MQTTPublishPacket(topic="topic", payload=b"x" * payload_size, qos=MQTTQoS.Q1, packet_id=66)
+    data = in_packet.encode()
+    assert data[4] < 0x80 <= data[3]
+    mock_socket.recv.side_effect = io.BytesIO(data).read
+    assert decoder.decode(mock_socket) == in_packet
 
 
 @pytest.mark.parametrize("raw", [

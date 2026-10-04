@@ -79,7 +79,7 @@ class IncrementalDecoder:
         result = self.length.value
         mult = self.length.multiplier
         try:
-            while mult < 0x200000:  # This magic is the mult value after pulling 4 bytes.
+            while mult < 0x10000000:  # This magic is the mult value after pulling 4 bytes.
                 byte = self._recv_one_byte(sock)
                 result += byte % 0x80 * mult
                 if byte < 0x80:
