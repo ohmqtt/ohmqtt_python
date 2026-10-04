@@ -7,7 +7,7 @@ from typing import Final
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTReasonCode, MQTTPacketType
+from ..mqtt_spec import CONNACK_REASON_CODES, DISCONNECT_REASON_CODES, MQTTReasonCode, MQTTPacketType
 from ..property import (
     MQTTConnectProps,
     MQTTConnAckProps,
@@ -212,7 +212,7 @@ class MQTTConnAckPacket(MQTTPacket):
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
 
         session_present, _ = decode_bool(data[0:])
-        reason_code = decode_reason_code(decode_uint8(data[1:])[0])
+        reason_code = decode_reason_code(decode_uint8(data[1:])[0], CONNACK_REASON_CODES)
         props, _ = MQTTConnAckProps.decode(data[2:])
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
@@ -253,7 +253,7 @@ class MQTTDisconnectPacket(MQTTPacket):
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
-        reason_code = decode_reason_code(decode_uint8(data)[0])
+        reason_code = decode_reason_code(decode_uint8(data)[0], DISCONNECT_REASON_CODES)
         if len(data) == 1:
             # If the packet only contains the reason code, it has no properties.
             return MQTTDisconnectPacket(reason_code)

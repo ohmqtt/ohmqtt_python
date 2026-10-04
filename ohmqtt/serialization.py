@@ -40,14 +40,14 @@ def encode_uint8(x: int) -> bytes:
     return UInt8Packer.pack(x)
 
 
-def decode_reason_code(value: int) -> MQTTReasonCode:
+def decode_reason_code(value: int, valid: frozenset[MQTTReasonCode]) -> MQTTReasonCode:
     """Get the reason code for a byte decoded from a packet.
 
-    :raises MQTTError: The value is not a valid reason code."""
-    try:
-        return MQTTReasonCode(value)
-    except ValueError as e:
-        raise MQTTError(f"Invalid reason code {value:#04x}", MQTTReasonCode.MalformedPacket) from e
+    :param valid: The reason codes allowed in this packet type.
+    :raises MQTTError: The value is not a valid reason code for the packet type."""
+    if value not in valid:
+        raise MQTTError(f"Invalid reason code {value:#04x}", MQTTReasonCode.MalformedPacket)
+    return MQTTReasonCode(value)
 
 
 def decode_uint8(data: memoryview) -> tuple[int, int]:

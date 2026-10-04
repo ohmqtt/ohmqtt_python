@@ -7,7 +7,7 @@ from typing import Final, Sequence
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
+from ..mqtt_spec import MQTTPacketType, MQTTReasonCode, SUBACK_REASON_CODES, UNSUBACK_REASON_CODES
 from ..property import (
     MQTTSubscribeProps,
     MQTTSubAckProps,
@@ -122,7 +122,7 @@ class MQTTSubAckPacket(MQTTPacket):
         offset += packet_id_length
         props, props_length = MQTTSubAckProps.decode(data[offset:])
         offset += props_length
-        reason_codes = [decode_reason_code(b) for b in data[offset:]]
+        reason_codes = [decode_reason_code(b, SUBACK_REASON_CODES) for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
@@ -206,5 +206,5 @@ class MQTTUnsubAckPacket(MQTTPacket):
         offset += packet_id_length
         props, props_length = MQTTUnsubAckProps.decode(data[offset:])
         offset += props_length
-        reason_codes = [decode_reason_code(b) for b in data[offset:]]
+        reason_codes = [decode_reason_code(b, UNSUBACK_REASON_CODES) for b in data[offset:]]
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)

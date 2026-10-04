@@ -7,7 +7,15 @@ from typing import ClassVar, Final, Mapping, TypeAlias
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTPacketType, MQTTReasonCode, MQTTQoS
+from ..mqtt_spec import (
+    MQTTPacketType,
+    MQTTReasonCode,
+    MQTTQoS,
+    PUBACK_REASON_CODES,
+    PUBCOMP_REASON_CODES,
+    PUBREC_REASON_CODES,
+    PUBREL_REASON_CODES,
+)
 from ..property import (
     MQTTProperties,
     MQTTPublishProps,
@@ -39,6 +47,12 @@ FLAGS_PUBACKS: Final[Mapping[MQTTPacketType, int]] = {
     MQTTPacketType.PUBREC: 0,
     MQTTPacketType.PUBREL: 2,
     MQTTPacketType.PUBCOMP: 0,
+}
+REASON_CODES_PUBACKS: Final[Mapping[MQTTPacketType, frozenset[MQTTReasonCode]]] = {
+    MQTTPacketType.PUBACK: PUBACK_REASON_CODES,
+    MQTTPacketType.PUBREC: PUBREC_REASON_CODES,
+    MQTTPacketType.PUBREL: PUBREL_REASON_CODES,
+    MQTTPacketType.PUBCOMP: PUBCOMP_REASON_CODES,
 }
 
 
@@ -140,7 +154,7 @@ def _decode_pubacklike(cls: type[PubAckLikeT], flags: int, data: memoryview) -> 
             MQTTReasonCode.Success,
             cls.props_type(),  # type: ignore
         )
-    reason_code = decode_reason_code(decode_uint8(data[offset:])[0])
+    reason_code = decode_reason_code(decode_uint8(data[offset:])[0], REASON_CODES_PUBACKS[cls.packet_type])
     offset += 1
     if offset == len(data):
         # Properties alone may be omitted.

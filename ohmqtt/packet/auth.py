@@ -7,7 +7,7 @@ from typing import Final
 
 from .base import MQTTPacket
 from ..error import MQTTError
-from ..mqtt_spec import MQTTPacketType, MQTTReasonCode
+from ..mqtt_spec import AUTH_REASON_CODES, MQTTPacketType, MQTTReasonCode
 from ..property import (
     MQTTAuthProps,
 )
@@ -55,4 +55,4 @@ class MQTTAuthPacket(MQTTPacket):
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
         props, _ = MQTTAuthProps.decode(data[sz:])
-        return MQTTAuthPacket(decode_reason_code(reason_code), properties=props)
+        return MQTTAuthPacket(decode_reason_code(reason_code, AUTH_REASON_CODES), properties=props)

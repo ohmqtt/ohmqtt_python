@@ -110,6 +110,108 @@ class MQTTReasonCode(IntEnum):
         return self >= 0x80
 
 
+CONNACK_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.Success,
+    MQTTReasonCode.UnspecifiedError,
+    MQTTReasonCode.MalformedPacket,
+    MQTTReasonCode.ProtocolError,
+    MQTTReasonCode.ImplementationSpecificError,
+    MQTTReasonCode.UnsupportedProtocolVersion,
+    MQTTReasonCode.ClientIdentifierNotValid,
+    MQTTReasonCode.BadUserNameOrPassword,
+    MQTTReasonCode.NotAuthorized,
+    MQTTReasonCode.ServerUnavailable,
+    MQTTReasonCode.ServerBusy,
+    MQTTReasonCode.Banned,
+    MQTTReasonCode.BadAuthenticationMethod,
+    MQTTReasonCode.TopicNameInvalid,
+    MQTTReasonCode.PacketTooLarge,
+    MQTTReasonCode.QuotaExceeded,
+    MQTTReasonCode.PayloadFormatInvalid,
+    MQTTReasonCode.RetainNotSupported,
+    MQTTReasonCode.QoSNotSupported,
+    MQTTReasonCode.UseAnotherServer,
+    MQTTReasonCode.ServerMoved,
+    MQTTReasonCode.ConnectionRateExceeded,
+))
+PUBACK_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.Success,
+    MQTTReasonCode.NoMatchingSubscribers,
+    MQTTReasonCode.UnspecifiedError,
+    MQTTReasonCode.ImplementationSpecificError,
+    MQTTReasonCode.NotAuthorized,
+    MQTTReasonCode.TopicNameInvalid,
+    MQTTReasonCode.PacketIdentifierInUse,
+    MQTTReasonCode.QuotaExceeded,
+    MQTTReasonCode.PayloadFormatInvalid,
+))
+PUBREC_REASON_CODES: Final = PUBACK_REASON_CODES
+PUBREL_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.Success,
+    MQTTReasonCode.PacketIdentifierNotFound,
+))
+PUBCOMP_REASON_CODES: Final = PUBREL_REASON_CODES
+SUBACK_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.GrantedQoS0,
+    MQTTReasonCode.GrantedQoS1,
+    MQTTReasonCode.GrantedQoS2,
+    MQTTReasonCode.UnspecifiedError,
+    MQTTReasonCode.ImplementationSpecificError,
+    MQTTReasonCode.NotAuthorized,
+    MQTTReasonCode.TopicFilterInvalid,
+    MQTTReasonCode.PacketIdentifierInUse,
+    MQTTReasonCode.QuotaExceeded,
+    MQTTReasonCode.SharedSubscriptionsNotSupported,
+    MQTTReasonCode.SubscriptionIdentifiersNotSupported,
+    MQTTReasonCode.WildcardSubscriptionsNotSupported,
+))
+UNSUBACK_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.Success,
+    MQTTReasonCode.NoSubscriptionExisted,
+    MQTTReasonCode.UnspecifiedError,
+    MQTTReasonCode.ImplementationSpecificError,
+    MQTTReasonCode.NotAuthorized,
+    MQTTReasonCode.TopicFilterInvalid,
+    MQTTReasonCode.PacketIdentifierInUse,
+))
+DISCONNECT_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.NormalDisconnection,
+    MQTTReasonCode.DisconnectWithWillMessage,
+    MQTTReasonCode.UnspecifiedError,
+    MQTTReasonCode.MalformedPacket,
+    MQTTReasonCode.ProtocolError,
+    MQTTReasonCode.ImplementationSpecificError,
+    MQTTReasonCode.NotAuthorized,
+    MQTTReasonCode.ServerBusy,
+    MQTTReasonCode.ServerShuttingDown,
+    MQTTReasonCode.KeepAliveTimeout,
+    MQTTReasonCode.SessionTakenOver,
+    MQTTReasonCode.TopicFilterInvalid,
+    MQTTReasonCode.TopicNameInvalid,
+    MQTTReasonCode.ReceiveMaximumExceeded,
+    MQTTReasonCode.TopicAliasInvalid,
+    MQTTReasonCode.PacketTooLarge,
+    MQTTReasonCode.MessageRateTooHigh,
+    MQTTReasonCode.QuotaExceeded,
+    MQTTReasonCode.AdministrativeAction,
+    MQTTReasonCode.PayloadFormatInvalid,
+    MQTTReasonCode.RetainNotSupported,
+    MQTTReasonCode.QoSNotSupported,
+    MQTTReasonCode.UseAnotherServer,
+    MQTTReasonCode.ServerMoved,
+    MQTTReasonCode.SharedSubscriptionsNotSupported,
+    MQTTReasonCode.ConnectionRateExceeded,
+    MQTTReasonCode.MaximumConnectTime,
+    MQTTReasonCode.SubscriptionIdentifiersNotSupported,
+    MQTTReasonCode.WildcardSubscriptionsNotSupported,
+))
+AUTH_REASON_CODES: Final = frozenset((
+    MQTTReasonCode.Success,
+    MQTTReasonCode.ContinueAuthentication,
+    MQTTReasonCode.ReAuthenticate,
+))
+
+
 class MQTTQoS(IntEnum):
     """Quality of Service level for messaging."""
     Q0 = 0
