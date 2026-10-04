@@ -828,6 +828,33 @@ def test_states_mqtt_connack_malformed(
 
 
 @pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_mqtt_connack_ws_pong(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    ws_decoder: Mock,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_select: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"))
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
+
+    MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
+    ws_decoder.decode.return_value = (OpCode.PONG, b"")
+    ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    assert fsm.state is MQTTHandshakeConnAckState
+    mock_select.select.assert_called_once()
+
+    ws_decoder.decode.return_value = (OpCode.BINARY, MQTTConnAckPacket().encode())
+    ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ConnectedState
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_mqtt_connack_ws_protocol_error(
     max_wait: float | None,
     callbacks: EnvironmentCallbacks,
@@ -1200,6 +1227,13 @@ def test_states_connected_read_packet_ws(
     unmasked_payload = bytearray(b ^ mask[i % 4] for i, b in enumerate(payload))
     assert unmasked_payload == b"\x88"
     state_data.write_buffer.clear()
+    callbacks.assert_not_called()
+    assert fsm.state is ConnectedState
+
+    # Ignore unsolicited WebSocket PONG frame.
+    ws_decoder.decode.return_value = OpCode.PONG, b""
+    ConnectedState.read_packet(fsm, state_data, env, params)
+    assert not state_data.write_buffer
     callbacks.assert_not_called()
     assert fsm.state is ConnectedState
 

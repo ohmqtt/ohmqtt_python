@@ -124,6 +124,9 @@ class ConnectedState(FSMState):
             pong_frame = frame_ws_data(OpCode.PONG, payload)
             state_data.write_buffer.extend(pong_frame)
             return None
+        if opcode == OpCode.PONG:
+            logger.debug("<--- WEBSOCKET PONG")
+            return None
         if opcode == OpCode.CLOSE:
             raise ClosedSocketError("WebSocket connection closed by peer")
         if opcode != OpCode.BINARY:

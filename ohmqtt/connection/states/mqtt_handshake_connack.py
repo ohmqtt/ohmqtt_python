@@ -85,6 +85,9 @@ class MQTTHandshakeConnAckState(FSMState):
             if decode_result is None:
                 return None
             opcode, payload = decode_result
+            if opcode == OpCode.PONG:
+                logger.debug("<--- WEBSOCKET PONG")
+                return None
             if opcode != OpCode.BINARY:
                 raise WebsocketError(f"Unexpected WebSocket opcode {opcode.name} while waiting for CONNACK")
             return decode_packet(payload)
