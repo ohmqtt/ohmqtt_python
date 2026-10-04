@@ -23,6 +23,7 @@ from ..serialization import (
     encode_varint,
     decode_string,
     decode_binary,
+    decode_reason_code,
     decode_uint8,
     decode_uint16,
     decode_bool,
@@ -211,7 +212,7 @@ class MQTTConnAckPacket(MQTTPacket):
             raise MQTTError(f"Invalid flags, expected 0 but got {flags}", MQTTReasonCode.MalformedPacket)
 
         session_present, _ = decode_bool(data[0:])
-        reason_code = MQTTReasonCode(decode_uint8(data[1:])[0])
+        reason_code = decode_reason_code(decode_uint8(data[1:])[0])
         props, _ = MQTTConnAckProps.decode(data[2:])
         return MQTTConnAckPacket(reason_code, session_present, properties=props)
 
@@ -252,7 +253,7 @@ class MQTTDisconnectPacket(MQTTPacket):
         if len(data) == 0:
             # An empty packet means success with no properties.
             return MQTTDisconnectPacket()
-        reason_code = MQTTReasonCode(decode_uint8(data)[0])
+        reason_code = decode_reason_code(decode_uint8(data)[0])
         if len(data) == 1:
             # If the packet only contains the reason code, it has no properties.
             return MQTTDisconnectPacket(reason_code)

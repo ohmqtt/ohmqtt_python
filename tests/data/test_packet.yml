@@ -118,6 +118,8 @@ test_packet_connack_encode:
     raw: "2003008100"
 
 test_packet_connack_decode_errors:
+  - raw: "2003000500"
+    reason_code: 0x81
   - raw: "2203008100"
     reason_code: 0x81
 
@@ -206,6 +208,8 @@ test_packet_puback_decode_alt:
     raw: "400400010000"
 
 test_packet_puback_decode_errors:
+  - raw: "4003000105"
+    reason_code: 0x81
   - raw: "42020001"
     reason_code: 0x81
 
@@ -244,6 +248,8 @@ test_packet_pubrec_decode_alt:
     raw: "500400010000"
 
 test_packet_pubrec_decode_errors:
+  - raw: "5003000105"
+    reason_code: 0x81
   - raw: "52020001"
     reason_code: 0x81
 
@@ -282,6 +288,8 @@ test_packet_pubrel_decode_alt:
     raw: "620400010000"
 
 test_packet_pubrel_decode_errors:
+  - raw: "6203000105"
+    reason_code: 0x81
   - raw: "60020001"
     reason_code: 0x81
 
@@ -318,6 +326,8 @@ test_packet_pubcomp_decode_alt:
     raw: "700400010000"
 
 test_packet_pubcomp_decode_errors:
+  - raw: "7003000105"
+    reason_code: 0x81
   - raw: "72020001"
     reason_code: 0x81
 
@@ -394,6 +404,8 @@ test_packet_suback_encode:
     raw: "9033ffff2c1f0006726561736f6e260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c00010202"
 
 test_packet_suback_decode_errors:
+  - raw: "900400010005"
+    reason_code: 0x81
   - raw: "920700010000010202"
     reason_code: 0x81
 
@@ -451,6 +463,8 @@ test_packet_unsuback_encode:
     raw: "b02700ff23260003666f6f0003626172260003666f6f000362617a260004617364660004686a6b6c81"
 
 test_packet_unsuback_decode_errors:
+  - raw: "b00400010005"
+    reason_code: 0x81
   - raw: "b1020001"
     reason_code: 0x81
 
@@ -485,6 +499,8 @@ test_packet_disconnect_decode_alt:
     raw: "e0020000"
 
 test_packet_disconnect_decode_errors:
+  - raw: "e00105"
+    reason_code: 0x81
   - raw: "e100"
     reason_code: 0x81
 
@@ -516,6 +532,8 @@ test_packet_auth_decode_alt:
     raw: "f0020000"
 
 test_packet_auth_decode_errors:
+  - raw: "f0020500"
+    reason_code: 0x81
   - raw: "f100"
     reason_code: 0x81
   - raw: "f200"

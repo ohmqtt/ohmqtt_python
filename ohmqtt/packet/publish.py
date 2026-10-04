@@ -21,6 +21,7 @@ from ..serialization import (
     encode_varint,
     encode_uint16,
     decode_string,
+    decode_reason_code,
     decode_uint8,
     decode_uint16,
 )
@@ -137,7 +138,7 @@ def _decode_pubacklike(cls: type[PubAckLikeT], flags: int, data: memoryview) -> 
             MQTTReasonCode.Success,
             cls.props_type(),  # type: ignore
         )
-    reason_code = MQTTReasonCode(decode_uint8(data[offset:])[0])
+    reason_code = decode_reason_code(decode_uint8(data[offset:])[0])
     offset += 1
     if offset == len(data):
         # Properties alone may be omitted.

@@ -13,6 +13,7 @@ from ..property import (
 )
 from ..serialization import (
     encode_varint,
+    decode_reason_code,
     decode_uint8,
 )
 
@@ -54,4 +55,4 @@ class MQTTAuthPacket(MQTTPacket):
             return MQTTAuthPacket()
         reason_code, sz = decode_uint8(data)
         props, _ = MQTTAuthProps.decode(data[sz:])
-        return MQTTAuthPacket(MQTTReasonCode(reason_code), properties=props)
+        return MQTTAuthPacket(decode_reason_code(reason_code), properties=props)

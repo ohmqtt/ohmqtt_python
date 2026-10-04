@@ -19,6 +19,7 @@ from ..serialization import (
     encode_uint16,
     encode_string,
     encode_varint,
+    decode_reason_code,
     decode_uint8,
     decode_uint16,
     decode_string,
@@ -121,7 +122,7 @@ class MQTTSubAckPacket(MQTTPacket):
         offset += packet_id_length
         props, props_length = MQTTSubAckProps.decode(data[offset:])
         offset += props_length
-        reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
+        reason_codes = [decode_reason_code(b) for b in data[offset:]]
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
@@ -205,5 +206,5 @@ class MQTTUnsubAckPacket(MQTTPacket):
         offset += packet_id_length
         props, props_length = MQTTUnsubAckProps.decode(data[offset:])
         offset += props_length
-        reason_codes = [MQTTReasonCode(b) for b in data[offset:]]
+        reason_codes = [decode_reason_code(b) for b in data[offset:]]
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)

@@ -379,10 +379,15 @@ def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
         thread.join(1.0)
 
 
-def test_z2z_malformed_packet(broker: FakeBroker) -> None:
+@pytest.mark.parametrize("data", [
+    pytest.param(b"\x40\x04\x00\x01\x00\x05", id="puback_bad_props_length"),
+    pytest.param(b"\x40\x03\x00\x01\x05", id="puback_undefined_reason_code"),
+    pytest.param(b"\xe0\x01\x05", id="disconnect_undefined_reason_code"),
+])
+def test_z2z_malformed_packet(data: bytes, broker: FakeBroker) -> None:
     client = get_client(broker, "mqtt", "")
     assert broker.sock is not None
-    broker.sock.sendall(b"\x40\x04\x00\x01\x00\x05")
+    broker.sock.sendall(data)
     assert wait_for_queue_item(broker.received, timeout=1.0) == MQTTDisconnectPacket(
         reason_code=MQTTReasonCode.MalformedPacket,
     )
