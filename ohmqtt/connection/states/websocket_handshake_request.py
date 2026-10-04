@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import ssl
 from typing import Final, TYPE_CHECKING
 
@@ -21,7 +22,11 @@ class WebsocketHandshakeRequestState(FSMState):
     @classmethod
     def enter(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
         state_data.ws_nonce = generate_nonce()
-        host = f"{params.address.host}:{params.address.port}" if not params.address.is_default_port() else params.address.host
+        host = params.address.host
+        if params.address.family == socket.AF_INET6:
+            host = f"[{host}]"
+        if not params.address.is_default_port():
+            host = f"{host}:{params.address.port}"
         req = f"""GET {params.address.path} HTTP/1.1\r
 Host: {host}\r
 Upgrade: websocket\r

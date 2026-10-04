@@ -1617,6 +1617,27 @@ def test_states_shutdown_enter(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize(("address", "host"), [
+    ("ws://test_host", "test_host"),
+    ("ws://test_host:1234", "test_host:1234"),
+    ("ws://127.0.0.1:1234", "127.0.0.1:1234"),
+    ("ws://[::1]", "[::1]"),
+    ("ws://[::1]:1234", "[::1]:1234"),
+    ("wss://[2001:db8::1]", "[2001:db8::1]"),
+])
+def test_states_websocket_handshake_request_host(
+    address: str,
+    host: str,
+    state_data: StateData,
+    env: StateEnvironment,
+) -> None:
+    params = ConnectParams(address=Address(address))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeRequestState, error_state=ShutdownState)
+
+    WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
+    assert f"\r\nHost: {host}\r\n" in state_data.write_buffer.decode()
+
+
 @pytest.mark.parametrize(
     "address", [
         "ws://test_host:1234",
