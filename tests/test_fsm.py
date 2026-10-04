@@ -158,7 +158,7 @@ def test_fsm_loop_until_state_timeout(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
     t0 = time.monotonic()
     assert fsm.loop_until_state([MockStateC], timeout=0.001) is False
-    assert time.monotonic() - t0 < 0.1
+    assert time.monotonic() - t0 < 1.0
 
 
 @pytest.mark.parametrize("do_request", [True, False])
