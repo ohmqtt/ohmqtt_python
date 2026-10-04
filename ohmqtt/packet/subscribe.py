@@ -123,6 +123,8 @@ class MQTTSubAckPacket(MQTTPacket):
         props, props_length = MQTTSubAckProps.decode(data[offset:])
         offset += props_length
         reason_codes = [decode_reason_code(b, SUBACK_REASON_CODES) for b in data[offset:]]
+        if not reason_codes:
+            raise MQTTError("No reason codes in SUBACK packet", MQTTReasonCode.ProtocolError)
         return MQTTSubAckPacket(packet_id, reason_codes, properties=props)
 
 
@@ -207,4 +209,6 @@ class MQTTUnsubAckPacket(MQTTPacket):
         props, props_length = MQTTUnsubAckProps.decode(data[offset:])
         offset += props_length
         reason_codes = [decode_reason_code(b, UNSUBACK_REASON_CODES) for b in data[offset:]]
+        if not reason_codes:
+            raise MQTTError("No reason codes in UNSUBACK packet", MQTTReasonCode.ProtocolError)
         return MQTTUnsubAckPacket(packet_id, reason_codes, properties=props)

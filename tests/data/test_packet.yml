@@ -452,6 +452,8 @@ test_packet_suback_decode_errors:
     reason_code: 0x81
   - raw: "900400000000"  # Packet ID 0
     reason_code: 0x82
+  - raw: "9003000100"  # No reason codes
+    reason_code: 0x82
 
 test_packet_unsubscribe_encode:
   - args: 
@@ -516,6 +518,8 @@ test_packet_unsuback_decode_errors:
   - raw: "b00400010001"  # Granted QoS 1
     reason_code: 0x81
   - raw: "b00400000000"  # Packet ID 0
+    reason_code: 0x82
+  - raw: "b003000100"  # No reason codes
     reason_code: 0x82
 
 test_packet_disconnect_encode:

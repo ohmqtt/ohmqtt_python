@@ -537,6 +537,32 @@ def test_subscriptions_ack_unknown(
     assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
+def test_subscriptions_ack_reason_code_count(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    subscriptions.subscribe("test/topic", dummy_callback)
+
+    with pytest.raises(MQTTError, match="Expected 1 reason code in SUBACK, got 2") as excinfo:
+        subscriptions.handle_suback(MQTTSubAckPacket(
+            packet_id=1,
+            reason_codes=[MQTTReasonCode.GrantedQoS2, MQTTReasonCode.GrantedQoS2],
+        ))
+    assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
+
+    subscriptions.handle_suback(MQTTSubAckPacket(packet_id=1, reason_codes=[MQTTReasonCode.GrantedQoS2]))
+    subscriptions.unsubscribe("test/topic")
+
+    with pytest.raises(MQTTError, match="Expected 1 reason code in UNSUBACK, got 2") as excinfo:
+        subscriptions.handle_unsuback(MQTTUnsubAckPacket(
+            packet_id=1,
+            reason_codes=[MQTTReasonCode.Success, MQTTReasonCode.Success],
+        ))
+    assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
+
+
 def test_subscriptions_handle_session_reset(
     mock_handlers: MagicMock,
     mock_client: Mock,
