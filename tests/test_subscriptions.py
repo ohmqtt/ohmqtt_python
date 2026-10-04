@@ -632,3 +632,24 @@ def test_subscriptions_slots(
     assert not hasattr(subscriptions, "__dict__")
     assert hasattr(subscriptions, "__weakref__")
     assert all(hasattr(subscriptions, attr) for attr in subscriptions.__slots__)
+
+
+@pytest.mark.parametrize("session_present", [True, False])
+def test_subscriptions_inbound_topic_alias(session_present: bool, mock_handlers: MagicMock, mock_client: Mock,
+                                           mock_connection: Mock) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    subscriptions.handle_connack(MQTTConnAckPacket(), topic_alias_maximum=10)
+    recvd: list[str] = []
+    subscriptions.subscribe("test/#", lambda client, packet: recvd.append(packet.topic))
+
+    subscriptions.handle_publish(MQTTPublishPacket(topic="test/a", properties=MQTTPublishProps(TopicAlias=1)))
+    subscriptions.handle_publish(MQTTPublishPacket(topic="", properties=MQTTPublishProps(TopicAlias=1)))
+    assert recvd == ["test/a", "test/a"]
+    with pytest.raises(MQTTError) as excinfo:
+        subscriptions.handle_publish(MQTTPublishPacket(topic="test/b", properties=MQTTPublishProps(TopicAlias=11)))
+    assert excinfo.value.reason_code == MQTTReasonCode.TopicAliasInvalid
+
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=session_present), topic_alias_maximum=10)
+    with pytest.raises(MQTTError) as excinfo:
+        subscriptions.handle_publish(MQTTPublishPacket(topic="", properties=MQTTPublishProps(TopicAlias=1)))
+    assert excinfo.value.reason_code == MQTTReasonCode.TopicAliasInvalid

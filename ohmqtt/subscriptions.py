@@ -314,12 +314,15 @@ class Subscriptions:
                 handle.ack = packet
                 self._cond.notify_all()
 
-    def handle_connack(self, packet: MQTTConnAckPacket) -> None:
-        """Handle incoming CONNACK packets."""
+    def handle_connack(self, packet: MQTTConnAckPacket, topic_alias_maximum: int = 0) -> None:
+        """Handle incoming CONNACK packets.
+
+        :param topic_alias_maximum: The Topic Alias Maximum which the client sent in CONNECT."""
         with self._cond:
             self._next_sub_packet_id = 1
             self._next_unsub_packet_id = 1
             self._topic_alias.reset()
+            self._topic_alias.max_alias = topic_alias_maximum
             self._inflight_sub_packet_ids.clear()
             self._inflight_unsub_packet_ids.clear()
             if not packet.session_present:

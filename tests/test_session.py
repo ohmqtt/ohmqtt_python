@@ -14,7 +14,7 @@ from ohmqtt.packet import (
     MQTTPubRelPacket,
     MQTTPubCompPacket,
 )
-from ohmqtt.property import MQTTConnAckProps, MQTTPublishProps
+from ohmqtt.property import MQTTConnAckProps, MQTTConnectProps, MQTTPublishProps
 from ohmqtt.session import Session
 from ohmqtt.subscriptions import Subscriptions
 from ohmqtt.topic_alias import AliasPolicy
@@ -574,3 +574,33 @@ def test_session_publish_try_alias_resent(db_path: str, mock_handlers: Mock, moc
     assert sent.topic == "test/a"
     assert sent.dup
     assert sent.properties == MQTTPublishProps()
+
+
+@pytest.mark.parametrize("topic_alias_maximum", [None, 10])
+def test_session_inbound_topic_alias_maximum(topic_alias_maximum: int | None, mock_handlers: Mock,
+                                             mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    connect_properties = MQTTConnectProps()
+    if topic_alias_maximum is not None:
+        connect_properties.TopicAliasMaximum = topic_alias_maximum
+    session.set_params(ConnectParams(client_id="test_client", connect_properties=connect_properties))
+    connack = MQTTConnAckPacket()
+    session.handle_connack(connack)
+    mock_subscriptions.handle_connack.assert_called_once_with(connack, topic_alias_maximum=topic_alias_maximum or 0)
+
+
+def test_session_outbound_topic_alias_reset_on_connection(mock_handlers: Mock, mock_subscriptions: Mock,
+                                                          mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client"))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(TopicAliasMaximum=10)))
+    mock_connection.can_send.return_value = True
+    session.publish("test/a", b"test payload", alias_policy=AliasPolicy.TRY)
+    session.publish("test/a", b"test payload", alias_policy=AliasPolicy.TRY)
+    assert mock_connection.send.call_args.args[0].topic == ""
+
+    session.handle_connack(MQTTConnAckPacket(session_present=True, properties=MQTTConnAckProps(TopicAliasMaximum=10)))
+    session.publish("test/a", b"test payload", alias_policy=AliasPolicy.TRY)
+    sent = mock_connection.send.call_args.args[0]
+    assert sent.topic == "test/a"
+    assert sent.properties.TopicAlias == 1

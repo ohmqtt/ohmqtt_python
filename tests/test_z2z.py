@@ -34,6 +34,7 @@ from ohmqtt.packet import (
     MQTTPubRelPacket,
     MQTTDisconnectPacket,
 )
+from ohmqtt.property import MQTTConnectProps, MQTTPublishProps
 
 logger: Final = get_logger("tests.test_z2z")
 
@@ -511,3 +512,43 @@ def test_z2z_loop_until_connected_refused_port() -> None:
     assert time.monotonic() - t0 < 1.0
     client.shutdown()
     client.loop_forever()
+
+
+def test_z2z_inbound_topic_alias() -> None:
+    with socket.create_server(("localhost", 0)) as listener:
+        def serve() -> None:
+            sock, _ = listener.accept()
+            with sock:
+                IncrementalDecoder().decode(sock)
+                sock.sendall(MQTTConnAckPacket().encode())
+                IncrementalDecoder().decode(sock)
+                sock.sendall(
+                    MQTTPublishPacket(topic="test/topic", payload=b"1", properties=MQTTPublishProps(TopicAlias=1)).encode()
+                    + MQTTPublishPacket(topic="", payload=b"2", properties=MQTTPublishProps(TopicAlias=1)).encode()
+                )
+                sock.recv(1)
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        client = Client()
+        received: deque[MQTTPacket] = deque()
+        client.start_loop()
+        try:
+            client.connect(
+                f"mqtt://localhost:{listener.getsockname()[1]}",
+                client_id="test_client",
+                connect_properties=MQTTConnectProps(TopicAliasMaximum=10),
+            )
+            client.wait_for_connect(timeout=1.0)
+            client.subscribe("test/#", lambda _, packet: received.append(packet))
+            first = wait_for_queue_item(received, timeout=1.0)
+            second = wait_for_queue_item(received, timeout=1.0)
+            assert isinstance(first, MQTTPublishPacket)
+            assert isinstance(second, MQTTPublishPacket)
+            assert (first.topic, first.payload) == ("test/topic", b"1")
+            assert (second.topic, second.payload) == ("test/topic", b"2")
+            assert client.is_connected()
+        finally:
+            client.shutdown()
+            client.wait_for_shutdown(timeout=1.0)
+        thread.join(1.0)
