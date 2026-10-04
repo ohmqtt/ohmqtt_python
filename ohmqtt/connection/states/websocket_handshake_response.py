@@ -95,6 +95,14 @@ class WebsocketHandshakeResponseState(FSMState):
         if response.status != 101:
             logger.error("Websocket handshake failed with status %d", response.status)
             return False
+        upgrade = response.getheader("Upgrade", "")
+        if upgrade.strip().lower() != "websocket":
+            logger.error("Websocket handshake failed: invalid Upgrade")
+            return False
+        connection = response.getheader("Connection", "")
+        if "upgrade" not in (token.strip().lower() for token in connection.split(",")):
+            logger.error("Websocket handshake failed: invalid Connection")
+            return False
         accept_key = response.getheader("Sec-WebSocket-Accept")
         expected_key = generate_handshake_key(nonce)
         if accept_key is None or accept_key != expected_key:

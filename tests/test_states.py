@@ -1910,6 +1910,46 @@ def test_states_websocket_handshake_response_invalid(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize(("headers", "valid"), [
+    pytest.param("Upgrade: websocket\r\nConnection: Upgrade\r\n", True, id="canonical"),
+    pytest.param("upgrade: WebSocket\r\nconnection: keep-alive, upgrade\r\n", True, id="case_and_token_list"),
+    pytest.param("Connection: Upgrade\r\n", False, id="missing_upgrade"),
+    pytest.param("Upgrade: h2c\r\nConnection: Upgrade\r\n", False, id="wrong_upgrade"),
+    pytest.param("Upgrade: websocket\r\n", False, id="missing_connection"),
+    pytest.param("Upgrade: websocket\r\nConnection: keep-alive\r\n", False, id="wrong_connection"),
+])
+def test_states_websocket_handshake_response_upgrade_headers(
+    headers: str,
+    valid: bool,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock,
+    mock_timeout: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeResponseState, error_state=ShutdownState)
+    state_data.ws_nonce = generate_nonce()
+
+    WebsocketHandshakeResponseState.enter(fsm, state_data, env, params)
+    mock_socket.recv.return_value = (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        f"{headers}"
+        f"Sec-WebSocket-Accept: {generate_handshake_key(state_data.ws_nonce)}\r\n"
+        "Sec-WebSocket-Protocol: mqtt\r\n"
+        "\r\n"
+    ).encode()
+    ret = WebsocketHandshakeResponseState.handle(fsm, state_data, env, params, None)
+    assert ret is True
+    if valid:
+        assert fsm.state is MQTTHandshakeConnectState
+    else:
+        assert fsm.state is ClosedState
+        assert isinstance(env.connect_error, WebsocketError)
+
+    callbacks.assert_not_called()
+
+
 @pytest.mark.parametrize("split", [1, 12, 100, -1])
 def test_states_websocket_handshake_response_split(
     split: int,
