@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from types import SimpleNamespace
-from typing import Callable, cast, Final, Mapping, NamedTuple, Sequence, TypeAlias
+from typing import Any, Callable, cast, ClassVar, Final, Mapping, NamedTuple, Sequence, TypeAlias
 
 if sys.version_info >= (3, 11):
     from typing import dataclass_transform, Self
@@ -151,6 +151,12 @@ def _get_property_name(key: int) -> str:
 
 
 class MQTTProperties(MQTTPropertiesBase):
+    valid_properties: ClassVar[frozenset[str]] = frozenset()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.valid_properties = frozenset(name for name in _PropertySerializers if hasattr(cls, name))
+
     def encode(self) -> bytes:
         """Encode MQTT properties to a buffer."""
         properties = self.__dict__
@@ -199,6 +205,8 @@ class MQTTProperties(MQTTPropertiesBase):
             data  = data[1:]
             remaining -= 1
             prop_name = _get_property_name(key)
+            if prop_name not in cls.valid_properties:
+                raise MQTTError(f"Property {prop_name} is not valid in {cls.__name__}", MQTTReasonCode.MalformedPacket)
             deserializer = _PropertySerializersById[key].deserializer
             value, sz = deserializer(data)
             data = data[sz:]
