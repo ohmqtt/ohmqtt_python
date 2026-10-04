@@ -184,6 +184,8 @@ test_packet_publish_decode_errors:
     reason_code: 0x81
   - raw: "3206000161000000"  # Packet ID 0
     reason_code: 0x82
+  - raw: "380400016100"  # DUP with QoS 0
+    reason_code: 0x81
 
 test_packet_puback_encode:
   - args:

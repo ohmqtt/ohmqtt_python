@@ -101,6 +101,8 @@ class MQTTPublishPacket(MQTTPacket):
             raise MQTTError("Invalid QoS value", MQTTReasonCode.MalformedPacket)
         retain = (flags & 0x01) == 1
         dup = (flags & 0x08) == 8
+        if dup and qos == MQTTQoS.Q0:
+            raise MQTTError("DUP flag set on QoS 0 PUBLISH", MQTTReasonCode.MalformedPacket)
 
         topic, topic_length = decode_string(data)
         if "+" in topic or "#" in topic:
