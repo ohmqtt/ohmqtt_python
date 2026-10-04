@@ -361,6 +361,30 @@ def test_subscriptions_unsubscribe_redundant(mock_handlers: MagicMock, mock_clie
     mock_connection.send.assert_not_called()
 
 
+def test_subscriptions_handle_publish_unsubscribed(mock_handlers: MagicMock, mock_client: Mock,
+                                                   mock_connection: Mock) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    recvd: list[str] = []
+    subscriptions.subscribe("test/#", lambda client, packet: recvd.append("wildcard"))
+    subscriptions.subscribe("test/topic", lambda client, packet: recvd.append("exact"))
+    publish_packet = MQTTPublishPacket(topic="test/topic", payload=b"test payload")
+
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == ["wildcard", "exact"]
+    recvd.clear()
+
+    subscriptions.handle_suback(MQTTSubAckPacket(packet_id=1, reason_codes=[MQTTReasonCode.GrantedQoS2]))
+    subscriptions.handle_suback(MQTTSubAckPacket(packet_id=2, reason_codes=[MQTTReasonCode.GrantedQoS2]))
+    subscriptions.unsubscribe("test/topic")
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == ["wildcard"]
+    recvd.clear()
+
+    subscriptions.handle_unsuback(MQTTUnsubAckPacket(packet_id=1, reason_codes=[MQTTReasonCode.Success]))
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == ["wildcard"]
+
+
 @pytest.mark.parametrize(("tf", "topic"), [
     ("test/topic", "test/topic"),
     ("test/+", "test/topic"),

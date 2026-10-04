@@ -60,6 +60,9 @@ class _SubscriptionState(IntEnum):
     UNSUBSCRIBED = 3
 
 
+_ACTIVE_STATES: Final = (_SubscriptionState.SUBSCRIBING, _SubscriptionState.SUBSCRIBED)
+
+
 @dataclass(match_args=True, slots=True)
 class Subscription:
     """All the data about a request for subscription."""
@@ -265,7 +268,10 @@ class Subscriptions:
             if client is None:
                 raise RuntimeError("Client went out of scope")
             self._topic_alias.handle(packet)
-            subs = [sub for sub in self._subscriptions.values() if match_topic_filter(sub.topic_filter, packet.topic)]
+            subs = [
+                sub for sub in self._subscriptions.values()
+                if sub.state in _ACTIVE_STATES and match_topic_filter(sub.topic_filter, packet.topic)
+            ]
             if packet.properties.SubscriptionIdentifier is not None:
                 subs = [sub for sub in subs if sub.sub_id in packet.properties.SubscriptionIdentifier]
             for sub in subs:
