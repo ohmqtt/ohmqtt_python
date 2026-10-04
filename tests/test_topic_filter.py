@@ -49,6 +49,19 @@ def test_topic_filter_multi_level_wildcard_match() -> None:
     assert not match_topic_filter(f, "sport/tennis")
     assert not match_topic_filter(f, "sport")
 
+@pytest.mark.parametrize(("f", "topic", "expected"), [
+    ("sport/#", "sport", True),
+    ("sport/#", "sport/", True),
+    ("sport/#", "sports", False),
+    ("sport/#", "sports/tennis", False),
+    ("sport/tennis/#", "sport/tennisball", False),
+    ("/#", "/", True),
+    ("/#", "/sport", True),
+    ("/#", "sport", False),
+])
+def test_topic_filter_multi_level_wildcard_level_boundary(f: str, topic: str, expected: bool) -> None:
+    assert match_topic_filter(f, topic) is expected
+
 def test_topic_filter_multi_level_wildcard_match_hidden() -> None:
     f = "$SYS/#"
     assert match_topic_filter(f, "$SYS/monitor/Clients")

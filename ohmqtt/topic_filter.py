@@ -52,14 +52,10 @@ def validate_share_name(share_name: str) -> None:
 
 def _check_multi_level_wildcard(topic_filter: str, topic: str) -> bool:
     """Check if the topic matches the filter with a multi-level wildcard."""
-    if len(topic_filter) == 1 and not topic.startswith("$"):
-        return True  # Matches everything that doesn't start with '$'.
-    # Otherwise the # must come at the end of the filter.
-    # Match the path up to the last '/' in the filter.
-    base = topic_filter[:-2]
-    if base and topic.startswith(base):
-        return True
-    return False
+    if len(topic_filter) == 1:
+        return not topic.startswith("$")  # Matches everything that doesn't start with '$'.
+    # Otherwise the filter ends with "/#", which also matches the parent level.
+    return topic == topic_filter[:-2] or topic.startswith(topic_filter[:-1])
 
 
 def _check_single_level_wildcard(topic_filter: str, topic: str) -> bool:
