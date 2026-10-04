@@ -19,6 +19,7 @@ from ohmqtt.packet import (
 )
 from ohmqtt.property import MQTTPublishProps, MQTTSubscribeProps
 from ohmqtt.subscriptions import ReconfiguredError, Subscriptions, RetainPolicy
+from ohmqtt.topic_filter import join_share
 
 
 def dummy_callback(client: Client, packet: MQTTPublishPacket) -> None:
@@ -66,12 +67,14 @@ def test_subscriptions_subscribe_opts(
 ) -> None:
     """Test subscribing with options."""
     subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    # No Local is a protocol error on shared subscriptions.
+    share_name = None if no_local else "test_share"
 
     subscriptions.subscribe(
         "test/topic",
         dummy_callback,
         max_qos=max_qos,
-        share_name="test_share",
+        share_name=share_name,
         no_local=no_local,
         retain_as_published=retain_as_published,
         retain_policy=retain_policy,
@@ -80,7 +83,7 @@ def test_subscriptions_subscribe_opts(
     )
     expected_opts = max_qos.value | (retain_policy << 4) | (retain_as_published << 3) | (no_local << 2)
     mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
-        topics=[("$share/test_share/test/topic", expected_opts)],
+        topics=[(join_share("test/topic", share_name), expected_opts)],
         packet_id=1,
         properties=MQTTSubscribeProps(
             SubscriptionIdentifier={23},
