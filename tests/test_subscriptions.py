@@ -446,6 +446,52 @@ def test_subscriptions_handle_publish_shared(
     assert recvd2 == [publish_packet]
 
 
+def test_subscriptions_share_in_topic_filter(
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+
+    recvd = []
+    def callback(client: Client, packet: MQTTPublishPacket) -> None:
+        recvd.append(packet)
+
+    subscriptions.subscribe("$share/test_share/test/+", callback)
+    sent = mock_connection.send.call_args[0][0]
+    assert sent.topics == [("$share/test_share/test/+", MQTTQoS.Q2.value)]
+
+    publish_packet = MQTTPublishPacket(topic="test/topic", payload=b"test payload")
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == [publish_packet]
+
+    subscriptions.subscribe("test/+", callback, share_name="test_share")
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == [publish_packet, publish_packet]
+    assert subscriptions.unsubscribe("$share/test_share/test/+") is not None
+    assert subscriptions.unsubscribe("test/+", share_name="test_share") is not None
+
+
+@pytest.mark.parametrize(("topic_filter", "share_name"), [
+    pytest.param("$share/test_share/test/topic", "test_share", id="both"),
+    pytest.param("$share//test/topic", None, id="empty_share_name"),
+    pytest.param("$share/test_share", None, id="no_filter"),
+    pytest.param("$share/test_share/", None, id="empty_filter"),
+    pytest.param("$share/test_share/test/#/bad", None, id="invalid_filter"),
+])
+def test_subscriptions_share_in_topic_filter_invalid(
+    topic_filter: str,
+    share_name: str | None,
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    with pytest.raises(ValueError):
+        subscriptions.subscribe(topic_filter, dummy_callback, share_name=share_name)
+    mock_connection.send.assert_not_called()
+
+
 def test_subscriptions_handle_publish_sub_id(
     mock_handlers: MagicMock,
     mock_client: Mock,

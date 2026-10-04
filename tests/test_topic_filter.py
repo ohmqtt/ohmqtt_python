@@ -1,6 +1,6 @@
 import pytest
 
-from ohmqtt.topic_filter import validate_topic_filter, validate_share_name, match_topic_filter, join_share
+from ohmqtt.topic_filter import validate_topic_filter, validate_share_name, match_topic_filter, join_share, split_share
 
 
 def test_topic_filter_empty_filter() -> None:
@@ -158,3 +158,19 @@ def test_topic_filter_join_share() -> None:
     assert join_share("sport/tennis/player1", None) == "sport/tennis/player1"
     assert join_share("$SYS/monitor/Clients", "foo") == "$share/foo/$SYS/monitor/Clients"
     assert join_share("$SYS/monitor/Clients", None) == "$SYS/monitor/Clients"
+
+@pytest.mark.parametrize(("topic_filter", "expected"), [
+    ("sport/tennis", ("sport/tennis", None)),
+    ("$share/foo/sport/tennis", ("sport/tennis", "foo")),
+    ("$share/foo/$SYS/monitor/Clients", ("$SYS/monitor/Clients", "foo")),
+    ("$share/foo/", ("", "foo")),
+    ("$share//sport", ("sport", "")),
+    ("$SHARE/foo/sport", ("$SHARE/foo/sport", None)),
+    ("$shared/sport", ("$shared/sport", None)),
+])
+def test_topic_filter_split_share(topic_filter: str, expected: tuple[str, str | None]) -> None:
+    assert split_share(topic_filter) == expected
+
+def test_topic_filter_split_share_no_filter() -> None:
+    with pytest.raises(ValueError, match="must be"):
+        split_share("$share/foo")

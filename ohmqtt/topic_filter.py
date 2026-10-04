@@ -93,3 +93,17 @@ def match_topic_filter(topic_filter: str, topic: str) -> bool:
 def join_share(topic_filter: str, share_name: str | None) -> str:
     """Join a topic filter with a share name."""
     return f"$share/{share_name}/{topic_filter}" if share_name is not None else topic_filter
+
+
+def split_share(topic_filter: str) -> tuple[str, str | None]:
+    """Split a "$share/{ShareName}/{filter}" topic filter into its filter and share name.
+
+    Topic filters without the "$share/" prefix are returned unchanged, with no share name.
+
+    Raises ValueError if the shared subscription topic filter has no filter part."""
+    if not topic_filter.startswith("$share/"):
+        return topic_filter, None
+    share_name, sep, inner = topic_filter[len("$share/"):].partition("/")
+    if not sep:
+        raise ValueError("Shared subscription topic filter must be '$share/{ShareName}/{filter}'")
+    return inner, share_name

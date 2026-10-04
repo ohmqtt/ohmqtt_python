@@ -200,6 +200,7 @@ class Client:
         If the client is not connected, returns None.
 
         :param topic_filter: The topic filter to subscribe to.
+            A shared subscription may be given as "$share/{ShareName}/{filter}" instead of using share_name.
         :param callback: The callback to call when a message is received on the subscribed topic.
         :param max_qos: The maximum QoS level for the subscription (0, 1, or 2).
         :param share_name: The name of a shared subscription to use.
@@ -236,6 +237,7 @@ class Client:
         If the client is not connected, returns None.
 
         :param topic_filter: The topic filter to unsubscribe from.
+            A shared subscription may be given as "$share/{ShareName}/{filter}" instead of using share_name.
         :param share_name: The name of a shared subscription to use.
         """
         return self.session.subscriptions.unsubscribe(

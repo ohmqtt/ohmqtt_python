@@ -21,7 +21,7 @@ from .packet import (
 )
 from .property import MQTTSubscribeProps, MQTTUnsubscribeProps
 from .topic_alias import InboundTopicAlias
-from .topic_filter import validate_topic_filter, validate_share_name, join_share, match_topic_filter
+from .topic_filter import validate_topic_filter, validate_share_name, join_share, match_topic_filter, split_share
 
 if TYPE_CHECKING:
     from .client import Client
@@ -79,6 +79,12 @@ class Subscription:
     effective_filter: str = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        topic_filter, share_name = split_share(self.topic_filter)
+        if share_name is not None:
+            if self.share_name is not None:
+                raise ValueError("Share name given in both the topic filter and share_name")
+            self.topic_filter = topic_filter
+            self.share_name = share_name
         validate_topic_filter(self.topic_filter)
         if self.share_name is not None:
             validate_share_name(self.share_name)
