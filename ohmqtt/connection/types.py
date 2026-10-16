@@ -4,7 +4,7 @@ from collections import deque
 from dataclasses import dataclass, field
 import socket
 import ssl
-from typing import Callable, TypeAlias
+from typing import Any, Callable, TypeAlias
 
 from .address import Address
 from .decoder import IncrementalDecoder
@@ -94,6 +94,7 @@ class StateData:
     open_called: bool = field(init=False, default=False)
     was_connected: bool = field(init=False, default=False)
     connect_called: bool = field(init=False, default=False)
+    connect_addresses: list[tuple[socket.AddressFamily, Any]] = field(init=False, default_factory=list)
     ws_decoder: WebsocketDecoder = field(init=False, default_factory=WebsocketDecoder)
     ws_nonce: str = field(init=False, default="")
     ws_handshake_buffer: bytearray = field(init=False, default_factory=bytearray)

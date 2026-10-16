@@ -30,6 +30,7 @@ from ohmqtt.connection.states import (
     WebsocketHandshakeResponseState,
 )
 from ohmqtt.connection.states.base import FSMState
+from ohmqtt.connection.states.connecting import _resolve
 from ohmqtt.connection.timeout import Timeout
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 from ohmqtt.connection.ws_decoder import WebsocketDecoder
@@ -56,7 +57,7 @@ from ohmqtt.packet import (
     MQTTUnsubscribePacket,
     PING,
 )
-from ohmqtt.platform import HAS_AF_UNIX
+from ohmqtt.platform import AF_UNIX, HAS_AF_UNIX
 from ohmqtt.property import MQTTConnectProps, MQTTConnAckProps, MQTTWillProps
 
 
@@ -89,6 +90,14 @@ def mock_socket(mocker: MockerFixture) -> Mock:
     mock_socket.getsockopt.return_value = 0
     mocker.patch("ohmqtt.connection.states.connecting._get_socket", return_value=mock_socket)
     return mock_socket  # type: ignore[no-any-return]
+
+@pytest.fixture
+def mock_resolve(mocker: MockerFixture) -> Mock:
+    def resolve(address: Address) -> list[tuple[socket.AddressFamily, Any]]:
+        if address.scheme == "unix":
+            return [(AF_UNIX, address.host)]
+        return [(socket.AF_INET, (address.host, address.port))]
+    return mocker.patch("ohmqtt.connection.states.connecting._resolve", side_effect=resolve)
 
 @pytest.fixture
 def decoder(mocker: MockerFixture) -> Mock:
@@ -157,6 +166,7 @@ def test_states_connecting_happy_path(
     state_data: StateData,
     env: StateEnvironment,
     decoder: Mock,
+    mock_resolve: Mock,
     mock_select: Mock,
     mock_socket: Mock,
     mock_timeout: Mock
@@ -171,17 +181,12 @@ def test_states_connecting_happy_path(
     env.connect_error = ConnectionRefusedError("TEST")
     ConnectingState.enter(fsm, state_data, env, params)
     assert env.connect_error is None
-    mock_socket.setblocking.assert_called_once_with(False)
-    if params.address.scheme != "unix":
-        mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    mock_socket.reset_mock()
     decoder.reset.assert_called_once()
     decoder.reset_mock()
     assert mock_timeout.interval == params.connect_timeout
     mock_timeout.mark.assert_called_once()
     mock_timeout.reset_mock()
     assert state_data.disconnect_rc is None
-    mock_select.change_sock.assert_called_once_with(mock_socket)
     assert fsm.state is ConnectingState
 
     # First handle, begin non-blocking connect.
@@ -189,6 +194,11 @@ def test_states_connecting_happy_path(
     mock_socket.connect.side_effect = BlockingIOError
     ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
     assert ret is False
+    mock_resolve.assert_called_once_with(params.address)
+    mock_socket.setblocking.assert_called_once_with(False)
+    if params.address.scheme != "unix":
+        mock_socket.setsockopt.assert_called_once_with(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    mock_select.change_sock.assert_called_once_with(mock_socket)
     mock_select.select.assert_called_once_with(write=True, timeout=1 if max_wait is None else max_wait)
     mock_select.reset_mock()
     if params.address.scheme == "unix":
@@ -282,6 +292,7 @@ def test_states_connecting_error(
     callbacks: EnvironmentCallbacks,
     state_data: StateData,
     env: StateEnvironment,
+    mock_resolve: Mock,
     mock_select: Mock,
     mock_socket: Mock
 ) -> None:
@@ -309,6 +320,7 @@ def test_states_connecting_failed_in_progress(
     callbacks: EnvironmentCallbacks,
     state_data: StateData,
     env: StateEnvironment,
+    mock_resolve: Mock,
     mock_select: Mock,
     mock_socket: Mock
 ) -> None:
@@ -327,6 +339,129 @@ def test_states_connecting_failed_in_progress(
     assert isinstance(env.connect_error, ConnectionRefusedError)
 
     callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_connecting_resolve_error(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_resolve: Mock,
+    mock_select: Mock,
+    mock_socket: Mock
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
+
+    exc = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+    mock_resolve.side_effect = exc
+    ConnectingState.enter(fsm, state_data, env, params)
+    ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    assert env.connect_error is exc
+    mock_socket.connect.assert_not_called()
+    mock_select.select.assert_not_called()
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_connecting_next_address(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_resolve: Mock,
+    mock_select: Mock,
+    mocker: MockerFixture,
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
+    addresses = [
+        (socket.AF_INET6, ("2001:db8::1", 1883, 0, 0)),
+        (socket.AF_INET6, ("2001:db8::2", 1883, 0, 0)),
+        (socket.AF_INET, ("192.0.2.1", 1883)),
+    ]
+    mock_resolve.side_effect = None
+    mock_resolve.return_value = list(addresses)
+    socks = [mocker.Mock(spec=socket.socket) for _ in addresses]
+    get_socket = mocker.patch("ohmqtt.connection.states.connecting._get_socket", side_effect=socks)
+    # The first address fails immediately, the second fails in progress, the third connects.
+    socks[0].connect.side_effect = OSError(errno.ENETUNREACH, "Network is unreachable")
+    socks[1].connect.side_effect = BlockingIOError
+    socks[1].getsockopt.return_value = errno.ECONNREFUSED
+    socks[2].connect.side_effect = BlockingIOError
+    socks[2].getsockopt.return_value = 0
+    mock_select.select.return_value = (False, True)
+
+    ConnectingState.enter(fsm, state_data, env, params)
+    ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is False
+    assert fsm.state is ConnectingState
+    socks[0].close.assert_called_once()
+    socks[1].close.assert_called_once()
+    socks[2].close.assert_not_called()
+
+    ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is MQTTHandshakeConnectState
+    assert state_data.sock is socks[2]
+    assert get_socket.call_args_list == [mocker.call(family) for family, _ in addresses]
+    for sock, (_, sockaddr) in zip(socks, addresses):
+        sock.connect.assert_called_once_with(sockaddr)
+    assert mock_select.change_sock.call_args_list == [mocker.call(sock) for sock in socks]
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize("max_wait", [None, 0.0])
+def test_states_connecting_all_addresses_fail(
+    max_wait: float | None,
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_resolve: Mock,
+    mock_select: Mock,
+    mocker: MockerFixture,
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"))
+    fsm = FSM(env=env, init_state=ConnectingState, error_state=ShutdownState)
+    mock_resolve.side_effect = None
+    mock_resolve.return_value = [
+        (socket.AF_INET6, ("2001:db8::1", 1883, 0, 0)),
+        (socket.AF_INET, ("192.0.2.1", 1883)),
+    ]
+    socks = [mocker.Mock(spec=socket.socket) for _ in range(2)]
+    mocker.patch("ohmqtt.connection.states.connecting._get_socket", side_effect=socks)
+    socks[0].connect.side_effect = BlockingIOError
+    socks[0].getsockopt.return_value = errno.ECONNREFUSED
+    last_exc = OSError(errno.ENETUNREACH, "Network is unreachable")
+    socks[1].connect.side_effect = last_exc
+    mock_select.select.return_value = (False, True)
+
+    ConnectingState.enter(fsm, state_data, env, params)
+    ret = ConnectingState.handle(fsm, state_data, env, params, max_wait)
+    assert ret is True
+    assert fsm.state is ClosedState
+    assert env.connect_error is last_exc
+
+    callbacks.assert_not_called()
+
+
+@pytest.mark.parametrize(("address", "expected"), [
+    ("mqtt://127.0.0.1:1234", [(socket.AF_INET, ("127.0.0.1", 1234))]),
+    ("mqtt://[::1]:1234", [(socket.AF_INET6, ("::1", 1234, 0, 0))]),
+])
+def test_states_connecting_resolve(address: str, expected: list[tuple[socket.AddressFamily, Any]]) -> None:
+    assert _resolve(Address(address)) == expected
+
+
+def test_states_connecting_resolve_unix() -> None:
+    if not HAS_AF_UNIX:
+        pytest.skip("Unix socket not supported on this platform")
+    assert _resolve(Address("unix:///testpath")) == [(AF_UNIX, "/testpath")]
 
 
 @pytest.mark.parametrize("address", ["mqtts://testhost", "wss://testhost"])
