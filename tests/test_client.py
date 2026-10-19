@@ -57,11 +57,13 @@ def mock_thread(mocker: MockerFixture) -> Mock:
     return mock_thread  # type: ignore[no-any-return]
 
 
-def test_client_connect(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+@pytest.mark.parametrize("keepalive_interval", [0, 65535])
+def test_client_connect(keepalive_interval: int, mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                        mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
-    client.connect("localhost")
+    client.connect("localhost", keepalive_interval=keepalive_interval)
     mock_connection.connect.assert_called_once()
+    assert mock_connection.connect.call_args.args[0].keepalive_interval == keepalive_interval
 
 
 def test_client_disconnect(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
@@ -290,6 +292,15 @@ def test_client_publish_invalid_response_topic(response_topic: str, mock_connect
     with pytest.raises(ValueError, match="Topic name"):
         client.publish("test/topic", b"test_payload", properties=MQTTPublishProps(ResponseTopic=response_topic))
     mock_session.publish.assert_not_called()
+
+
+@pytest.mark.parametrize("keepalive_interval", [-1, 65536])
+def test_client_connect_invalid_keepalive_interval(keepalive_interval: int, mock_connection: Mock, mock_handlers: MagicMock,
+                                                   mock_session: Mock, mock_subscriptions: Mock) -> None:
+    client = Client()
+    with pytest.raises(ValueError, match="Keep alive interval"):
+        client.connect("localhost", keepalive_interval=keepalive_interval)
+    mock_connection.connect.assert_not_called()
 
 
 @pytest.mark.parametrize("response_topic", ["", "test/+", "test/#"])

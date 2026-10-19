@@ -107,8 +107,11 @@ class Client:
         :param will_retain: If True, the Will message will be retained.
         :param will_properties: Properties for the Will message.
         :param connect_properties: Properties for the CONNECT packet.
-        :raises ValueError: The Will topic or Will ResponseTopic is not a valid topic name.
+        :raises ValueError: The keep alive interval is out of range,
+            or the Will topic or Will ResponseTopic is not a valid topic name.
         """
+        if not 0 <= keepalive_interval <= 65535:
+            raise ValueError("Keep alive interval must be between 0 and 65535")
         if will_topic:
             validate_topic(will_topic)
         if will_properties is not None and will_properties.ResponseTopic is not None:
