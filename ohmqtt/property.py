@@ -162,9 +162,11 @@ def _get_property_name(key: int) -> str:
 def _add_property(properties: dict[str, AnyFieldT], prop_name: str, value: AnyFieldT | tuple[str, str]) -> None:
     """Add a decoded property value to the properties being decoded.
 
-    :raises MQTTError: The value is out of range, or the property is repeated."""
+    :raises MQTTError: The value is out of range or invalid, or the property is repeated."""
     if prop_name in _PropertyRanges and value not in _PropertyRanges[prop_name]:
         raise MQTTError(f"Invalid value {value!r} for property {prop_name}", MQTTReasonCode.ProtocolError)
+    if prop_name == "ResponseTopic" and ("+" in cast(str, value) or "#" in cast(str, value)):
+        raise MQTTError("ResponseTopic contains wildcards", MQTTReasonCode.ProtocolError)
     if prop_name == "SubscriptionIdentifier":
         # This property may appear multiple times, in any order.
         if prop_name not in properties:

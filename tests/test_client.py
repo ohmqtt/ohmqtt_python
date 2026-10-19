@@ -8,7 +8,7 @@ from ohmqtt.client import Client
 from ohmqtt.connection import Connection, MessageHandlers
 from ohmqtt.mqtt_spec import MQTTReasonCode, MQTTQoS
 from ohmqtt.packet import MQTTAuthPacket
-from ohmqtt.property import MQTTAuthProps, MQTTPublishProps
+from ohmqtt.property import MQTTAuthProps, MQTTPublishProps, MQTTWillProps
 from ohmqtt.session import Session
 from ohmqtt.subscriptions import Subscriptions, SubscribeCallback
 from ohmqtt.topic_alias import AliasPolicy
@@ -281,6 +281,24 @@ def test_client_publish_invalid_topic(topic: str, mock_connection: Mock, mock_ha
     with pytest.raises(ValueError, match="Topic name"):
         client.publish(topic, b"test_payload")
     mock_session.publish.assert_not_called()
+
+
+@pytest.mark.parametrize("response_topic", ["", "test/+", "test/#"])
+def test_client_publish_invalid_response_topic(response_topic: str, mock_connection: Mock, mock_handlers: MagicMock,
+                                               mock_session: Mock, mock_subscriptions: Mock) -> None:
+    client = Client()
+    with pytest.raises(ValueError, match="Topic name"):
+        client.publish("test/topic", b"test_payload", properties=MQTTPublishProps(ResponseTopic=response_topic))
+    mock_session.publish.assert_not_called()
+
+
+@pytest.mark.parametrize("response_topic", ["", "test/+", "test/#"])
+def test_client_connect_invalid_will_response_topic(response_topic: str, mock_connection: Mock, mock_handlers: MagicMock,
+                                                    mock_session: Mock, mock_subscriptions: Mock) -> None:
+    client = Client()
+    with pytest.raises(ValueError, match="Topic name"):
+        client.connect("localhost", will_topic="test/will", will_properties=MQTTWillProps(ResponseTopic=response_topic))
+    mock_connection.connect.assert_not_called()
 
 
 @pytest.mark.parametrize("will_topic", ["test/+", "test/#", "test/\u0000", "t" * 65536])

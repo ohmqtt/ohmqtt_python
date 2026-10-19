@@ -89,6 +89,26 @@ def test_property_value_ranges(
             assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
+@pytest.mark.parametrize("props_type", [MQTTPublishProps, MQTTWillProps])
+@pytest.mark.parametrize(("topic", "valid"), [
+    ("response/topic", True),
+    ("response/+", False),
+    ("response/#", False),
+    ("+", False),
+    ("a+b", False),
+])
+def test_property_response_topic(props_type: type[MQTTProperties], topic: str, valid: bool) -> None:
+    prop = encode_varint(MQTTPropertyId.ResponseTopic) + encode_string(topic)
+    data = memoryview(encode_varint(len(prop)) + prop)
+    if valid:
+        decoded, _ = props_type.decode(data)
+        assert decoded.ResponseTopic == topic
+    else:
+        with pytest.raises(MQTTError, match=r"ResponseTopic contains wildcards") as excinfo:
+            props_type.decode(data)
+        assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
+
+
 def test_property_value_past_properties() -> None:
     data = encode_varint(2) + encode_varint(MQTTPropertyId.TopicAlias) + encode_uint16(1) + b"payload"
 

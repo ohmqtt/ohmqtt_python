@@ -106,10 +106,12 @@ class Client:
         :param will_retain: If True, the Will message will be retained.
         :param will_properties: Properties for the Will message.
         :param connect_properties: Properties for the CONNECT packet.
-        :raises ValueError: The Will topic is not a valid topic name.
+        :raises ValueError: The Will topic or Will ResponseTopic is not a valid topic name.
         """
         if will_topic:
             validate_topic(will_topic)
+        if will_properties is not None and will_properties.ResponseTopic is not None:
+            validate_topic(will_properties.ResponseTopic)
         _address = Address(address)
         params = ConnectParams(
             address=_address,
@@ -160,9 +162,11 @@ class Client:
         :param retain: If True, the message will be retained by the broker.
         :param properties: Properties for the PUBLISH packet.
         :param alias_policy: The policy for using automatic topic aliases.
-        :raises ValueError: The topic is not a valid topic name, or a QoS 1 or 2 message can't be encoded.
+        :raises ValueError: The topic or ResponseTopic is not a valid topic name, or a QoS 1 or 2 message can't be encoded.
         """
         validate_topic(topic)
+        if properties is not None and properties.ResponseTopic is not None:
+            validate_topic(properties.ResponseTopic)
         if isinstance(payload, str):
             payload = payload.encode("utf-8")
         elif not isinstance(payload, bytes):
