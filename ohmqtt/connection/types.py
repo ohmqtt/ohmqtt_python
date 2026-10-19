@@ -99,6 +99,7 @@ class StateData:
     ws_nonce: str = field(init=False, default="")
     ws_handshake_buffer: bytearray = field(init=False, default_factory=bytearray)
     write_buffer: bytearray = field(init=False, default_factory=bytearray)
+    write_buffer_has_mqtt: bool = field(init=False, default=False)
 
 
 @dataclass(slots=True, kw_only=True)

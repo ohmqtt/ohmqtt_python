@@ -27,6 +27,7 @@ class ConnectedState(FSMState):
         state_data.keepalive.mark_init()
         env.packet_buffer.clear()
         state_data.write_buffer.clear()
+        state_data.write_buffer_has_mqtt = False
         assert state_data.connack is not None, "Got to ConnectedState without a CONNACK"
         env.packet_callback(state_data.connack)
         state_data.open_called = True
@@ -46,20 +47,16 @@ class ConnectedState(FSMState):
 
         readable, writable = cls.wait_for_io(fsm, state_data, env, max_wait)
 
-        # Batch encode outgoing packets until we have at least 64kB of data or the queue is drained.
-        while env.packet_buffer and len(state_data.write_buffer) < 0xffff:
-            packet = env.packet_buffer.popleft()
-            if params.address.is_websocket():
-                ws_frame = frame_ws_data(OpCode.BINARY, packet.encode())
-                state_data.write_buffer.extend(ws_frame)
-            else:
-                state_data.write_buffer.extend(packet.encode())
+        cls.fill_write_buffer(state_data, env, params)
 
         try:
             if writable:
                 sent = state_data.sock.send(state_data.write_buffer)
                 del state_data.write_buffer[:sent]
-                state_data.keepalive.mark_send()
+                # WebSocket control frames don't count as MQTT traffic for keep alive.
+                if state_data.write_buffer_has_mqtt:
+                    state_data.keepalive.mark_send()
+                    state_data.write_buffer_has_mqtt = bool(state_data.write_buffer)
         except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
             pass
         except OSError as exc:
@@ -86,6 +83,18 @@ class ConnectedState(FSMState):
             return True
 
         return False
+
+    @classmethod
+    def fill_write_buffer(cls, state_data: StateData, env: StateEnvironment, params: ConnectParams) -> None:
+        """Batch encode outgoing packets until we have at least 64kB of data or the queue is drained."""
+        while env.packet_buffer and len(state_data.write_buffer) < 0xffff:
+            packet = env.packet_buffer.popleft()
+            if params.address.is_websocket():
+                ws_frame = frame_ws_data(OpCode.BINARY, packet.encode())
+                state_data.write_buffer.extend(ws_frame)
+            else:
+                state_data.write_buffer.extend(packet.encode())
+            state_data.write_buffer_has_mqtt = True
 
     @classmethod
     def wait_for_io(cls, fsm: FSM, state_data: StateData, env: StateEnvironment, max_wait: float | None) -> tuple[bool, bool]:

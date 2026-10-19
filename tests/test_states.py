@@ -1076,6 +1076,52 @@ def test_states_connected_happy_path(
     callbacks.assert_not_called()
 
 
+def test_states_connected_ws_pong_keepalive(
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_keepalive: Mock,
+    mock_select: Mock,
+    mock_socket: Mock,
+    ws_decoder: Mock,
+) -> None:
+    params = ConnectParams(address=Address("ws://testhost"))
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
+    ConnectedState.enter(fsm, state_data, env, params)
+    mock_socket.send.side_effect = lambda data: len(data)
+
+    ws_decoder.decode.return_value = OpCode.PING, b""
+    mock_select.select.return_value = (True, False)
+    ConnectedState.handle(fsm, state_data, env, params, None)
+    assert state_data.write_buffer
+    ws_decoder.decode.return_value = None
+
+    mock_select.select.return_value = (False, True)
+    ConnectedState.handle(fsm, state_data, env, params, None)
+    mock_socket.send.assert_called_once()
+    assert not state_data.write_buffer
+    mock_keepalive.mark_send.assert_not_called()
+
+    env.packet_buffer.append(MQTTPublishPacket(topic="test/topic", payload=b"test_payload"))
+    mock_socket.send.side_effect = lambda data: 3
+    ConnectedState.handle(fsm, state_data, env, params, None)
+    mock_keepalive.mark_send.assert_called_once()
+    mock_keepalive.reset_mock()
+    mock_socket.send.side_effect = lambda data: len(data)
+    ConnectedState.handle(fsm, state_data, env, params, None)
+    mock_keepalive.mark_send.assert_called_once()
+    mock_keepalive.reset_mock()
+    assert not state_data.write_buffer
+
+    ws_decoder.decode.return_value = OpCode.PING, b""
+    mock_select.select.return_value = (True, False)
+    ConnectedState.handle(fsm, state_data, env, params, None)
+    ws_decoder.decode.return_value = None
+    mock_select.select.return_value = (False, True)
+    ConnectedState.handle(fsm, state_data, env, params, None)
+    assert not state_data.write_buffer
+    mock_keepalive.mark_send.assert_not_called()
+
+
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connected_tls_pending(
     max_wait: float | None,
