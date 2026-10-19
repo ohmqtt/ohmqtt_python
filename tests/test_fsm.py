@@ -281,6 +281,7 @@ def test_fsm_change_state(env: StateEnvironment) -> None:
 
 def test_fsm_request_state(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    fsm.loop_once()
 
     # Redundant calls should not break the state machine.
     fsm.request_state(MockStateB)
@@ -298,6 +299,27 @@ def test_fsm_request_state(env: StateEnvironment) -> None:
     # Requesting a valid state then changing to an invalid should not explode.
     fsm.request_state(MockStateErr)
     fsm.change_state(MockStateC)
+    fsm.loop_once()
+    fsm.loop_once()
+    assert fsm.state == MockStateC
+    assert fsm.previous_state == MockStateB
+    assert fsm.state_requested() is False
+
+
+def test_fsm_request_state_after_enter(env: StateEnvironment, mocker: MockerFixture) -> None:
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    enter_a = mocker.patch.object(MockStateA, "enter")
+    enter_b = mocker.patch.object(MockStateB, "enter")
+    fsm.loop_once()
+    enter_a.assert_called_once()
+
+    fsm.change_state(MockStateB)
+    fsm.request_state(MockStateC)
+    assert fsm.wait_for_state([MockStateB], 0.001) is False
+    fsm.loop_once()
+    enter_b.assert_called_once()
+    assert fsm.state == MockStateB
+    assert fsm.state_requested() is True
     fsm.loop_once()
     assert fsm.state == MockStateC
     assert fsm.previous_state == MockStateB

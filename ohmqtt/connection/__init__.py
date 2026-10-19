@@ -63,14 +63,17 @@ class Connection:
             self.fsm.selector.interrupt()
 
     def connect(self, params: ConnectParams) -> None:
-        """Connect to the MQTT broker."""
+        """Connect to the MQTT broker.
+
+        :raises InvalidStateError: The connection is not closed, or another state change is pending."""
         with self.fsm.lock:
-            if not self.fsm.get_state().can_transition_to(ConnectingState):
-                state = self.fsm.get_state()
+            if self.fsm.state_requested():
+                raise InvalidStateError(f"Cannot connect() while a change to {self.fsm.requested_state.__name__} is pending")
+            state = self.fsm.get_state()
+            if not ConnectingState.can_request_from(state):
                 raise InvalidStateError(f"Cannot connect() from state {state.__name__}, disconnect() first")
             self.fsm.set_params(params)
-            self.fsm.requested_state = ConnectingState
-            self.fsm.change_state(ConnectingState)
+            self.fsm.request_state(ConnectingState)
             self.fsm.selector.interrupt()
 
     def disconnect(self) -> None:

@@ -108,11 +108,25 @@ def test_connection_send(mock_fsm: Mock, mock_handlers: Mock) -> None:
 def test_connection_connect(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
     params = ConnectParams(address=Address("test_address"))
+    mock_fsm.state_requested.return_value = False
+    mock_fsm.get_state.return_value = ClosedState
     connection.connect(params)
     mock_fsm.set_params.assert_called_once_with(params)
-    assert mock_fsm.requested_state is ConnectingState
-    mock_fsm.change_state.assert_called_once_with(ConnectingState)
+    mock_fsm.request_state.assert_called_once_with(ConnectingState)
+    mock_fsm.change_state.assert_not_called()
     mock_fsm.selector.interrupt.assert_called_once_with()
+    mock_fsm.reset_mock()
+
+    mock_fsm.get_state.return_value = ConnectedState
+    with pytest.raises(InvalidStateError, match="from state ConnectedState"):
+        connection.connect(params)
+
+    mock_fsm.get_state.return_value = ClosedState
+    mock_fsm.state_requested.return_value = True
+    mock_fsm.requested_state = ShutdownState
+    with pytest.raises(InvalidStateError, match="change to ShutdownState is pending"):
+        connection.connect(params)
+    mock_fsm.request_state.assert_not_called()
 
 
 def test_connection_disconnect(mock_fsm: Mock, mock_handlers: Mock) -> None:

@@ -68,12 +68,13 @@ class FSM:
             return self._state_requested
 
     def wait_for_state(self, states: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
-        """Wait for a specific state to be reached and entered.
+        """Wait for a specific state to be reached and entered, with no change requested.
 
         :return: True if the state is reached, False if the timeout is reached."""
         def entered() -> bool:
             # A final state can't be left, but may never be entered if the loop has died.
-            return self.state in states and (not self._state_changed or self.state.is_final_state())
+            settled = not (self._state_changed or self._state_requested) or self.state.is_final_state()
+            return self.state in states and settled
 
         with self.cond:
             return self.cond.wait_for(entered, timeout)
@@ -127,12 +128,13 @@ class FSM:
         :return: True if the state is finished and the calling thread should wait for a change."""
         try:
             with self.cond:
-                # Consume state change requests.
-                if self._state_requested:
+                # Consume state change requests, but only once the current state has been entered.
+                if self._state_requested and not self._state_changed:
                     if not self.state.can_transition_to(self.requested_state) or not self.requested_state.can_request_from(self.state):
                         logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, self.requested_state.__name__)
                         self._state_requested = False
                         self.requested_state = self.state
+                        self.cond.notify_all()
                     else:
                         logger.debug("Handling request to change from %s to %s", self.state.__name__, self.requested_state.__name__)
                         self.previous_state = self.state
@@ -177,8 +179,8 @@ class FSM:
         while True:
             state_done = self.loop_once(max_wait=to.get_timeout())
             with self.cond:
-                if self.state in targets and not self._state_changed:
-                    # We are in a target state and the state has been entered.
+                if self.state in targets and not (self._state_changed or self._state_requested):
+                    # We are in a target state, the state has been entered, and we are not about to leave it.
                     return True
                 if to.exceeded() or _state_unreachable():
                     return False
