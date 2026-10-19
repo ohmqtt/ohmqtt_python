@@ -104,6 +104,8 @@ def test_fsm_props(env: StateEnvironment) -> None:
 @pytest.mark.parametrize("do_request", [True, False])
 def test_fsm_wait_for_state(do_request: bool, env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    assert fsm.wait_for_state([MockStateA], 0.001) is False
+    fsm.loop_once()
     assert fsm.wait_for_state([MockStateA], 0.001) is True
     assert fsm.wait_for_state([MockStateB, MockStateC], 0.001) is False
 
@@ -128,6 +130,31 @@ def test_fsm_wait_for_state(do_request: bool, env: StateEnvironment) -> None:
     finally:
         thread.join(0.1)
         assert not thread.is_alive()
+
+
+def test_fsm_wait_for_state_entered(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    fsm.loop_once()
+    fsm.change_state(MockStateB)
+    assert fsm.wait_for_state([MockStateB], 0.001) is False
+
+    def enter_later() -> None:
+        time.sleep(0.05)
+        fsm.loop_once()
+
+    thread = threading.Thread(target=enter_later, daemon=True)
+    thread.start()
+    t0 = time.monotonic()
+    assert fsm.wait_for_state([MockStateB], 5.0) is True
+    assert time.monotonic() - t0 < 1.0
+    thread.join(1.0)
+
+
+def test_fsm_wait_for_state_final(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    fsm.loop_once()
+    fsm._handle_exception(_TestError("TEST Error"))  # noqa: SLF001
+    assert fsm.wait_for_state([MockStateC], 0.001) is True
 
 
 @pytest.mark.parametrize("do_request", [True, False])

@@ -63,13 +63,15 @@ class FSM:
             return self._state_requested
 
     def wait_for_state(self, states: Sequence[type[FSMState]], timeout: float | None = None) -> bool:
-        """Wait for a specific state to be reached.
+        """Wait for a specific state to be reached and entered.
 
         :return: True if the state is reached, False if the timeout is reached."""
+        def entered() -> bool:
+            # A final state can't be left, but may never be entered if the loop has died.
+            return self.state in states and (not self._state_changed or self.state.is_final_state())
+
         with self.cond:
-            if self.state in states:
-                return True
-            return self.cond.wait_for(lambda: self.state in states, timeout)
+            return self.cond.wait_for(entered, timeout)
 
     def change_state(self, state: type[FSMState]) -> None:
         """Change to a new state.
@@ -138,6 +140,7 @@ class FSM:
                     self._state_changed = False
                     logger.debug("Entering state %s", self.state.__name__)
                     self.state.enter(self, self._state_data, self.env, self.params)
+                    self.cond.notify_all()
                     return False  # Run the state on the next loop, unless it has changed.
 
             # Run the state.  Do not run this while holding the lock, as it may block.
