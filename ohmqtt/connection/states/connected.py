@@ -29,8 +29,15 @@ class ConnectedState(FSMState):
         state_data.write_buffer.clear()
         state_data.write_buffer_has_mqtt = False
         assert state_data.connack is not None, "Got to ConnectedState without a CONNACK"
-        env.packet_callback(state_data.connack)
         state_data.open_called = True
+        try:
+            env.packet_callback(state_data.connack)
+        except MQTTError as exc:
+            logger.error("There was a problem with the CONNACK from broker, closing connection: %s", exc)
+            state_data.disconnect_rc = exc.reason_code
+            env.connect_error = exc
+            fsm.change_state(ClosedState)
+            return
         state_data.was_connected = True
 
     @classmethod

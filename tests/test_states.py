@@ -1122,6 +1122,25 @@ def test_states_connected_ws_pong_keepalive(
     mock_keepalive.mark_send.assert_not_called()
 
 
+def test_states_connected_connack_error(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    params: ConnectParams,
+) -> None:
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
+    exc = MQTTError("No client ID provided", MQTTReasonCode.ProtocolError)
+    callbacks.packet.side_effect = exc
+
+    ConnectedState.enter(fsm, state_data, env, params)
+    callbacks.packet.assert_called_once_with(state_data.connack)
+    assert fsm.state is ClosedState
+    assert state_data.disconnect_rc == MQTTReasonCode.ProtocolError
+    assert env.connect_error is exc
+    assert state_data.open_called is True
+    assert state_data.was_connected is False
+
+
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_connected_tls_pending(
     max_wait: float | None,
