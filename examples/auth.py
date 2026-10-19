@@ -6,7 +6,7 @@
     This authenticates the server and encrypts all MQTT traffic.
 
 * Simple username/password in CONNECT.
-    Specify the username and password in the server address.
+    Pass the username and password to connect().
     Use of TLS is strongly encouraged, otherwise the authenticating information can be captured and replayed.
 
 * AUTH control packet exchange.
@@ -42,9 +42,10 @@ def main() -> None:
     with AuthClient() as client:
         client.connect(
             # Use mqtts:// to specify TLS.
-            # Use user:password@ to specify username and password.
-            # Password will be encoded with UTF-8.
-            "mqtts://user:password@localhost:8883",
+            "mqtts://localhost:8883",
+            username="user",
+            # Password is binary data.
+            password=b"password",
             # Optionally provide your own TLS context.
             tls_context=None,
             # Optionally specify a hostname other than the one in the address for TLS.
