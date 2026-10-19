@@ -81,15 +81,19 @@ def test_connection_handle_packet(mocker: MockerFixture) -> None:
 
 def test_connection_can_send(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
+    mock_fsm.state_entered.return_value = True
     mock_fsm.get_state.return_value = ClosedState
     assert not connection.can_send()
     mock_fsm.get_state.return_value = ConnectedState
     assert connection.can_send()
+    mock_fsm.state_entered.return_value = False
+    assert not connection.can_send()
 
 
 def test_connection_send(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
     mock_fsm.get_state.return_value = ConnectedState
+    mock_fsm.state_entered.return_value = True
     mock_fsm.env.packet_buffer = deque()
     packet = MQTTPublishPacket(topic="test/topic", payload=b"test")
     connection.send(packet)

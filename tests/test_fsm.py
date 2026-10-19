@@ -150,6 +150,17 @@ def test_fsm_wait_for_state_entered(env: StateEnvironment) -> None:
     thread.join(1.0)
 
 
+def test_fsm_state_entered(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    assert fsm.state_entered() is False
+    fsm.loop_once()
+    assert fsm.state_entered() is True
+    fsm.change_state(MockStateB)
+    assert fsm.state_entered() is False
+    fsm.loop_once()
+    assert fsm.state_entered() is True
+
+
 def test_fsm_wait_for_state_final(env: StateEnvironment) -> None:
     fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
     fsm.loop_once()

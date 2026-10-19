@@ -47,8 +47,8 @@ class Connection:
 
         :return: True if the connection is in a state where data can be sent, False otherwise."""
         with self.fsm.lock:
-            state = self.fsm.get_state()
-            return state is ConnectedState
+            # Entering ConnectedState discards anything sent before it.
+            return self.fsm.get_state() is ConnectedState and self.fsm.state_entered()
 
     def send(self, packet: SendablePacketT) -> None:
         """Send data to the connection.

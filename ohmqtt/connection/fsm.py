@@ -57,6 +57,11 @@ class FSM:
         with self.lock:
             return self.state
 
+    def state_entered(self) -> bool:
+        """Check if the current state has been entered."""
+        with self.lock:
+            return not self._state_changed
+
     def state_requested(self) -> bool:
         """Check if a state change has been requested but not yet handled."""
         with self.lock:
