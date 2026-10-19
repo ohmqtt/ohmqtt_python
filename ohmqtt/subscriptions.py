@@ -142,7 +142,7 @@ class Subscriptions:
         self._subscriptions: dict[str, Subscription] = {}
         self._sub_handles: weakref.WeakValueDictionary[str, SubscribeHandle] = weakref.WeakValueDictionary()
         self._unsub_handles: weakref.WeakValueDictionary[str, UnsubscribeHandle] = weakref.WeakValueDictionary()
-        self._inflight_sub_packet_ids: dict[int, str] = {}
+        self._inflight_sub_packet_ids: dict[int, Subscription] = {}
         self._inflight_unsub_packet_ids: dict[int, str] = {}
         self._next_sub_packet_id = 1
         self._next_unsub_packet_id = 1
@@ -193,15 +193,16 @@ class Subscriptions:
     def _flush_packets(self) -> None:
         """Try to send all pending SUBSCRIBE and UNSUBSCRIBE packets."""
         with self._cond:
+            inflight_sub_filters = {sub.effective_filter for sub in self._inflight_sub_packet_ids.values()}
             pending_subs = [
                 sub for sub in self._subscriptions.values() if (
-                    sub.state == _SubscriptionState.SUBSCRIBING and sub.effective_filter not in self._inflight_sub_packet_ids.values()
+                    sub.state == _SubscriptionState.SUBSCRIBING and sub.effective_filter not in inflight_sub_filters
                 )
             ]
             for sub in pending_subs:
                 sub_packet = sub.render_sub()
                 sub_packet.packet_id = self._get_next_sub_packet_id()
-                self._inflight_sub_packet_ids[sub_packet.packet_id] = sub.effective_filter
+                self._inflight_sub_packet_ids[sub_packet.packet_id] = sub
                 try:
                     self._connection.send(sub_packet)
                 except InvalidStateError:
@@ -295,16 +296,19 @@ class Subscriptions:
             errs = [hex(code) for code in packet.reason_codes if code.is_error()]
             logger.error("Errors found in SUBACK return: %s", errs)
         with self._cond:
-            effective_topic_filter = self._inflight_sub_packet_ids.pop(packet.packet_id, None)
-            if effective_topic_filter is None:
+            sub = self._inflight_sub_packet_ids.pop(packet.packet_id, None)
+            if sub is None:
                 raise MQTTError(f"Received SUBACK for unknown packet ID: {packet.packet_id}", MQTTReasonCode.ProtocolError)
-            sub = self._subscriptions.get(effective_topic_filter, None)
-            if sub is not None and sub.state == _SubscriptionState.SUBSCRIBING:
+            if self._subscriptions.get(sub.effective_filter, None) is not sub:
+                # Reconfigured while in flight, the new configuration is still pending.
+                self._flush_packets()
+                return
+            if sub.state == _SubscriptionState.SUBSCRIBING:
                 if packet.reason_codes[0].is_error():
                     sub.state = _SubscriptionState.UNSUBSCRIBED
                 else:
                     sub.state = _SubscriptionState.SUBSCRIBED
-            handle = self._sub_handles.pop(effective_topic_filter, None)
+            handle = self._sub_handles.pop(sub.effective_filter, None)
             if handle is not None:
                 handle.ack = packet
                 self._cond.notify_all()

@@ -111,15 +111,71 @@ def test_subscriptions_multi_subscribe(
         handle1.wait_for_ack(timeout=0.001)
     assert handle1.ack is None
 
-    # Simulate receiving a SUBACK packet
-    suback_packet = MQTTSubAckPacket(
+    mock_connection.reset_mock()
+    subscriptions.handle_suback(MQTTSubAckPacket(
         packet_id=1,
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
+    ))
+    assert handle2.ack is None
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=2,
+    ))
+
+    suback_packet = MQTTSubAckPacket(
+        packet_id=2,
         reason_codes=[MQTTReasonCode.GrantedQoS2],
     )
     subscriptions.handle_suback(suback_packet)
 
     assert handle2.wait_for_ack(timeout=0.1) == suback_packet
     assert handle2.ack == suback_packet
+
+
+@pytest.mark.parametrize("first_rc", [MQTTReasonCode.GrantedQoS2, MQTTReasonCode.NotAuthorized])
+def test_subscriptions_reconfigure_inflight(
+    first_rc: MQTTReasonCode,
+    mock_handlers: MagicMock,
+    mock_client: Mock,
+    mock_connection: Mock
+) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    recvd: list[str] = []
+
+    subscriptions.subscribe("test/topic", lambda client, packet: recvd.append("first"), no_local=True)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2 | (True << 2))],
+        packet_id=1,
+    ))
+    mock_connection.reset_mock()
+
+    handle = subscriptions.subscribe("test/topic", lambda client, packet: recvd.append("second"), max_qos=MQTTQoS.Q1)
+    mock_connection.send.assert_not_called()
+
+    subscriptions.handle_suback(MQTTSubAckPacket(packet_id=1, reason_codes=[first_rc]))
+    assert handle.ack is None
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 1)],
+        packet_id=2,
+    ))
+
+    publish_packet = MQTTPublishPacket(topic="test/topic", payload=b"test payload")
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == ["second"]
+    recvd.clear()
+
+    suback_packet = MQTTSubAckPacket(packet_id=2, reason_codes=[MQTTReasonCode.GrantedQoS1])
+    subscriptions.handle_suback(suback_packet)
+    assert handle.ack == suback_packet
+
+    mock_connection.reset_mock()
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=False))
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 1)],
+        packet_id=1,
+    ))
+    subscriptions.handle_publish(publish_packet)
+    assert recvd == ["second"]
 
 
 def test_subscriptions_resubscribe(
