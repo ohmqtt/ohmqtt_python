@@ -292,6 +292,30 @@ test_address_valid:
     host: "localhost"
     port: 1234
     path: "/mqtt"
+  - address: "ws://localhost/mqtt?token=abc&x=1"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/mqtt?token=abc&x=1"
+  - address: "ws://localhost?token=abc"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/?token=abc"
+  - address: "ws://localhost/mqtt?token=abc#frag"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/mqtt?token=abc"
+  - address: "ws://localhost/mqtt#frag"
+    scheme: "ws"
+    family: "AF_INET"
+    host: "localhost"
+    port: 80
+    path: "/mqtt"
 
   # TLS
   - address: "wss://localhost"
@@ -353,6 +377,13 @@ test_address_valid:
     port: 1234
     path: "/mqtt"
     use_tls: true
+  - address: "wss://localhost:1234/mqtt?token=abc"
+    scheme: "wss"
+    family: "AF_INET"
+    host: "localhost"
+    port: 1234
+    path: "/mqtt?token=abc"
+    use_tls: true
 
 test_address_unix:
   ### UNIX
@@ -402,3 +433,7 @@ test_address_invalid:
   - address: "wss://"
   - address: "wss://user@"
   - address: "wss://user:pw@"
+  - address: "localhost?x=1"
+  - address: "mqtt://localhost?x=1"
+  - address: "mqtts://localhost:1234/?x=1"
+  - address: "unix:/tmp/mqtt.sock?x=1"

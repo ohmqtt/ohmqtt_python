@@ -37,6 +37,18 @@ def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     raise ValueError(f"Unsupported scheme: {parsed.scheme}")
 
 
+def _get_path(parsed: ParseResult) -> str:
+    """Get the path, including the query string for WebSocket schemes."""
+    if parsed.scheme not in ("ws", "wss"):
+        if parsed.query:
+            raise ValueError("Query string is only allowed in WebSocket addresses")
+        return parsed.path if parsed.hostname else ""
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    return path
+
+
 @dataclass(slots=True, init=False, frozen=True, repr=False)
 class Address:
     scheme: str
@@ -67,8 +79,7 @@ class Address:
         if HAS_AF_UNIX and self.family == AF_UNIX and self.host == "/":
             raise ValueError("'/' is not a valid Unix socket path")
         object.__setattr__(self, "port", parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme])
-        default_path = "/" if self.scheme in ("ws", "wss") else ""
-        object.__setattr__(self, "path", parsed.path if parsed.path and parsed.hostname else default_path)
+        object.__setattr__(self, "path", _get_path(parsed))
         object.__setattr__(self, "username", parsed.username)
         object.__setattr__(self, "password", parsed.password)
 

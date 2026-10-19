@@ -1773,6 +1773,25 @@ def test_states_websocket_handshake_request_host(
     assert f"\r\nHost: {host}\r\n" in state_data.write_buffer.decode()
 
 
+@pytest.mark.parametrize(("address", "target"), [
+    ("ws://test_host", "/"),
+    ("ws://test_host/mqtt", "/mqtt"),
+    ("ws://test_host/mqtt?token=abc&x=1", "/mqtt?token=abc&x=1"),
+    ("wss://test_host?token=abc#frag", "/?token=abc"),
+])
+def test_states_websocket_handshake_request_target(
+    address: str,
+    target: str,
+    state_data: StateData,
+    env: StateEnvironment,
+) -> None:
+    params = ConnectParams(address=Address(address))
+    fsm = FSM(env=env, init_state=WebsocketHandshakeRequestState, error_state=ShutdownState)
+
+    WebsocketHandshakeRequestState.enter(fsm, state_data, env, params)
+    assert state_data.write_buffer.decode().startswith(f"GET {target} HTTP/1.1\r\n")
+
+
 @pytest.mark.parametrize(
     "address", [
         "ws://test_host:1234",
