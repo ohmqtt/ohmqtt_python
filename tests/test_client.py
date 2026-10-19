@@ -274,7 +274,7 @@ def test_client_slots(mocker: MockerFixture, mock_connection: Mock, mock_handler
         assert all(hasattr(client, attr) for attr in client.__slots__)
 
 
-@pytest.mark.parametrize("topic", ["", "test/+", "test/#", "test/\u0000", "t" * 65536])
+@pytest.mark.parametrize("topic", ["", "test/+", "test/#", "test/\u0000", pytest.param("t" * 65536, id="too_long")])
 def test_client_publish_invalid_topic(topic: str, mock_connection: Mock, mock_handlers: MagicMock,
                                       mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
@@ -301,7 +301,7 @@ def test_client_connect_invalid_will_response_topic(response_topic: str, mock_co
     mock_connection.connect.assert_not_called()
 
 
-@pytest.mark.parametrize("will_topic", ["test/+", "test/#", "test/\u0000", "t" * 65536])
+@pytest.mark.parametrize("will_topic", ["test/+", "test/#", "test/\u0000", pytest.param("t" * 65536, id="too_long")])
 def test_client_connect_invalid_will_topic(will_topic: str, mock_connection: Mock, mock_handlers: MagicMock,
                                            mock_session: Mock, mock_subscriptions: Mock) -> None:
     client = Client()
