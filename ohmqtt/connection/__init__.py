@@ -79,14 +79,14 @@ class Connection:
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker."""
         with self.fsm.lock:
-            self.fsm.request_state(ClosingState)
-            self.fsm.selector.interrupt()
+            if self.fsm.request_state(ClosingState):
+                self.fsm.selector.interrupt()
 
     def shutdown(self) -> None:
         """Shutdown the connection."""
         with self.fsm.lock:
-            self.fsm.request_state(ShutdownState)
-            self.fsm.selector.interrupt()
+            if self.fsm.request_state(ShutdownState):
+                self.fsm.selector.interrupt()
 
     def is_connected(self) -> bool:
         """Check if the connection is established."""

@@ -131,16 +131,28 @@ def test_connection_connect(mock_fsm: Mock, mock_handlers: Mock) -> None:
 
 def test_connection_disconnect(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
+    mock_fsm.request_state.return_value = True
     connection.disconnect()
     mock_fsm.request_state.assert_called_once_with(ClosingState)
     mock_fsm.selector.interrupt.assert_called_once_with()
+    mock_fsm.reset_mock()
+
+    mock_fsm.request_state.return_value = False
+    connection.disconnect()
+    mock_fsm.selector.interrupt.assert_not_called()
 
 
 def test_connection_shutdown(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
+    mock_fsm.request_state.return_value = True
     connection.shutdown()
     mock_fsm.request_state.assert_called_once_with(ShutdownState)
     mock_fsm.selector.interrupt.assert_called_once_with()
+    mock_fsm.reset_mock()
+
+    mock_fsm.request_state.return_value = False
+    connection.shutdown()
+    mock_fsm.selector.interrupt.assert_not_called()
 
 
 def test_connection_is_connected(mock_fsm: Mock, mock_handlers: Mock) -> None:

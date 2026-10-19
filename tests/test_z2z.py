@@ -285,6 +285,14 @@ def test_z2z_saturation_qos2(db_path: str, broker: FakeBroker) -> None:
         assert broker_rec.qos == client_rec.qos == MQTTQoS.Q2
 
 
+def test_z2z_shutdown_twice() -> None:
+    with Client() as client:
+        client.shutdown()
+        client.wait_for_shutdown(timeout=1.0)
+        client.disconnect()
+        client.shutdown()
+
+
 def test_z2z_wait_for_connect_error() -> None:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))

@@ -93,16 +93,19 @@ class FSM:
             self._state_changed = True
             self.cond.notify_all()
 
-    def request_state(self, state: type[FSMState]) -> None:
-        """Request a state change from outside the FSM."""
+    def request_state(self, state: type[FSMState]) -> bool:
+        """Request a state change from outside the FSM.
+
+        :return: True if the request was accepted, False if it was ignored."""
         with self.cond:
             if not self.state.can_transition_to(state) or not state.can_request_from(self.state):
                 logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, state.__name__)
-                return
+                return False
             logger.debug("Requesting state change from %s to %s", self.state.__name__, state.__name__)
             self.requested_state = state
             self._state_requested = True
             self.cond.notify_all()
+            return True
 
     def _handle_exception(self, exc: Exception) -> None:
         """Handle an exception by transitioning to the error state.

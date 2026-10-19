@@ -284,14 +284,14 @@ def test_fsm_request_state(env: StateEnvironment) -> None:
     fsm.loop_once()
 
     # Redundant calls should not break the state machine.
-    fsm.request_state(MockStateB)
-    fsm.request_state(MockStateB)
+    assert fsm.request_state(MockStateB) is True
+    assert fsm.request_state(MockStateB) is True
     fsm.loop_once()
     assert fsm.state == MockStateB
     assert fsm.previous_state == MockStateA
 
     # Should not raise if we couldn't request the state.
-    fsm.request_state(MockStateA)
+    assert fsm.request_state(MockStateA) is False
     fsm.loop_once()
     assert fsm.state == MockStateB
     assert fsm.previous_state == MockStateA
