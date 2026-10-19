@@ -300,7 +300,10 @@ class Subscriptions:
                 raise MQTTError(f"Received SUBACK for unknown packet ID: {packet.packet_id}", MQTTReasonCode.ProtocolError)
             sub = self._subscriptions.get(effective_topic_filter, None)
             if sub is not None and sub.state == _SubscriptionState.SUBSCRIBING:
-                sub.state = _SubscriptionState.SUBSCRIBED
+                if packet.reason_codes[0].is_error():
+                    sub.state = _SubscriptionState.UNSUBSCRIBED
+                else:
+                    sub.state = _SubscriptionState.SUBSCRIBED
             handle = self._sub_handles.pop(effective_topic_filter, None)
             if handle is not None:
                 handle.ack = packet

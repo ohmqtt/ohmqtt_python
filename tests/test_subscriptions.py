@@ -243,7 +243,7 @@ def test_subscriptions_wait_for_unsuback(
     # Simulate receiving a SUBACK packet
     suback_packet = MQTTSubAckPacket(
         packet_id=1,
-        reason_codes=[ack_rc],
+        reason_codes=[MQTTReasonCode.GrantedQoS2],
     )
     subscriptions.handle_suback(suback_packet)
 
@@ -362,6 +362,30 @@ def test_subscriptions_unsubscribe_redundant(mock_handlers: MagicMock, mock_clie
     mock_connection.reset_mock()
     assert subscriptions.unsubscribe("test/topic") is None
     mock_connection.send.assert_not_called()
+
+
+def test_subscriptions_suback_failure(mock_handlers: MagicMock, mock_client: Mock, mock_connection: Mock) -> None:
+    subscriptions = Subscriptions(mock_handlers, mock_connection, weakref.ref(mock_client))
+    recvd: list[MQTTPublishPacket] = []
+    handle = subscriptions.subscribe("test/topic", lambda client, packet: recvd.append(packet))
+    suback = MQTTSubAckPacket(packet_id=1, reason_codes=[MQTTReasonCode.NotAuthorized])
+    subscriptions.handle_suback(suback)
+    assert handle.ack == suback
+
+    subscriptions.handle_publish(MQTTPublishPacket(topic="test/topic", payload=b"test payload"))
+    assert recvd == []
+
+    mock_connection.reset_mock()
+    subscriptions.handle_connack(MQTTConnAckPacket(session_present=False))
+    mock_connection.send.assert_not_called()
+    assert subscriptions.unsubscribe("test/topic") is None
+    mock_connection.send.assert_not_called()
+
+    subscriptions.subscribe("test/topic", dummy_callback)
+    mock_connection.send.assert_called_once_with(MQTTSubscribePacket(
+        topics=[("test/topic", 2)],
+        packet_id=1,
+    ))
 
 
 def test_subscriptions_handle_publish_unsubscribed(mock_handlers: MagicMock, mock_client: Mock,
