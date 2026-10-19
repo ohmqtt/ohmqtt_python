@@ -189,6 +189,10 @@ def test_client_wait_for_connect(mocker: MockerFixture, mock_connection: Mock, m
     with pytest.raises(TimeoutError):
         client.wait_for_connect(0.1)
 
+    mock_connection.wait_for_connect.side_effect = ConnectionRefusedError("refused")
+    with pytest.raises(ConnectionRefusedError):
+        client.wait_for_connect(0.1)
+
 
 def test_client_wait_for_disconnect(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
                                    mock_session: Mock, mock_subscriptions: Mock) -> None:

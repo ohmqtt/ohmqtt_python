@@ -153,9 +153,21 @@ def test_connection_is_connected(mock_fsm: Mock, mock_handlers: Mock) -> None:
 
 def test_connection_wait_for_connect(mock_fsm: Mock, mock_handlers: Mock) -> None:
     connection = Connection(mock_handlers)
+    mock_fsm.env.connect_error = None
     mock_fsm.wait_for_state.return_value = True
+    mock_fsm.get_state.return_value = ConnectedState
     assert connection.wait_for_connect(0.1) is True
-    mock_fsm.wait_for_state.assert_called_once_with((ConnectedState,), 0.1)
+    mock_fsm.wait_for_state.assert_called_once_with((ConnectedState, ClosedState), 0.1)
+
+    mock_fsm.get_state.return_value = ClosedState
+    assert connection.wait_for_connect(0.1) is False
+
+    error = ConnectionRefusedError("refused")
+    mock_fsm.env.connect_error = error
+    with pytest.raises(ConnectionRefusedError) as excinfo:
+        connection.wait_for_connect(0.1)
+    assert excinfo.value is error
+
     mock_fsm.wait_for_state.return_value = False
     assert connection.wait_for_connect(0.1) is False
 

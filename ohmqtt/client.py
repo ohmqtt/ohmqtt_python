@@ -288,7 +288,8 @@ class Client:
     def wait_for_connect(self, timeout: float | None = None) -> None:
         """Wait for the client to connect to the broker.
 
-        :raises TimeoutError: The timeout was exceeded."""
+        :raises TimeoutError: The timeout was exceeded, or the connection was closed.
+        :raises Exception: The connection attempt failed, with the cause of the failure."""
         if not self.connection.wait_for_connect(timeout):
             raise TimeoutError("Waiting for connection timed out")
 

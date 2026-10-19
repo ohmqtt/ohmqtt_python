@@ -95,8 +95,16 @@ class Connection:
     def wait_for_connect(self, timeout: float | None = None) -> bool:
         """Wait for the connection to be established.
 
-        :return: True if the connection is established, False if the timeout is reached."""
-        return self.fsm.wait_for_state((ConnectedState,), timeout)
+        :return: True if the connection is established, False if the timeout is reached or the connection closed.
+        :raises Exception: The connection attempt failed, with the cause of the failure."""
+        with self.fsm.lock:
+            if not self.fsm.wait_for_state((ConnectedState, ClosedState), timeout):
+                return False
+            if self.fsm.get_state() is ConnectedState:
+                return True
+            if self.fsm.env.connect_error is not None:
+                raise self.fsm.env.connect_error
+            return False
 
     def wait_for_disconnect(self, timeout: float | None = None) -> bool:
         """Wait for the connection to be closed.

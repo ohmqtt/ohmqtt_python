@@ -285,6 +285,18 @@ def test_z2z_saturation_qos2(db_path: str, broker: FakeBroker) -> None:
         assert broker_rec.qos == client_rec.qos == MQTTQoS.Q2
 
 
+def test_z2z_wait_for_connect_error() -> None:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    with Client() as client:
+        client.connect(f"127.0.0.1:{port}")
+        t0 = time.monotonic()
+        with pytest.raises(ConnectionRefusedError):
+            client.wait_for_connect(timeout=5.0)
+        assert time.monotonic() - t0 < 1.0
+
+
 def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker) -> None:
     with Client() as client:
 
