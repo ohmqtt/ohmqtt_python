@@ -84,6 +84,7 @@ class Client:
             - ws://host:port        (WebSocket)
             - wss://host:port       (WebSocket/TLS)
             - unix:/path/to/socket  (if supported on the platform)
+            - unix:path/to/socket   (relative to the working directory)
             - When the protocol is omitted, mqtt:// is assumed.
             - When the port is omitted, the default port for the protocol is used.
                 - mqtt: 1883

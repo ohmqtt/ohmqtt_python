@@ -37,12 +37,27 @@ def _get_family(parsed: ParseResult) -> socket.AddressFamily:
     raise ValueError(f"Unsupported scheme: {parsed.scheme}")
 
 
+def _get_host(parsed: ParseResult) -> str:
+    """Get the hostname, or the socket path for Unix sockets."""
+    if parsed.scheme == "unix":
+        # The netloc is not a hostname, but the start of a relative path.
+        return parsed.netloc.rpartition("@")[2] + parsed.path
+    return parsed.hostname or ""
+
+
+def _get_port(parsed: ParseResult) -> int:
+    """Get the port, or the default port for the scheme."""
+    if parsed.scheme == "unix" or parsed.port is None:
+        return DEFAULT_PORTS[parsed.scheme]
+    return parsed.port
+
+
 def _get_path(parsed: ParseResult) -> str:
     """Get the path, including the query string for WebSocket schemes."""
     if parsed.scheme not in ("ws", "wss"):
         if parsed.query:
             raise ValueError("Query string is only allowed in WebSocket addresses")
-        return parsed.path if parsed.hostname else ""
+        return "" if parsed.scheme == "unix" else parsed.path
     path = parsed.path or "/"
     if parsed.query:
         path = f"{path}?{parsed.query}"
@@ -73,12 +88,12 @@ class Address:
         parsed = urlparse(address, scheme="mqtt")
         object.__setattr__(self, "scheme", parsed.scheme)
         object.__setattr__(self, "family", _get_family(parsed))
-        object.__setattr__(self, "host", parsed.hostname or parsed.path)
+        object.__setattr__(self, "host", _get_host(parsed))
         if not self.host:
             raise ValueError("No path in address")
         if HAS_AF_UNIX and self.family == AF_UNIX and self.host == "/":
             raise ValueError("'/' is not a valid Unix socket path")
-        object.__setattr__(self, "port", parsed.port if parsed.port is not None else DEFAULT_PORTS[parsed.scheme])
+        object.__setattr__(self, "port", _get_port(parsed))
         object.__setattr__(self, "path", _get_path(parsed))
         object.__setattr__(self, "username", parsed.username)
         object.__setattr__(self, "password", parsed.password)

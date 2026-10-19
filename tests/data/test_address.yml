@@ -411,6 +411,52 @@ test_address_unix:
     port: 0
     username: "user"
     password: "pw"
+  - address: "unix:mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "mqtt.sock"
+    port: 0
+  - address: "unix:./run/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "./run/mqtt.sock"
+    port: 0
+  - address: "unix://mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "mqtt.sock"
+    port: 0
+  - address: "unix://run/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "run/mqtt.sock"
+    port: 0
+  - address: "unix://Run/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "Run/mqtt.sock"
+    port: 0
+  - address: "unix://../run/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "../run/mqtt.sock"
+    port: 0
+  - address: "unix://user@run/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "run/mqtt.sock"
+    port: 0
+    username: "user"
+  - address: "unix://run:1883/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "run:1883/mqtt.sock"
+    port: 0
+  - address: "unix://run:x/mqtt.sock"
+    scheme: "unix"
+    family: "AF_UNIX"
+    host: "run:x/mqtt.sock"
+    port: 0
 
 test_address_invalid:
   # Invalid address
