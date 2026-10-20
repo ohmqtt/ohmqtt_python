@@ -47,8 +47,10 @@ def test_selector_interrupt_before_select(loopback_socket: socket.socket) -> Non
         t0 = time.monotonic()
         assert selector.select(read=True, timeout=5.0) == (False, False)
         assert time.monotonic() - t0 < 1.0
+        t1 = time.monotonic()
         assert selector.select(read=True, timeout=0.05) == (False, False)
-        assert time.monotonic() - t0 >= 0.05
+        # Windows can wake from select a little early.
+        assert time.monotonic() - t1 >= 0.03
 
 
 def test_selector_change_sock() -> None:
