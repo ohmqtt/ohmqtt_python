@@ -101,6 +101,10 @@ class FSM:
             if not self.state.can_transition_to(state) or not state.can_request_from(self.state):
                 logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, state.__name__)
                 return False
+            # A pending request may only be replaced by a state it could transition to.
+            if self._state_requested and not self.requested_state.can_transition_to(state):
+                logger.debug("Ignoring request to change to %s while a change to %s is pending", state.__name__, self.requested_state.__name__)
+                return False
             logger.debug("Requesting state change from %s to %s", self.state.__name__, state.__name__)
             self.requested_state = state
             self._state_requested = True

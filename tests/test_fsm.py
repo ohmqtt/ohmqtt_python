@@ -285,7 +285,7 @@ def test_fsm_request_state(env: StateEnvironment) -> None:
 
     # Redundant calls should not break the state machine.
     assert fsm.request_state(MockStateB) is True
-    assert fsm.request_state(MockStateB) is True
+    assert fsm.request_state(MockStateB) is False
     fsm.loop_once()
     assert fsm.state == MockStateB
     assert fsm.previous_state == MockStateA
@@ -304,6 +304,31 @@ def test_fsm_request_state(env: StateEnvironment) -> None:
     assert fsm.state == MockStateC
     assert fsm.previous_state == MockStateB
     assert fsm.state_requested() is False
+
+
+def test_fsm_request_state_pending(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    fsm.loop_once()
+
+    # A pending final state can't be replaced.
+    assert fsm.request_state(MockStateC) is True
+    assert fsm.request_state(MockStateB) is False
+    assert fsm.requested_state == MockStateC
+    fsm.loop_once()
+    assert fsm.state == MockStateC
+    assert fsm.previous_state == MockStateA
+
+
+def test_fsm_request_state_replace_pending(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=MockStateA, error_state=MockStateC)
+    fsm.loop_once()
+
+    # A pending state can be replaced by one it could transition to.
+    assert fsm.request_state(MockStateB) is True
+    assert fsm.request_state(MockStateC) is True
+    fsm.loop_once()
+    assert fsm.state == MockStateC
+    assert fsm.previous_state == MockStateA
 
 
 def test_fsm_request_state_after_enter(env: StateEnvironment, mocker: MockerFixture) -> None:
