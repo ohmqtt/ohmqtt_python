@@ -1,4 +1,5 @@
 import threading
+import time
 from unittest.mock import Mock, MagicMock
 
 import pytest
@@ -227,6 +228,35 @@ def test_client_start_loop(mocker: MockerFixture, mock_connection: Mock, mock_ha
     mock_thread.start.assert_called_once()
     with pytest.raises(RuntimeError):
         client.start_loop()
+
+
+def test_client_start_loop_concurrent(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,
+                                     mock_session: Mock, mock_subscriptions: Mock) -> None:
+    client = Client()
+    go = threading.Event()
+    errors: list[RuntimeError] = []
+    def start_loop() -> None:
+        go.wait()
+        try:
+            client.start_loop()
+        except RuntimeError as exc:
+            errors.append(exc)
+    callers = [threading.Thread(target=start_loop) for _ in range(4)]
+    for caller in callers:
+        caller.start()
+
+    # Widen the window between checking for a thread and creating one.
+    thread_cls = threading.Thread
+    def slow_thread(*args: object, **kwargs: object) -> Mock:
+        time.sleep(0.01)
+        return mocker.Mock(thread_cls)  # type: ignore[no-any-return]
+    mock_thread_cls = mocker.patch("threading.Thread", side_effect=slow_thread)
+    go.set()
+    for caller in callers:
+        caller.join()
+
+    assert mock_thread_cls.call_count == 1
+    assert len(errors) == 3
 
 
 def test_client_loop_once(mocker: MockerFixture, mock_connection: Mock, mock_handlers: MagicMock,

@@ -34,12 +34,14 @@ class Client:
     __slots__ = (
         "__weakref__",
         "_thread",
+        "_thread_lock",
         "connection",
         "session",
     )
 
     def __init__(self, db_path: str = "", *, db_fast: bool = False) -> None:
         self._thread: threading.Thread | None = None
+        self._thread_lock = threading.Lock()
         message_handlers = MessageHandlers()
         with message_handlers as handlers:
             self.connection = Connection(handlers)
@@ -309,10 +311,11 @@ class Client:
 
     def start_loop(self) -> None:
         """Start the client state machine in a separate thread."""
-        if self._thread is not None:
-            raise RuntimeError("Connection loop already started")
-        self._thread = threading.Thread(target=self.loop_forever, daemon=True)
-        self._thread.start()
+        with self._thread_lock:
+            if self._thread is not None:
+                raise RuntimeError("Connection loop already started")
+            self._thread = threading.Thread(target=self.loop_forever, daemon=True)
+            self._thread.start()
 
     def loop_once(self, max_wait: float | None = 0.0) -> None:
         """Run a single iteration of the MQTT client loop.
