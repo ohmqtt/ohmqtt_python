@@ -441,7 +441,12 @@ def test_z2z_max_packet_size(scheme: str, broker: FakeBroker, ws_broker: FakeWeb
 
     server.send(fits)
     assert wait_for_queue_item(server.received, timeout=1.0) == MQTTPubAckPacket(packet_id=1)
-    server.send(too_large)
+    if scheme == "ws":
+        server.send(too_large)
+    else:
+        # Leave no unread data, or closing resets the connection and Windows discards the DISCONNECT.
+        assert broker.sock is not None
+        broker.sock.sendall(too_large.encode()[:2])
     assert wait_for_queue_item(server.received, timeout=1.0) == MQTTDisconnectPacket(reason_code=MQTTReasonCode.PacketTooLarge)
     client.wait_for_disconnect(timeout=1.0)
     client.shutdown()
