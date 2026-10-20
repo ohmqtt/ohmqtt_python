@@ -6,7 +6,7 @@ from typing import cast, get_args, Final, TYPE_CHECKING
 from .base import FSMState
 from .closed import ClosedState
 from .closing import ClosingState
-from ..decoder import ClosedSocketError
+from ..decoder import check_packet_size, ClosedSocketError
 from ..types import ConnectParams, ReceivablePacketT, StateData, StateEnvironment
 from ..wslib import OpCode, frame_ws_data, WebsocketError
 from ...error import MQTTError
@@ -117,14 +117,14 @@ class ConnectedState(FSMState):
         return readable or tls_pending, writable
 
     @classmethod
-    def pull_tcp(cls, state_data: StateData) -> MQTTPacket | None:
+    def pull_tcp(cls, state_data: StateData, params: ConnectParams) -> MQTTPacket | None:
         """Read an incoming packet from the TCP socket.
 
         Returns an MQTTPacket if one was read, or None if no complete MQTT packet was available."""
-        return state_data.decoder.decode(state_data.sock)
+        return state_data.decoder.decode(state_data.sock, params.connect_properties.MaximumPacketSize or 0)
 
     @classmethod
-    def pull_ws(cls, state_data: StateData) -> MQTTPacket | None:
+    def pull_ws(cls, state_data: StateData, params: ConnectParams) -> MQTTPacket | None:
         """Read an incoming packet from the WebSocket.
 
         Non-data WebSocket frames (PING, PONG, CLOSE) are handled here.
@@ -147,6 +147,7 @@ class ConnectedState(FSMState):
             raise ClosedSocketError("WebSocket connection closed by peer")
         if opcode != OpCode.BINARY:
             raise WebsocketError(f"Unexpected WebSocket opcode {opcode.name} while connected")
+        check_packet_size(len(payload), params.connect_properties.MaximumPacketSize or 0)
         return decode_packet(payload)
 
     @classmethod
@@ -156,9 +157,9 @@ class ConnectedState(FSMState):
         Incrementally reads and decodes a packet from the socket.
         Complete packets are passed up to the read callback."""
         if params.address.is_websocket():
-            packet = cls.pull_ws(state_data)
+            packet = cls.pull_ws(state_data, params)
         else:
-            packet = cls.pull_tcp(state_data)
+            packet = cls.pull_tcp(state_data, params)
         if packet is None:
             # Incomplete or handled internally.
             return

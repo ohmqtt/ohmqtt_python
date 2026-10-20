@@ -23,6 +23,15 @@ class VarintDecodeResult(NamedTuple):
 InitVarintDecodeState: Final = VarintDecodeResult(0, 1, False)
 
 
+def check_packet_size(size: int, max_packet_size: int) -> None:
+    """Check the total size of an incoming packet against our Maximum Packet Size.
+
+    :param max_packet_size: The maximum size, or 0 for no limit.
+    :raises MQTTError: The packet is too large."""
+    if max_packet_size and size > max_packet_size:
+        raise MQTTError(f"Packet size {size} exceeds Maximum Packet Size {max_packet_size}", MQTTReasonCode.PacketTooLarge)
+
+
 class ClosedSocketError(Exception):
     """Exception raised when the socket is closed."""
 
@@ -68,10 +77,11 @@ class IncrementalDecoder:
             return
         self.head = self._recv_one_byte(sock)
 
-    def _extract_length(self, sock: socket.socket | ssl.SSLSocket) -> None:
+    def _extract_length(self, sock: socket.socket | ssl.SSLSocket, max_packet_size: int) -> None:
         """Incrementally decode a variable length integer from a socket, if needed.
 
-        :raises WantReadError: The socket is not ready for reading."""
+        :raises WantReadError: The socket is not ready for reading.
+        :raises MQTTError: The packet is too large."""
         # See ohmqtt.serialization.decode_varint for a cleaner implementation.
         assert self.head != -1, "Can't extract length without head"
         if self.length.complete:
@@ -87,6 +97,8 @@ class IncrementalDecoder:
                         raise MQTTError("Varint is not minimally encoded", MQTTReasonCode.MalformedPacket)
                     # We have the complete varint.
                     self.length = VarintDecodeResult(result, mult, True)
+                    # Head byte, plus one length byte per 7 bits of multiplier, plus the remaining length.
+                    check_packet_size(1 + (mult.bit_length() + 6) // 7 + result, max_packet_size)
                     return
                 mult *= 0x80
             raise MQTTError("Varint overflow", MQTTReasonCode.MalformedPacket)
@@ -107,14 +119,16 @@ class IncrementalDecoder:
                 raise ClosedSocketError("Socket closed")
             self.data.extend(data)
 
-    def decode(self, sock: socket.socket | ssl.SSLSocket) -> MQTTPacket | None:
+    def decode(self, sock: socket.socket | ssl.SSLSocket, max_packet_size: int = 0) -> MQTTPacket | None:
         """Decode a single packet straight from the socket.
 
+        :param max_packet_size: The maximum size of a packet, or 0 for no limit.
         :return: None if the socket doesn't have enough data for us to decode a packet.
-        :raises ClosedSocketError: The socket is closed."""
+        :raises ClosedSocketError: The socket is closed.
+        :raises MQTTError: The packet is too large."""
         try:
             self._extract_head(sock)
-            self._extract_length(sock)
+            self._extract_length(sock, max_packet_size)
             self._extract_data(sock)
         except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError, WantReadError):
             # If the socket is open but doesn't have enough data for us, we need to wait for more.

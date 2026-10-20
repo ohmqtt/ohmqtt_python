@@ -962,6 +962,34 @@ def test_states_mqtt_connack_malformed(
     callbacks.assert_not_called()
 
 
+@pytest.mark.parametrize("address", ["mqtt://testhost", "ws://testhost"])
+def test_states_mqtt_connack_max_packet_size(
+    address: str,
+    callbacks: EnvironmentCallbacks,
+    decoder: Mock,
+    ws_decoder: Mock,
+    state_data: StateData,
+    env: StateEnvironment,
+    mock_socket: Mock,
+) -> None:
+    connack = MQTTConnAckPacket().encode()
+    params = ConnectParams(address=Address(address), connect_properties=MQTTConnectProps(MaximumPacketSize=len(connack) - 1))
+    fsm = FSM(env=env, init_state=MQTTHandshakeConnAckState, error_state=ShutdownState)
+
+    MQTTHandshakeConnAckState.enter(fsm, state_data, env, params)
+    decoder.decode.side_effect = MQTTError("TEST", MQTTReasonCode.PacketTooLarge)
+    ws_decoder.decode.return_value = (OpCode.BINARY, connack)
+    ret = MQTTHandshakeConnAckState.handle(fsm, state_data, env, params, 0.0)
+    assert ret is True
+    assert fsm.state is ClosedState
+    assert isinstance(env.connect_error, MQTTError)
+    assert env.connect_error.reason_code == MQTTReasonCode.PacketTooLarge
+    if address.startswith("mqtt"):
+        decoder.decode.assert_called_once_with(mock_socket, len(connack) - 1)
+
+    callbacks.assert_not_called()
+
+
 @pytest.mark.parametrize("max_wait", [None, 0.0])
 def test_states_mqtt_connack_ws_pong(
     max_wait: float | None,
@@ -1386,6 +1414,46 @@ def test_states_connected_read_packet(
         with pytest.raises(MQTTError) as excinfo:
             ConnectedState.read_packet(fsm, state_data, env, params)
         assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
+
+
+def test_states_connected_read_packet_max_packet_size(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    decoder: Mock,
+    mock_socket: Mock,
+) -> None:
+    params = ConnectParams(address=Address("mqtt://testhost"), connect_properties=MQTTConnectProps(MaximumPacketSize=100))
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
+
+    decoder.decode.return_value = None
+    ConnectedState.read_packet(fsm, state_data, env, params)
+    decoder.decode.assert_called_once_with(mock_socket, 100)
+
+    callbacks.assert_not_called()
+
+
+def test_states_connected_read_packet_ws_max_packet_size(
+    callbacks: EnvironmentCallbacks,
+    state_data: StateData,
+    env: StateEnvironment,
+    ws_decoder: Mock,
+) -> None:
+    pub_packet = MQTTPublishPacket(topic="test/topic", payload=b"test_payload").encode()
+    params = ConnectParams(address=Address("ws://testhost"), connect_properties=MQTTConnectProps(MaximumPacketSize=len(pub_packet)))
+    fsm = FSM(env=env, init_state=ConnectedState, error_state=ShutdownState)
+
+    ws_decoder.decode.return_value = OpCode.BINARY, pub_packet
+    ConnectedState.read_packet(fsm, state_data, env, params)
+    callbacks.packet.assert_called_once()
+    callbacks.reset()
+
+    ws_decoder.decode.return_value = OpCode.BINARY, MQTTPublishPacket(topic="test/topic", payload=b"test_payload!").encode()
+    with pytest.raises(MQTTError) as excinfo:
+        ConnectedState.read_packet(fsm, state_data, env, params)
+    assert excinfo.value.reason_code == MQTTReasonCode.PacketTooLarge
+
+    callbacks.assert_not_called()
 
 
 def test_states_connected_read_packet_ws(

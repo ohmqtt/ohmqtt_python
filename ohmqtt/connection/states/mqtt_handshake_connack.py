@@ -5,7 +5,7 @@ from typing import cast, Final, TYPE_CHECKING
 from .base import FSMState
 from .closed import ClosedState
 from .connected import ConnectedState
-from ..decoder import ClosedSocketError
+from ..decoder import check_packet_size, ClosedSocketError
 from ..types import ConnectParams, StateData, StateEnvironment
 from ..wslib import OpCode, WebsocketError
 from ...error import MQTTError
@@ -79,7 +79,9 @@ class MQTTHandshakeConnAckState(FSMState):
         """Get a packet from the socket.
 
         :returns: The received packet, or None if incomplete.
-        :raises WebsocketError: A protocol error was encountered."""
+        :raises WebsocketError: A protocol error was encountered.
+        :raises MQTTError: The packet is too large."""
+        max_packet_size = params.connect_properties.MaximumPacketSize or 0
         if params.address.is_websocket():
             decode_result = state_data.ws_decoder.decode(state_data.sock)
             if decode_result is None:
@@ -90,5 +92,6 @@ class MQTTHandshakeConnAckState(FSMState):
                 return None
             if opcode != OpCode.BINARY:
                 raise WebsocketError(f"Unexpected WebSocket opcode {opcode.name} while waiting for CONNACK")
+            check_packet_size(len(payload), max_packet_size)
             return decode_packet(payload)
-        return state_data.decoder.decode(state_data.sock)
+        return state_data.decoder.decode(state_data.sock, max_packet_size)

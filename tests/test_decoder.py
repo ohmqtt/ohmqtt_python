@@ -188,3 +188,22 @@ def test_decoder_readonly_view(mocker: MockerFixture, loopback_socket: socket.so
     loopback_socket.test_sendall(packet.encode())  # type: ignore[attr-defined]
     assert decoder.decode(loopback_socket) == packet
     assert checked == [True]
+
+
+@pytest.mark.parametrize("payload_size", [0, 200, 20000])
+def test_decoder_max_packet_size(payload_size: int, mock_socket: Mock) -> None:
+    data = MQTTPublishPacket(topic="topic", payload=b"x" * payload_size).encode()
+    header_size = data.index(b"\x00\x05topic")
+
+    decoder = IncrementalDecoder()
+    mock_socket.recv.side_effect = [data[i:i + 1] for i in range(header_size)] + [data[header_size:]]
+    assert decoder.decode(mock_socket, len(data)) is not None
+
+    # The packet must be refused before reading the rest of it.
+    decoder = IncrementalDecoder()
+    mock_socket.recv.reset_mock()
+    mock_socket.recv.side_effect = [data[i:i + 1] for i in range(header_size)]
+    with pytest.raises(MQTTError) as excinfo:
+        decoder.decode(mock_socket, len(data) - 1)
+    assert excinfo.value.reason_code == MQTTReasonCode.PacketTooLarge
+    assert mock_socket.recv.call_count == header_size

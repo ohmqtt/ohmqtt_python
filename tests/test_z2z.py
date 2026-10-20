@@ -422,6 +422,29 @@ def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
         thread.join(1.0)
 
 
+@pytest.mark.parametrize("scheme", ["mqtt", "ws"])
+def test_z2z_max_packet_size(scheme: str, broker: FakeBroker, ws_broker: FakeWebsocketBroker) -> None:
+    server = ws_broker if scheme == "ws" else broker
+    fits = MQTTPublishPacket(topic="test/topic", payload=b"x" * 100, qos=MQTTQoS.Q1, packet_id=1)
+    too_large = MQTTPublishPacket(topic="test/topic", payload=b"x" * 101, qos=MQTTQoS.Q1, packet_id=2)
+    client = Client()
+    client.start_loop()
+    client.connect(
+        f"{scheme}://localhost:{server.port}",
+        client_id="test_client",
+        connect_properties=MQTTConnectProps(MaximumPacketSize=len(fits.encode())),
+    )
+    client.wait_for_connect(timeout=1.0)
+    assert isinstance(wait_for_queue_item(server.received, timeout=1.0), MQTTConnectPacket)
+
+    server.send(fits)
+    assert wait_for_queue_item(server.received, timeout=1.0) == MQTTPubAckPacket(packet_id=1)
+    server.send(too_large)
+    assert wait_for_queue_item(server.received, timeout=1.0) == MQTTDisconnectPacket(reason_code=MQTTReasonCode.PacketTooLarge)
+    client.wait_for_disconnect(timeout=1.0)
+    client.shutdown()
+
+
 @pytest.mark.parametrize(("data", "reason_code"), [
     pytest.param(b"\x40\x04\x00\x01\x00\x05", MQTTReasonCode.MalformedPacket, id="puback_bad_props_length"),
     pytest.param(b"\x40\x03\x00\x01\x05", MQTTReasonCode.MalformedPacket, id="puback_undefined_reason_code"),
