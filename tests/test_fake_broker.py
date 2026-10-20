@@ -70,7 +70,7 @@ def test_fake_broker() -> None:
         assert broker.port > 0
         assert len(broker.received) == 0
 
-        sock = socket.create_connection(("localhost", broker.port))
+        sock = socket.create_connection(("127.0.0.1", broker.port))
         sock.settimeout(0.05)
 
         # CONNECT
@@ -163,7 +163,7 @@ def test_fake_broker_websocket() -> None:
         assert broker.port > 0
         assert len(broker.received) == 0
 
-        sock = socket.create_connection(("localhost", broker.port))
+        sock = socket.create_connection(("127.0.0.1", broker.port))
         sock.settimeout(0.05)
         nonce = generate_nonce()
         buffer = bytearray()

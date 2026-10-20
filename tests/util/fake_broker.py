@@ -217,7 +217,7 @@ class FakeBroker(threading.Thread):
 
     def __init__(self) -> None:
         super().__init__(daemon=True)
-        self.server = FakeBrokerServer(("localhost", 0), self.handler_class)
+        self.server = FakeBrokerServer(("127.0.0.1", 0), self.handler_class)
         self.port = self.server.server_address[1]
 
     def __enter__(self) -> FakeBroker:
@@ -227,7 +227,7 @@ class FakeBroker(threading.Thread):
         while not ready and time.monotonic() - t0 < 5.0:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
-                sock.connect(("localhost", self.port))
+                sock.connect(("127.0.0.1", self.port))
                 ready = True
             except ConnectionRefusedError:
                 time.sleep(0.1)

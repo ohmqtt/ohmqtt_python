@@ -58,7 +58,7 @@ def get_client(broker: FakeBroker, scheme: str, db_path: str) -> Client:
     client.start_loop()
 
     client.connect(
-        address=f"{scheme}://localhost:{broker.port}",
+        address=f"{scheme}://127.0.0.1:{broker.port}",
         client_id="test_client",
         clean_start=True,
     )
@@ -295,7 +295,7 @@ def test_z2z_shutdown_twice() -> None:
 
 def test_z2z_disconnect_after_shutdown(broker: FakeBroker) -> None:
     client = Client()
-    client.connect(f"localhost:{broker.port}", client_id="test_client")
+    client.connect(f"127.0.0.1:{broker.port}", client_id="test_client")
     assert client.loop_until_connected(timeout=1.0) is True
     client.shutdown()
     client.disconnect()
@@ -305,12 +305,12 @@ def test_z2z_disconnect_after_shutdown(broker: FakeBroker) -> None:
 
 def test_z2z_disconnect_before_connect(broker: FakeBroker) -> None:
     client = Client()
-    client.connect(f"localhost:{broker.port}", client_id="test_client")
+    client.connect(f"127.0.0.1:{broker.port}", client_id="test_client")
     client.disconnect()
     assert client.loop_until_connected(timeout=1.0) is False
     assert not broker.received
 
-    client.connect(f"localhost:{broker.port}", client_id="test_client")
+    client.connect(f"127.0.0.1:{broker.port}", client_id="test_client")
     assert client.loop_until_connected(timeout=1.0) is True
     client.shutdown()
     client.loop_forever()
@@ -325,7 +325,8 @@ def test_z2z_wait_for_connect_error() -> None:
         t0 = time.monotonic()
         with pytest.raises(ConnectionRefusedError):
             client.wait_for_connect(timeout=5.0)
-        assert time.monotonic() - t0 < 1.0
+        # Windows retries a refused connection for about 2 seconds.
+        assert time.monotonic() - t0 < 4.0
 
 
 def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker) -> None:
@@ -333,7 +334,7 @@ def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker)
 
         # Connect to TCP broker
         client.connect(
-            address=f"mqtt://localhost:{broker.port}",
+            address=f"mqtt://127.0.0.1:{broker.port}",
             client_id="test_client",
             clean_start=True,
         )
@@ -347,7 +348,7 @@ def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker)
         # Try to connect to WebSocket broker
         with pytest.raises(InvalidStateError):
             client.connect(
-                address=f"ws://localhost:{ws_broker.port}",
+                address=f"ws://127.0.0.1:{ws_broker.port}",
                 client_id="test_client",
                 clean_start=True,
             )
@@ -358,7 +359,7 @@ def test_z2z_change_endpoint(broker: FakeBroker, ws_broker: FakeWebsocketBroker)
         assert client.is_connected() is False
 
         client.connect(
-            address=f"ws://localhost:{ws_broker.port}",
+            address=f"ws://127.0.0.1:{ws_broker.port}",
             client_id="test_client",
             clean_start=True,
         )
@@ -374,7 +375,7 @@ def test_z2z_shutdown_after_connect(broker: FakeBroker) -> None:
     for n in range(20):
         client = Client()
         client.start_loop()
-        client.connect(f"mqtt://localhost:{broker.port}", client_id=f"test_client_{n}")
+        client.connect(f"mqtt://127.0.0.1:{broker.port}", client_id=f"test_client_{n}")
         client.wait_for_connect(timeout=1.0)
         client.shutdown()
         client.wait_for_shutdown(timeout=1.0)
@@ -391,7 +392,7 @@ def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
     publishes = [MQTTPublishPacket(topic="test/topic", payload=bytes([n])) for n in range(3)]
 
     done = threading.Event()
-    with socket.create_server(("localhost", 0)) as listener:
+    with socket.create_server(("127.0.0.1", 0)) as listener:
         def serve() -> None:
             sock, _ = listener.accept()
             with server_context.wrap_socket(sock, server_side=True) as tls_sock:
@@ -408,9 +409,10 @@ def test_z2z_tls_buffered_packets(tmp_path: Path) -> None:
         client.start_loop()
         try:
             client.connect(
-                f"mqtts://localhost:{listener.getsockname()[1]}",
+                f"mqtts://127.0.0.1:{listener.getsockname()[1]}",
                 client_id="test_client",
                 tls_context=client_context,
+                tls_hostname="localhost",
             )
             client.wait_for_connect(timeout=1.0)
             for packet in publishes:
@@ -430,7 +432,7 @@ def test_z2z_max_packet_size(scheme: str, broker: FakeBroker, ws_broker: FakeWeb
     client = Client()
     client.start_loop()
     client.connect(
-        f"{scheme}://localhost:{server.port}",
+        f"{scheme}://127.0.0.1:{server.port}",
         client_id="test_client",
         connect_properties=MQTTConnectProps(MaximumPacketSize=len(fits.encode())),
     )
@@ -483,7 +485,7 @@ def test_z2z_unknown_acks(broker: FakeBroker) -> None:
 ])
 def test_z2z_connack_failure(connack: bytes) -> None:
     states: list[str] = []
-    with socket.create_server(("localhost", 0)) as listener:
+    with socket.create_server(("127.0.0.1", 0)) as listener:
         def serve() -> None:
             sock, _ = listener.accept()
             with sock:
@@ -496,7 +498,7 @@ def test_z2z_connack_failure(connack: bytes) -> None:
         client = Client()
         client.start_loop()
         try:
-            client.connect(f"mqtt://localhost:{listener.getsockname()[1]}", client_id="test_client")
+            client.connect(f"mqtt://127.0.0.1:{listener.getsockname()[1]}", client_id="test_client")
             deadline = time.monotonic() + 2.0
             while time.monotonic() < deadline:
                 state = client.connection.fsm.get_state().__name__
@@ -519,7 +521,7 @@ def test_z2z_reconnect(broker: FakeBroker) -> None:
     client = Client()
     client.start_loop()
     try:
-        client.connect(f"mqtt://localhost:{broker.port}", client_id="test_client", reconnect_delay=1)
+        client.connect(f"mqtt://127.0.0.1:{broker.port}", client_id="test_client", reconnect_delay=1)
         client.wait_for_connect(timeout=1.0)
         assert isinstance(wait_for_queue_item(broker.received), MQTTConnectPacket)
 
@@ -549,7 +551,7 @@ def test_z2z_publish_invalid_topic(broker: FakeBroker) -> None:
 
 
 def test_z2z_loop_until_connected_refused_connack() -> None:
-    with socket.create_server(("localhost", 0)) as listener:
+    with socket.create_server(("127.0.0.1", 0)) as listener:
         def serve() -> None:
             sock, _ = listener.accept()
             with sock:
@@ -560,7 +562,7 @@ def test_z2z_loop_until_connected_refused_connack() -> None:
         thread = threading.Thread(target=serve, daemon=True)
         thread.start()
         client = Client()
-        client.connect(f"mqtt://localhost:{listener.getsockname()[1]}", client_id="test_client")
+        client.connect(f"mqtt://127.0.0.1:{listener.getsockname()[1]}", client_id="test_client")
         t0 = time.monotonic()
         with pytest.raises(MQTTError) as excinfo:
             client.loop_until_connected(timeout=5.0)
@@ -572,20 +574,21 @@ def test_z2z_loop_until_connected_refused_connack() -> None:
 
 
 def test_z2z_loop_until_connected_refused_port() -> None:
-    with socket.create_server(("localhost", 0)) as listener:
+    with socket.create_server(("127.0.0.1", 0)) as listener:
         port = listener.getsockname()[1]
     client = Client()
-    client.connect(f"mqtt://localhost:{port}", client_id="test_client")
+    client.connect(f"mqtt://127.0.0.1:{port}", client_id="test_client")
     t0 = time.monotonic()
     with pytest.raises(ConnectionRefusedError):
         client.loop_until_connected(timeout=5.0)
-    assert time.monotonic() - t0 < 1.0
+    # Windows retries a refused connection for about 2 seconds.
+    assert time.monotonic() - t0 < 4.0
     client.shutdown()
     client.loop_forever()
 
 
 def test_z2z_inbound_topic_alias() -> None:
-    with socket.create_server(("localhost", 0)) as listener:
+    with socket.create_server(("127.0.0.1", 0)) as listener:
         def serve() -> None:
             sock, _ = listener.accept()
             with sock:
@@ -605,7 +608,7 @@ def test_z2z_inbound_topic_alias() -> None:
         client.start_loop()
         try:
             client.connect(
-                f"mqtt://localhost:{listener.getsockname()[1]}",
+                f"mqtt://127.0.0.1:{listener.getsockname()[1]}",
                 client_id="test_client",
                 connect_properties=MQTTConnectProps(TopicAliasMaximum=10),
             )

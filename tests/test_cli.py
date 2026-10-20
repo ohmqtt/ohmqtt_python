@@ -73,7 +73,7 @@ def test_cli_command_get_client(mocker: MockerFixture, password: str | None) -> 
     args.password = password
 
     with FakeBroker() as broker:
-        args.address = f"localhost:{broker.port}"
+        args.address = f"127.0.0.1:{broker.port}"
         client = get_client(args)
         assert client.is_connected()
         client.shutdown()
@@ -82,7 +82,7 @@ def test_cli_command_get_client(mocker: MockerFixture, password: str | None) -> 
         "ohmqtt.cli.common.Client.loop_until_connected", return_value=False
     )
     with FakeBroker() as broker:
-        args.address = f"localhost:{broker.port}"
+        args.address = f"127.0.0.1:{broker.port}"
         with pytest.raises(BrokerConnectionError):
             client = get_client(args)
 
