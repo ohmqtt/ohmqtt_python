@@ -17,6 +17,11 @@ class InvalidStateError(Exception):
     """Exception raised when an operation is performed in an invalid state."""
 
 
+def _can_request(from_state: type[FSMState], to_state: type[FSMState]) -> bool:
+    """Check if a change from one state to another can be requested."""
+    return from_state.can_transition_to(to_state) and to_state.can_request_from(from_state)
+
+
 @dataclass(slots=True, init=False)
 class FSM:
     """Threadsafe Finite State Machine."""
@@ -96,14 +101,23 @@ class FSM:
     def request_state(self, state: type[FSMState]) -> bool:
         """Request a state change from outside the FSM.
 
+        If a request is pending, the new state must be able to follow the pending state.
+        If it can't also be requested from the current state, the pending request is cancelled instead.
+
         :return: True if the request was accepted, False if it was ignored."""
         with self.cond:
-            if not self.state.can_transition_to(state) or not state.can_request_from(self.state):
+            if self._state_requested:
+                if not _can_request(self.requested_state, state):
+                    logger.debug("Ignoring request to change to %s while a change to %s is pending", state.__name__, self.requested_state.__name__)
+                    return False
+                if not _can_request(self.state, state):
+                    logger.debug("Cancelling request to change from %s to %s", self.state.__name__, self.requested_state.__name__)
+                    self.requested_state = self.state
+                    self._state_requested = False
+                    self.cond.notify_all()
+                    return True
+            elif not _can_request(self.state, state):
                 logger.debug("Ignoring invalid request to change from %s to %s", self.state.__name__, state.__name__)
-                return False
-            # A pending request may only be replaced by a state it could transition to.
-            if self._state_requested and not self.requested_state.can_transition_to(state):
-                logger.debug("Ignoring request to change to %s while a change to %s is pending", state.__name__, self.requested_state.__name__)
                 return False
             logger.debug("Requesting state change from %s to %s", self.state.__name__, state.__name__)
             self.requested_state = state

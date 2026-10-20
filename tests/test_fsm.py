@@ -9,6 +9,7 @@ from pytest_mock import MockerFixture
 
 from ohmqtt.connection import Address
 from ohmqtt.connection.fsm import FSM, InvalidStateError
+from ohmqtt.connection.states import ClosedState, ClosingState, ConnectingState, ReconnectWaitState, ShutdownState
 from ohmqtt.connection.states.base import FSMState
 from ohmqtt.connection.types import ConnectParams, StateData, StateEnvironment
 
@@ -329,6 +330,26 @@ def test_fsm_request_state_replace_pending(env: StateEnvironment) -> None:
     fsm.loop_once()
     assert fsm.state == MockStateC
     assert fsm.previous_state == MockStateA
+
+
+def test_fsm_request_state_cancel_pending(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=ClosedState, error_state=ShutdownState)
+
+    # Closing can follow Connecting, but can't be requested from Closed, so it cancels the request.
+    assert fsm.request_state(ConnectingState) is True
+    assert fsm.request_state(ClosingState) is True
+    assert fsm.state_requested() is False
+    assert fsm.requested_state == ClosedState
+    assert fsm.state == ClosedState
+
+
+def test_fsm_request_state_replace_pending_reconnect(env: StateEnvironment) -> None:
+    fsm = FSM(env=env, init_state=ReconnectWaitState, error_state=ShutdownState)
+
+    assert fsm.request_state(ConnectingState) is True
+    assert fsm.request_state(ClosingState) is True
+    assert fsm.state_requested() is True
+    assert fsm.requested_state == ClosingState
 
 
 def test_fsm_request_state_after_enter(env: StateEnvironment, mocker: MockerFixture) -> None:

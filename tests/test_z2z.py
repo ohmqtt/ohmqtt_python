@@ -303,6 +303,19 @@ def test_z2z_disconnect_after_shutdown(broker: FakeBroker) -> None:
     client.wait_for_shutdown(timeout=1.0)
 
 
+def test_z2z_disconnect_before_connect(broker: FakeBroker) -> None:
+    client = Client()
+    client.connect(f"localhost:{broker.port}", client_id="test_client")
+    client.disconnect()
+    assert client.loop_until_connected(timeout=1.0) is False
+    assert not broker.received
+
+    client.connect(f"localhost:{broker.port}", client_id="test_client")
+    assert client.loop_until_connected(timeout=1.0) is True
+    client.shutdown()
+    client.loop_forever()
+
+
 def test_z2z_wait_for_connect_error() -> None:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
