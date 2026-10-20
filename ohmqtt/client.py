@@ -169,6 +169,7 @@ class Client:
         :param properties: Properties for the PUBLISH packet.
         :param alias_policy: The policy for using automatic topic aliases.
         :raises ValueError: The topic or ResponseTopic is not a valid topic name, or a QoS 1 or 2 message can't be encoded.
+        :raises MQTTError: The server doesn't support the QoS level or retained messages.
         """
         validate_topic(topic)
         if properties is not None and properties.ResponseTopic is not None:

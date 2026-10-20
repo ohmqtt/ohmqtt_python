@@ -417,6 +417,69 @@ def test_session_handle_connack_no_client_id(mock_handlers: Mock, mock_subscript
     assert excinfo.value.reason_code == MQTTReasonCode.ProtocolError
 
 
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+@pytest.mark.parametrize("max_qos", [MQTTQoS.Q0, MQTTQoS.Q1])
+@pytest.mark.parametrize("qos", [MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
+def test_session_publish_max_qos(db_path: str, max_qos: MQTTQoS, qos: MQTTQoS, mock_handlers: Mock,
+                                 mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client"))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(MaximumQoS=max_qos)))
+    mock_connection.can_send.return_value = True
+
+    if qos > max_qos:
+        with pytest.raises(MQTTError) as excinfo:
+            session.publish("test/topic", b"test payload", qos=qos)
+        assert excinfo.value.reason_code == MQTTReasonCode.QoSNotSupported
+        mock_connection.send.assert_not_called()
+        assert len(session.persistence) == 0
+    else:
+        session.publish("test/topic", b"test payload", qos=qos)
+        assert mock_connection.send.call_args.args[0].qos == qos
+
+
+@pytest.mark.parametrize("db_path", ["", ":memory:"])
+@pytest.mark.parametrize("retain_available", [None, True, False])
+@pytest.mark.parametrize("qos", [MQTTQoS.Q0, MQTTQoS.Q1, MQTTQoS.Q2])
+def test_session_publish_retain_available(db_path: str, retain_available: bool | None, qos: MQTTQoS, mock_handlers: Mock,
+                                          mock_subscriptions: Mock, mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection, db_path=db_path)
+    session.set_params(ConnectParams(client_id="test_client"))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(RetainAvailable=retain_available)))
+    mock_connection.can_send.return_value = True
+
+    session.publish("test/topic", b"test payload", qos=qos)
+    assert mock_connection.send.call_args.args[0].retain is False
+    mock_connection.send.reset_mock()
+
+    if retain_available is False:
+        with pytest.raises(MQTTError) as excinfo:
+            session.publish("test/topic", b"test payload", qos=qos, retain=True)
+        assert excinfo.value.reason_code == MQTTReasonCode.RetainNotSupported
+        mock_connection.send.assert_not_called()
+    else:
+        session.publish("test/topic", b"test payload", qos=qos, retain=True)
+        assert mock_connection.send.call_args.args[0].retain is True
+
+
+def test_session_publish_capabilities_reset_on_connection(mock_handlers: Mock, mock_subscriptions: Mock,
+                                                          mock_connection: Mock) -> None:
+    session = Session(mock_handlers, mock_subscriptions, mock_connection)
+    session.set_params(ConnectParams(client_id="test_client"))
+    session.handle_connack(MQTTConnAckPacket(properties=MQTTConnAckProps(MaximumQoS=0, RetainAvailable=False)))
+    mock_connection.can_send.return_value = True
+    with pytest.raises(MQTTError):
+        session.publish("test/topic", b"test payload", qos=MQTTQoS.Q1)
+    with pytest.raises(MQTTError):
+        session.publish("test/topic", b"test payload", retain=True)
+
+    session.handle_connack(MQTTConnAckPacket(session_present=True))
+    session.publish("test/topic", b"test payload", qos=MQTTQoS.Q2, retain=True)
+    sent = mock_connection.send.call_args.args[0]
+    assert sent.qos == MQTTQoS.Q2
+    assert sent.retain is True
+
+
 def test_session_slots(mock_handlers: Mock, mock_subscriptions: Mock, mock_connection: Mock) -> None:
     session = Session(mock_handlers, mock_subscriptions, mock_connection)
     assert not hasattr(session, "__dict__")

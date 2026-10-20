@@ -42,7 +42,9 @@ class Session:
         "inflight",
         "params",
         "persistence",
+        "server_max_qos",
         "server_receive_maximum",
+        "server_retain_available",
         "subscriptions",
         "topic_alias",
     )
@@ -68,6 +70,8 @@ class Session:
         else:
             self.persistence = InMemoryPersistence()
         self.server_receive_maximum = 0
+        self.server_max_qos = MQTTQoS.Q2
+        self.server_retain_available = True
 
         handlers.register(MQTTConnAckPacket, self.handle_connack)
         handlers.register(MQTTPublishPacket, self.handle_publish)
@@ -90,7 +94,13 @@ class Session:
         properties: MQTTPublishProps | None = None,
         alias_policy: AliasPolicy = AliasPolicy.NEVER,
     ) -> PublishHandle:
-        """Publish a message to a topic."""
+        """Publish a message to a topic.
+
+        :raises MQTTError: The server doesn't support the QoS or retain flag."""
+        if qos > self.server_max_qos:
+            raise MQTTError(f"Server maximum QoS is {self.server_max_qos}", MQTTReasonCode.QoSNotSupported)
+        if retain and not self.server_retain_available:
+            raise MQTTError("Server does not support retained messages", MQTTReasonCode.RetainNotSupported)
         properties = copy.copy(properties) if properties is not None else MQTTPublishProps()
         if qos > MQTTQoS.Q0:
             # Never persist a message which can't be sent.
@@ -181,6 +191,11 @@ class Session:
                 self.server_receive_maximum = packet.properties.ReceiveMaximum
             else:
                 self.server_receive_maximum = MAX_PACKET_ID - 1
+            if packet.properties.MaximumQoS is not None:
+                self.server_max_qos = MQTTQoS(packet.properties.MaximumQoS)
+            else:
+                self.server_max_qos = MQTTQoS.Q2
+            self.server_retain_available = packet.properties.RetainAvailable is not False
             if packet.properties.TopicAliasMaximum is not None:
                 self.topic_alias.max_alias = packet.properties.TopicAliasMaximum
             else:
