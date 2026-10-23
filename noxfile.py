@@ -14,7 +14,7 @@ ALL_PYTHONS = [
 ]
 
 # Include free threading builds where available
-FT_PYTHONS = ["3.14"]
+FT_PYTHONS = ["3.14", "3.15"]
 for py in FT_PYTHONS:
     if py in ALL_PYTHONS:
         ALL_PYTHONS.append(f"{py}t")
