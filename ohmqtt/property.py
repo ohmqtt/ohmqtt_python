@@ -1,13 +1,7 @@
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
-from typing import Any, Callable, cast, ClassVar, Final, Mapping, NamedTuple, Sequence, TypeAlias
-
-if sys.version_info >= (3, 11):
-    from typing import dataclass_transform, Self
-else:
-    from typing_extensions import dataclass_transform, Self
+from typing import Any, Callable, cast, ClassVar, dataclass_transform, Final, Mapping, NamedTuple, Self, Sequence, TypeAlias
 
 from .error import MQTTError
 from .mqtt_spec import MQTTPropertyId, MQTTReasonCode

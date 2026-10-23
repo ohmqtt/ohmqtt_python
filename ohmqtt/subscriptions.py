@@ -284,7 +284,7 @@ class Subscriptions:
             for sub in subs:
                 try:
                     sub.callback(client, packet)
-                except Exception:  # noqa: PERF203
+                except Exception:
                     logger.exception("Unhandled exception in subscription callback")
 
     def handle_suback(self, packet: MQTTSubAckPacket) -> None:

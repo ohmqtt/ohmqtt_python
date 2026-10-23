@@ -1,15 +1,9 @@
 from __future__ import annotations
 
 import ssl
-import sys
 import threading
-from typing import Final, Sequence
+from typing import Final, Self, Sequence
 import weakref
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 from .connection import Address, ConnectParams, Connection, MessageHandlers
 from .handles import PublishHandle, SubscribeHandle, UnsubscribeHandle

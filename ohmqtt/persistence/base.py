@@ -1,6 +1,5 @@
 from abc import ABCMeta, abstractmethod
-import sys
-from typing import ClassVar, NamedTuple, Sequence
+from typing import ClassVar, NamedTuple, Self, Sequence
 
 from ..handles import PublishHandle
 from ..mqtt_spec import MQTTQoS
@@ -13,11 +12,6 @@ from ..packet import (
 )
 from ..property import MQTTPublishProps
 from ..topic_alias import AliasPolicy
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 
 class LostMessageError(Exception):

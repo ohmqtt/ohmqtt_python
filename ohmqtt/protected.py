@@ -1,14 +1,8 @@
 from __future__ import annotations
 
 from functools import wraps
-import sys
 import threading
-from typing import Any, Callable, Concatenate, ParamSpec, TypeAlias, TypeVar, Union
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing import Any, Callable, Concatenate, ParamSpec, Self, TypeAlias, TypeVar, Union
 
 
 LockLike: TypeAlias = Union[threading.RLock, threading.Lock]

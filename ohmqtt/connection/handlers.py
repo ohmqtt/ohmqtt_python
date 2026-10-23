@@ -89,6 +89,6 @@ class MessageHandlers:
         for handler in handlers:
             try:
                 handler(packet)
-            except Exception as exc:  # noqa: PERF203
+            except Exception as exc:
                 exceptions.append(exc)
         return exceptions
